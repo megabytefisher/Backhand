@@ -31,7 +31,8 @@ namespace Backhand.DeviceIO.Slp
             }
         }
 
-        public event EventHandler<SlpPacketReceivedEventArgs>? PacketReceived;
+        public event EventHandler<SlpPacketTransmittedArgs>? ReceivedPacket;
+        public event EventHandler<SlpPacketTransmittedArgs>? SendingPacket;
 
         private SerialPort _serialPort;
 
@@ -70,6 +71,8 @@ namespace Backhand.DeviceIO.Slp
 
         public void SendPacket(SlpPacket packet)
         {
+            SendingPacket?.Invoke(this, new SlpPacketTransmittedArgs(packet));
+
             // Get buffer to hold the serialized packet
             int packetLength = MinPacketSize + Convert.ToInt32(packet.Data.Length);
             SlpSendJob sendJob = new SlpSendJob(packetLength);
@@ -85,8 +88,6 @@ namespace Backhand.DeviceIO.Slp
 
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
         {
-            //cancellationToken ??= CancellationToken.None;
-
             using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _workerCts.Token))
             {
                 Task readerTask = RunReaderAsync(_workerCts.Token);
@@ -148,7 +149,7 @@ namespace Backhand.DeviceIO.Slp
 
         private SequencePosition ReadPackets(ReadOnlySequence<byte> buffer, ref bool firstPacket)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>();
+            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
 
             // If first packet, we need to scan until we find a valid header.
             if (firstPacket)
@@ -193,6 +194,7 @@ namespace Backhand.DeviceIO.Slp
                         firstPacket = false;
                         packetFound = true;
                         bufferReader.Rewind(PacketHeaderSize);
+                        break;
                     }
                     else
                     {
@@ -266,7 +268,7 @@ namespace Backhand.DeviceIO.Slp
                     Data = packetBody
                 };
 
-                PacketReceived?.Invoke(this, new SlpPacketReceivedEventArgs(packet));
+                ReceivedPacket?.Invoke(this, new SlpPacketTransmittedArgs(packet));
             }
 
             return bufferReader.Position;

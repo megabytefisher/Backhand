@@ -6,7 +6,28 @@ using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Utility
 {
-    internal class AsyncFlag
+    public class AsyncFlag : IDisposable
     {
+        private SemaphoreSlim _semaphore;
+
+        public AsyncFlag()
+        {
+            _semaphore = new SemaphoreSlim(0, 1);
+        }
+
+        public void Dispose()
+        {
+            _semaphore.Dispose();
+        }
+
+        public void Set()
+        {
+            _semaphore.Release();
+        }
+
+        public Task WaitAsync()
+        {
+            return _semaphore.WaitAsync();
+        }
     }
 }

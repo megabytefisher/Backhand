@@ -29,8 +29,8 @@ namespace Backhand.DeviceIO.Padp
             IsLongForm  = 0b00010000,
         }
 
-        public event EventHandler<PadpDataReceivedEventArgs>? DataReceived;
-        public bool UseLongForm { get; set; }
+        public event EventHandler<PadpDataReceivedEventArgs>? ReceivedData;
+        public bool UseLongForm { get; set; } = false;
 
         private SlpDevice _device;
 
@@ -51,12 +51,12 @@ namespace Backhand.DeviceIO.Padp
             _remoteSocketId = remoteSocketId;
             _transactionId = initialTransactionId;
 
-            _device.PacketReceived += SlpPacketReceived;
+            _device.ReceivedPacket += SlpPacketReceived;
         }
 
         public void Dispose()
         {
-            _device.PacketReceived -= SlpPacketReceived;
+            _device.ReceivedPacket -= SlpPacketReceived;
         }
 
         public void BumpTransactionId()
@@ -68,7 +68,7 @@ namespace Backhand.DeviceIO.Padp
             }
         }
 
-        public async Task SendData(byte[] data)
+        public async Task SendData(Memory<byte> data)
         {
             for (int offset = 0; offset < data.Length; offset += PadpMtu)
             {
@@ -83,13 +83,13 @@ namespace Backhand.DeviceIO.Padp
                 ushort sizeOrOffset = first ? (ushort)data.Length : (ushort)offset;
 
                 Task ackWaitTask = WaitForAckAsync(sizeOrOffset);
-                SendFragment(PadpFragmentType.Data, flags, sizeOrOffset, ((Span<byte>)data).Slice(offset, txSize));
+                SendFragment(PadpFragmentType.Data, flags, sizeOrOffset, data.Span.Slice(offset, txSize));
 
                 await ackWaitTask;
             }
         }
 
-        private void SlpPacketReceived(object? sender, SlpPacketReceivedEventArgs e)
+        private void SlpPacketReceived(object? sender, SlpPacketTransmittedArgs e)
         {
             if (e.Packet.PacketType != PadpSlpPacketType || e.Packet.DestinationSocket != _localSocketId || e.Packet.SourceSocket != _remoteSocketId)
                 return;
@@ -121,7 +121,7 @@ namespace Backhand.DeviceIO.Padp
             // Last packet? Publish data.
             if (flags.HasFlag(PadpFragmentFlags.Last))
             {
-                DataReceived?.Invoke(this, new PadpDataReceivedEventArgs(_readBuffer.AsSequence()));
+                ReceivedData?.Invoke(this, new PadpDataReceivedEventArgs(_readBuffer.AsSequence()));
                 _readBuffer.Dispose();
                 _readBuffer = null;
             }
@@ -129,7 +129,7 @@ namespace Backhand.DeviceIO.Padp
 
         private SequencePosition ReadFragmentHeader(ReadOnlySequence<byte> fragment, out PadpFragmentType type, out PadpFragmentFlags flags, out uint sizeOrOffset)
         {
-            SequenceReader<byte> fragmentReader = new SequenceReader<byte>();
+            SequenceReader<byte> fragmentReader = new SequenceReader<byte>(fragment);
             if (fragmentReader.Remaining < 2)
                 throw new PadpException("PADP fragment too small; could not read type/flags");
 
@@ -180,7 +180,7 @@ namespace Backhand.DeviceIO.Padp
                 SourceSocket = _localSocketId,
                 PacketType = PadpSlpPacketType,
                 TransactionId = _transactionId,
-                Data = new ReadOnlySequence<byte>(padpBuffer)
+                Data = new ReadOnlySequence<byte>(padpBuffer).Slice(0, packetSize)
             };
 
             // Send SLP packet
@@ -199,7 +199,7 @@ namespace Backhand.DeviceIO.Padp
         {
             using AsyncFlag ackFlag = new AsyncFlag();
 
-            Action<object?, SlpPacketReceivedEventArgs> ackReceiver = (sender, e) =>
+            Action<object?, SlpPacketTransmittedArgs> ackReceiver = (sender, e) =>
             {
                 // Does the packet have correct destination/source socket? Is it a PADP packet?
                 if (e.Packet.PacketType != PadpSlpPacketType || e.Packet.DestinationSocket != _localSocketId || e.Packet.SourceSocket != _remoteSocketId)
@@ -218,9 +218,9 @@ namespace Backhand.DeviceIO.Padp
                 ackFlag.Set();
             };
 
-            _device.PacketReceived += ackReceiver.Invoke;
+            _device.ReceivedPacket += ackReceiver.Invoke;
             await ackFlag.WaitAsync();
-            _device.PacketReceived -= ackReceiver.Invoke;
+            _device.ReceivedPacket -= ackReceiver.Invoke;
         }
     }
 }

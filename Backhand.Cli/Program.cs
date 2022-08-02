@@ -1,4 +1,6 @@
-﻿using Backhand.DeviceIO.Slp;
+﻿using Backhand.DeviceIO.Cmp;
+using Backhand.DeviceIO.Padp;
+using Backhand.DeviceIO.Slp;
 
 namespace Backhand.Cli
 {
@@ -6,16 +8,31 @@ namespace Backhand.Cli
     {
         static async Task Main(string[] args)
         {
-            SlpDevice slp = new SlpDevice("COM3");
-            Task t1 = slp.RunIOAsync();
+            using SlpDevice slp = new SlpDevice("COM4");
 
-            await Task.Delay(1000);
+            slp.ReceivedPacket += (s, e) =>
+            {
+                Console.WriteLine("RECV");
+                Console.WriteLine(e.Packet);
+                Console.WriteLine();
+            };
 
-            slp.Dispose();
+            slp.SendingPacket += (s, e) =>
+            {
+                Console.WriteLine("SEND");
+                Console.WriteLine(e.Packet);
+                Console.WriteLine();
+            };
 
-            await Task.Delay(1000);
+            using PadpConnection padp = new PadpConnection(slp, 3, 3, 0xff);
 
-            await t1.ConfigureAwait(false);
+            CmpConnection cmp = new CmpConnection(padp);
+
+            Task ioTask = slp.RunIOAsync();
+
+            await cmp.DoHandshakeAsync();
+
+            await ioTask;
         }
     }
 }

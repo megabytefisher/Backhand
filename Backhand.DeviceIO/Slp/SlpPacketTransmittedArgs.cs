@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Slp
 {
-    public class SlpPacketReceivedEventArgs : EventArgs
+    public class SlpPacketTransmittedArgs : EventArgs
     {
         public SlpPacket Packet { get; private init; }
 
-        public SlpPacketReceivedEventArgs(SlpPacket packet)
+        public SlpPacketTransmittedArgs(SlpPacket packet)
         {
             Packet = packet;
         }

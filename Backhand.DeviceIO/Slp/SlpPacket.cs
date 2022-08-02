@@ -14,5 +14,13 @@ namespace Backhand.DeviceIO.Slp
         public byte PacketType { get; set; }
         public byte TransactionId { get; set; }
         public ReadOnlySequence<byte> Data { get; set; }
+
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder();
+            result.AppendLine($"Dest: {DestinationSocket}, Src: {SourceSocket}, Type: {PacketType}, TxId: {TransactionId}, Data Length: {Data.Length}");
+            result.Append(BitConverter.ToString(Data.ToArray()));
+            return result.ToString();
+        }
     }
 }
