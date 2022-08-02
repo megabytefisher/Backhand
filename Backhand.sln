@@ -5,6 +5,10 @@ VisualStudioVersion = 17.2.32519.379
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand", "Backhand\Backhand.csproj", "{1379BC52-19E2-43B2-B676-A30ED57B1A46}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.DeviceIO", "Backhand.DeviceIO\Backhand.DeviceIO.csproj", "{39216AF5-9802-481A-B079-0B24285B7AAD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.Cli", "Backhand.Cli\Backhand.Cli.csproj", "{08F1A5C9-B741-40F4-9304-97C6D00D2ED8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +19,14 @@ Global
 		{1379BC52-19E2-43B2-B676-A30ED57B1A46}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1379BC52-19E2-43B2-B676-A30ED57B1A46}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1379BC52-19E2-43B2-B676-A30ED57B1A46}.Release|Any CPU.Build.0 = Release|Any CPU
+		{39216AF5-9802-481A-B079-0B24285B7AAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{39216AF5-9802-481A-B079-0B24285B7AAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{39216AF5-9802-481A-B079-0B24285B7AAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{39216AF5-9802-481A-B079-0B24285B7AAD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08F1A5C9-B741-40F4-9304-97C6D00D2ED8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08F1A5C9-B741-40F4-9304-97C6D00D2ED8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08F1A5C9-B741-40F4-9304-97C6D00D2ED8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08F1A5C9-B741-40F4-9304-97C6D00D2ED8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
