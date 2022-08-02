@@ -28,6 +28,7 @@ namespace Backhand.DeviceIO.Dlp
             byte hour = reader.Read();
             byte minute = reader.Read();
             byte second = reader.Read();
+            reader.Advance(1); // Padding byte
 
             return new DateTime(year, month, day, hour, minute, second);
         }

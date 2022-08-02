@@ -1,4 +1,5 @@
 ﻿using Backhand.DeviceIO.Cmp;
+using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Slp;
 
@@ -31,6 +32,10 @@ namespace Backhand.Cli
             Task ioTask = slp.RunIOAsync();
 
             await cmp.DoHandshakeAsync();
+
+            DlpConnection dlp = new DlpConnection(padp);
+            DlpArgumentCollection requestArgs = new DlpArgumentCollection();
+            DlpArgumentCollection responseArgs = await dlp.Execute(DlpCommandDefinitions.ReadUserInfo, requestArgs);
 
             await ioTask;
         }

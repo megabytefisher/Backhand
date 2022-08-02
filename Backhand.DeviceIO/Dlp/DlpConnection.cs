@@ -109,7 +109,7 @@ namespace Backhand.DeviceIO.Dlp
         private DlpArgumentCollection ReadDlpResponse(DlpCommandDefinition command, ReadOnlySequence<byte> buffer)
         {
             DlpArgumentCollection result = new DlpArgumentCollection();
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>();
+            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
 
             DlpOpcode opcode = (DlpOpcode)(bufferReader.Read() & ~DlpResponseIdBitmask);
             byte argCount = bufferReader.Read();
