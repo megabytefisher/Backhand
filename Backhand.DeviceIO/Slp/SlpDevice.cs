@@ -14,11 +14,28 @@ namespace Backhand.DeviceIO.Slp
 {
     public class SlpDevice : IDisposable
     {
+        private class SlpSendJob : IDisposable
+        {
+            public int Length { get; set; }
+            public byte[] Buffer { get; set; }
+
+            public SlpSendJob(int length)
+            {
+                Length = length;
+                Buffer = ArrayPool<byte>.Shared.Rent(length);
+            }
+
+            public void Dispose()
+            {
+                ArrayPool<byte>.Shared.Return(Buffer);
+            }
+        }
+
         public event EventHandler<SlpPacketReceivedEventArgs>? PacketReceived;
 
         private SerialPort _serialPort;
 
-        private BufferBlock<SlpPacket> _sendQueue;
+        private BufferBlock<SlpSendJob> _sendQueue;
         private CancellationTokenSource _workerCts;
         private ManualResetEventSlim _workerExited;
 
@@ -32,7 +49,7 @@ namespace Backhand.DeviceIO.Slp
 
         public SlpDevice(string serialPortName)
         {
-            _sendQueue = new BufferBlock<SlpPacket>();
+            _sendQueue = new BufferBlock<SlpSendJob>();
             _workerCts = new CancellationTokenSource();
             _workerExited = new ManualResetEventSlim();
 
@@ -53,7 +70,14 @@ namespace Backhand.DeviceIO.Slp
 
         public void SendPacket(SlpPacket packet)
         {
-            if (!_sendQueue.Post(packet))
+            // Get buffer to hold the serialized packet
+            int packetLength = MinPacketSize + Convert.ToInt32(packet.Data.Length);
+            SlpSendJob sendJob = new SlpSendJob(packetLength);
+
+            // Write packet to buffer
+            WritePacket(packet, sendJob.Buffer);
+
+            if (!_sendQueue.Post(sendJob))
             {
                 throw new SlpException("Failed to enqueue send packet");
             }
@@ -109,14 +133,16 @@ namespace Backhand.DeviceIO.Slp
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                SlpPacket sendPacket = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+                SlpSendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
 
-                int packetLength = MinPacketSize + (int)sendPacket.Data.Length;
-                Memory<byte> sendBuffer = serialPortWriter.GetMemory(packetLength);
-                WritePacket(sendPacket, sendBuffer.Span);
+                Memory<byte> sendBuffer = serialPortWriter.GetMemory(sendJob.Length);
+                sendJob.Buffer.CopyTo(sendBuffer);
 
-                serialPortWriter.Advance(packetLength);
+                serialPortWriter.Advance(sendJob.Length);
                 await serialPortWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+                // Dispose sendJob to return allocated array to pool
+                sendJob.Dispose();
             }
         }
 

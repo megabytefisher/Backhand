@@ -151,36 +151,43 @@ namespace Backhand.DeviceIO.Padp
         private void SendFragment(PadpFragmentType type, PadpFragmentFlags flags, uint sizeOrOffset, Span<byte> clientData)
         {
             // Get buffer to hold packet..
-            byte[] padpPacket = new byte[clientData.Length + (UseLongForm ? 6 : 4)];
+            int packetSize = clientData.Length + (UseLongForm ? 6 : 4);
+            byte[] padpBuffer = ArrayPool<byte>.Shared.Rent(packetSize);
 
             // Write header
             int offset = 0;
-            padpPacket[offset++] = (byte)type;
-            padpPacket[offset++] = (byte)flags;
+            padpBuffer[offset++] = (byte)type;
+            padpBuffer[offset++] = (byte)flags;
 
             if (UseLongForm)
             {
-                BinaryPrimitives.WriteUInt32BigEndian(((Span<byte>)padpPacket).Slice(offset, 4), sizeOrOffset);
+                BinaryPrimitives.WriteUInt32BigEndian(((Span<byte>)padpBuffer).Slice(offset, 4), sizeOrOffset);
                 offset += 4;
             }
             else
             {
-                BinaryPrimitives.WriteUInt16BigEndian(((Span<byte>)padpPacket).Slice(offset, 2), Convert.ToUInt16(sizeOrOffset));
+                BinaryPrimitives.WriteUInt16BigEndian(((Span<byte>)padpBuffer).Slice(offset, 2), Convert.ToUInt16(sizeOrOffset));
                 offset += 2;
             }
 
-            clientData.CopyTo(((Span<byte>)padpPacket).Slice(offset));
+            // Write client data
+            clientData.CopyTo(((Span<byte>)padpBuffer).Slice(offset));
 
+            // Build into SLP packet
             SlpPacket slpPacket = new SlpPacket
             {
                 DestinationSocket = _remoteSocketId,
                 SourceSocket = _localSocketId,
                 PacketType = PadpSlpPacketType,
                 TransactionId = _transactionId,
-                Data = new ReadOnlySequence<byte>(padpPacket)
+                Data = new ReadOnlySequence<byte>(padpBuffer)
             };
 
+            // Send SLP packet
             _device.SendPacket(slpPacket);
+
+            // Return buffer to pool
+            ArrayPool<byte>.Shared.Return(padpBuffer);
         }
 
         private void SendAck(PadpFragmentFlags flags, ushort sizeOrOffset)
