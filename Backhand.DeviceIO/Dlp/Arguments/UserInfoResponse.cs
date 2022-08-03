@@ -6,9 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Dlp.Arguments.Response
+namespace Backhand.DeviceIO.Dlp.Arguments
 {
-    public class DeviceUserInfo : DlpArgument
+    public class UserInfoResponse : DlpArgument
     {
         public uint UserId { get; set; }
         public uint ViewerId { get; set; }
@@ -28,7 +28,7 @@ namespace Backhand.DeviceIO.Dlp.Arguments.Response
             throw new NotImplementedException();
         }
 
-        public override int Deserialize(ReadOnlySequence<byte> buffer)
+        public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
             SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
 
@@ -47,7 +47,7 @@ namespace Backhand.DeviceIO.Dlp.Arguments.Response
             buffer.Slice(bufferReader.Position, passwordLength).CopyTo(Password);
             bufferReader.Advance(passwordLength);
 
-            return 30 + usernameLength + passwordLength;
+            return bufferReader.Position;
         }
     }
 }

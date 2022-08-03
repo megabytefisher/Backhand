@@ -1,4 +1,4 @@
-﻿using Backhand.DeviceIO.Dlp.Arguments.Response;
+﻿using Backhand.DeviceIO.Dlp.Arguments;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,35 +11,47 @@ namespace Backhand.DeviceIO.Dlp
     {
         public static class ReadUserInfoArgs
         {
-            public static readonly DlpArgumentDefinition<DeviceUserInfo> ResponseUserInfo = new DlpArgumentDefinition<DeviceUserInfo>(false);
+            public static readonly DlpArgumentDefinition<UserInfoResponse> UserInfoResponse = new DlpArgumentDefinition<UserInfoResponse>(false);
         }
 
         public static readonly DlpCommandDefinition ReadUserInfo = new DlpCommandDefinition(
             DlpOpcode.ReadUserInfo,
             new DlpArgumentDefinition[] { },
-            new DlpArgumentDefinition[] { ReadUserInfoArgs.ResponseUserInfo });
+            new DlpArgumentDefinition[] { ReadUserInfoArgs.UserInfoResponse });
 
-        /*public static class ReadSysInfoArgs
+        public static class ReadSysInfoArgs
         {
-            public static readonly DlpArgumentDefinition<HostSysInfo> RequestHostSysInfo = new DlpArgumentDefinition<HostSysInfo>(false);
+            public static readonly DlpArgumentDefinition<ReadSysInfoRequest> ReadSysInfoRequest = new DlpArgumentDefinition<ReadSysInfoRequest>();
 
-            public static readonly DlpArgumentDefinition<DeviceSysInfo> ResponseDeviceSysInfo = new DlpArgumentDefinition<DeviceSysInfo>(false);
-            public static readonly DlpArgumentDefinition<DeviceSysVersionInfo> ResponseDeviceSysVersionInfo = new DlpArgumentDefinition<DeviceSysVersionInfo>(false);
+            public static readonly DlpArgumentDefinition<ReadSysInfoResponse> ReadSysInfoResponse = new DlpArgumentDefinition<ReadSysInfoResponse>();
+            public static readonly DlpArgumentDefinition<ReadSysInfoDlpResponse> ReadSysInfoDlpResponse = new DlpArgumentDefinition<ReadSysInfoDlpResponse>();
         }
 
         public static readonly DlpCommandDefinition ReadSysInfo = new DlpCommandDefinition(
             DlpOpcode.ReadSysInfo,
-            new DlpArgumentDefinition[] { ReadSysInfoArgs.RequestHostSysInfo },
-            new DlpArgumentDefinition[] { ReadSysInfoArgs.ResponseDeviceSysInfo, ReadSysInfoArgs.ResponseDeviceSysVersionInfo });
+            new DlpArgumentDefinition[] { ReadSysInfoArgs.ReadSysInfoRequest },
+            new DlpArgumentDefinition[] { ReadSysInfoArgs.ReadSysInfoResponse, ReadSysInfoArgs.ReadSysInfoDlpResponse });
+
+        public static class ReadDbListArgs
+        {
+            public static readonly DlpArgumentDefinition<ReadDbListRequest> ReadDbListRequest = new DlpArgumentDefinition<ReadDbListRequest>();
+
+            public static readonly DlpArgumentDefinition<ReadDbListResponse> ReadDbListResponse = new DlpArgumentDefinition<ReadDbListResponse>();
+        }
+
+        public static readonly DlpCommandDefinition ReadDbList = new DlpCommandDefinition(
+            DlpOpcode.ReadDbList,
+            new DlpArgumentDefinition[] { ReadDbListArgs.ReadDbListRequest },
+            new DlpArgumentDefinition[] { ReadDbListArgs.ReadDbListResponse });
 
         public static class EndOfSyncArgs
         {
-            public static readonly DlpArgumentDefinition<EndOfSyncInfo> RequestEndOfSyncInfo = new DlpArgumentDefinition<EndOfSyncInfo>(false);
+            public static readonly DlpArgumentDefinition<EndOfSyncRequest> EndOfSyncRequest = new DlpArgumentDefinition<EndOfSyncRequest>(false);
         }
 
         public static readonly DlpCommandDefinition EndOfSync = new DlpCommandDefinition(
             DlpOpcode.EndOfSync,
-            new DlpArgumentDefinition[] { EndOfSyncArgs.RequestEndOfSyncInfo },
-            new DlpArgumentDefinition[] { });*/
+            new DlpArgumentDefinition[] { EndOfSyncArgs.EndOfSyncRequest },
+            new DlpArgumentDefinition[] { });
     }
 }

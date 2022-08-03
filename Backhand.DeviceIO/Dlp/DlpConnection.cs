@@ -88,12 +88,12 @@ namespace Backhand.DeviceIO.Dlp
 
                 if (argumentSize <= DlpArgTinyMaxSize)
                 {
-                    buffer[offset++] = (byte)((DlpArgIdBase + i) & (int)DlpArgType.Tiny);
+                    buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Tiny);
                     buffer[offset++] = Convert.ToByte(argumentSize);
                 }
                 else if (argumentSize <= DlpArgSmallMaxSize)
                 {
-                    buffer[offset++] = (byte)((DlpArgIdBase + i) & (int)DlpArgType.Small);
+                    buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Small);
                     BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset + 1, 2), Convert.ToUInt16(argumentSize));
                 }
                 else
@@ -117,7 +117,9 @@ namespace Backhand.DeviceIO.Dlp
             if (opcode != command.Opcode)
                 throw new DlpException("Got DLP response for different opcode");
 
-            ushort errorCode = bufferReader.ReadUInt16BigEndian();
+            DlpErrorCode errorCode = (DlpErrorCode)bufferReader.ReadUInt16BigEndian();
+            if (errorCode != DlpErrorCode.Okay)
+                throw new DlpCommandErrorException(errorCode);
 
             for (int i = 0; i < argCount; i++)
             {
@@ -126,7 +128,7 @@ namespace Backhand.DeviceIO.Dlp
                 int argId = argIdWithType & ~(int)DlpArgType.All;
                 int argIndex = argId - DlpArgIdBase;
 
-                int argLength = 0;
+                int argLength;
                 if (argType == DlpArgType.Tiny)
                 {
                     argLength = bufferReader.Read();
@@ -156,11 +158,19 @@ namespace Backhand.DeviceIO.Dlp
         private async Task<DlpArgumentCollection> WaitForResponseAsync(DlpCommandDefinition command)
         {
             using AsyncFlag responseFlag = new AsyncFlag();
+            Exception? exception = null;
             DlpArgumentCollection? result = null;
 
             Action<object?, PadpDataReceivedEventArgs> responseReceiver = (sender, e) =>
             {
-                result = ReadDlpResponse(command, e.Data);
+                try
+                {
+                    result = ReadDlpResponse(command, e.Data);
+                }
+                catch (Exception ex)
+                {
+                    exception = ex;
+                }
                 responseFlag.Set();
             };
 
@@ -168,7 +178,10 @@ namespace Backhand.DeviceIO.Dlp
             await responseFlag.WaitAsync();
             _padp.ReceivedData -= responseReceiver.Invoke;
 
-            return result;
+            if (exception != null)
+                throw exception;
+
+            return result!;
         }
     }
 }

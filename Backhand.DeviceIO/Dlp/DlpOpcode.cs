@@ -10,6 +10,7 @@ namespace Backhand.DeviceIO.Dlp
     {
         ReadUserInfo = 0x10,
         ReadSysInfo = 0x12,
+        ReadDbList = 0x16,
         EndOfSync = 0x2f,
     }
 }

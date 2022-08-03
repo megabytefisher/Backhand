@@ -12,7 +12,7 @@ namespace Backhand.DeviceIO.Dlp
         public Type Type { get; private init; }
         public bool IsOptional { get; private init; }
 
-        public DlpArgumentDefinition(Type type, bool isOptional)
+        public DlpArgumentDefinition(Type type, bool isOptional = false)
         {
             Type = type;
             IsOptional = isOptional;
@@ -23,7 +23,7 @@ namespace Backhand.DeviceIO.Dlp
 
     public class DlpArgumentDefinition<T> : DlpArgumentDefinition where T : DlpArgument, new()
     {
-        public DlpArgumentDefinition(bool isOptional)
+        public DlpArgumentDefinition(bool isOptional = false)
             : base (typeof(T), isOptional)
         {
 
