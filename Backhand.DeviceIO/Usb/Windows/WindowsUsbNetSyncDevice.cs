@@ -8,11 +8,29 @@ using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 
 namespace Backhand.DeviceIO.Usb.Windows
 {
     public class WindowsUsbNetSyncDevice : NetSyncDevice
     {
+        private class SendJob : IDisposable
+        {
+            public byte[] Buffer { get; set; }
+            public int Length { get; set; }
+
+            public SendJob(int length)
+            {
+                Length = length;
+                Buffer = ArrayPool<byte>.Shared.Rent(length);
+            }
+
+            public void Dispose()
+            {
+                ArrayPool<byte>.Shared.Return(Buffer);
+            }
+        }
+
         private class GetExtConnectionInfoResponse
         {
             public byte PortCount { get; set; }
@@ -33,6 +51,8 @@ namespace Backhand.DeviceIO.Usb.Windows
         private byte? _inEndpoint;
         private byte? _outEndpoint;
 
+        private BufferBlock<SendJob> _sendQueue;
+
         // Device-to-host, Vendor, Endpoint
         private const byte UsbControlTransferRequestType = 0xC2;
 
@@ -46,7 +66,8 @@ namespace Backhand.DeviceIO.Usb.Windows
 
         public WindowsUsbNetSyncDevice(USBDeviceInfo usbDeviceInfo)
         {
-            _usbDevice = new USBDevice(usbDeviceInfo); 
+            _usbDevice = new USBDevice(usbDeviceInfo);
+            _sendQueue = new BufferBlock<SendJob>();
         }
 
         public override async Task DoHandshake()
@@ -69,14 +90,16 @@ namespace Backhand.DeviceIO.Usb.Windows
 
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
         {
+            Task netSyncHandshakeTask = DoNetSyncHandshake();
+
             using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, CancellationToken.None))
             {
                 Task readerTask = RunReaderAsync(linkedCts.Token);
-                //Task writerTask = RunWriterAsync(linkedCts.Token);
+                Task writerTask = RunWriterAsync(linkedCts.Token);
 
                 try
                 {
-                    await Task.WhenAny(readerTask).ConfigureAwait(false);
+                    await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -84,7 +107,23 @@ namespace Backhand.DeviceIO.Usb.Windows
                 }
             }
 
-            //_workerExited.Set();
+            await netSyncHandshakeTask;
+        }
+
+        public override void SendPacket(NetSyncPacket packet)
+        {
+            // Get packet length and allocate buffer
+            int packetLength = (int)GetPacketLength(packet);
+            SendJob sendJob = new SendJob(packetLength);
+
+            // Write packet
+            WritePacket(packet, ((Span<byte>)sendJob.Buffer).Slice(0, packetLength));
+
+            // Enqueue send job
+            if (!_sendQueue.Post(sendJob))
+            {
+                throw new NetSyncException("Failed to post packet to send queue");
+            }
         }
 
         private Task RunReaderAsync(CancellationToken cancellationToken)
@@ -139,6 +178,25 @@ namespace Backhand.DeviceIO.Usb.Windows
             await reader.CompleteAsync();
         }
 
+        private async Task RunWriterAsync(CancellationToken cancellationToken)
+        {
+            USBPipe usbPipe = _usbDevice.Interfaces.First().Pipes[_outEndpoint.Value];
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                SendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+
+                TaskCompletionSource writeTcs = new TaskCompletionSource();
+                usbPipe.BeginWrite(sendJob.Buffer, 0, sendJob.Length, (result) =>
+                {
+                    writeTcs.TrySetResult();
+                }, null);
+                await writeTcs.Task;
+
+                sendJob.Dispose();
+            }
+        }
+
         /*private async Task RunWriterAsync(CancellationToken cancellationToken)
         {
             PipeWriter serialPortWriter = PipeWriter.Create(_serialPort.BaseStream);
@@ -157,11 +215,6 @@ namespace Backhand.DeviceIO.Usb.Windows
                 sendJob.Dispose();
             }
         }*/
-
-        public override void SendPacket(NetSyncPacket packet)
-        {
-            
-        }
 
         private GetExtConnectionInfoResponse ReadGetExtConnectionInfoResponse(ReadOnlySequence<byte> buffer)
         {
