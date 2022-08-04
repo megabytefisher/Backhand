@@ -90,8 +90,8 @@ namespace Backhand.DeviceIO.Slp
         {
             using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _workerCts.Token))
             {
-                Task readerTask = RunReaderAsync(_workerCts.Token);
-                Task writerTask = RunWriterAsync(_workerCts.Token);
+                Task readerTask = RunReaderAsync(linkedCts.Token);
+                Task writerTask = RunWriterAsync(linkedCts.Token);
 
                 try
                 {

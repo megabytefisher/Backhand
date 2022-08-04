@@ -3,6 +3,9 @@ using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.Dlp.Arguments;
 using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Slp;
+using Backhand.DeviceIO.Usb.Windows;
+using MadWizard.WinUSBNet;
+using System.Buffers;
 
 namespace Backhand.Cli
 {
@@ -10,7 +13,27 @@ namespace Backhand.Cli
     {
         static async Task Main(string[] args)
         {
-            using SlpDevice slp = new SlpDevice("COM3");
+            USBDeviceInfo deviceInfo = USBDevice.GetDevices("dee824ef-729b-4a0e-9c14-b7117d33a817").FirstOrDefault();
+            WindowsUsbNetSyncDevice netSyncDevice = new WindowsUsbNetSyncDevice(deviceInfo);
+            netSyncDevice.ReceivedPacket += (s, e) =>
+            {
+                Console.WriteLine("RECV NetSync:");
+                Console.WriteLine(BitConverter.ToString(e.Packet.Data.ToArray()));
+            };
+
+            await netSyncDevice.DoHandshake();
+
+            await netSyncDevice.RunIOAsync();
+
+            Console.ReadLine();
+
+
+
+
+
+
+
+            /*using SlpDevice slp = new SlpDevice("COM3");
 
             slp.ReceivedPacket += (s, e) =>
             {
@@ -48,15 +71,15 @@ namespace Backhand.Cli
             });
             DlpArgumentCollection readSysInfoResponseArgs = await dlp.Execute(DlpCommandDefinitions.ReadSysInfo, readSysInfoRequestArgs);
 
-            /*DlpArgumentCollection requestArgs = new DlpArgumentCollection();
-            requestArgs.SetValue(DlpCommandDefinitions.ReadDbListArgs.ReadDbListRequest, new ReadDbListRequest()
-            {
-                Mode = ReadDbListRequest.ReadDbListMode.ListRam,
-                CardId = 0,
-                StartIndex = 0
-            });
+            //DlpArgumentCollection requestArgs = new DlpArgumentCollection();
+            //requestArgs.SetValue(DlpCommandDefinitions.ReadDbListArgs.ReadDbListRequest, new ReadDbListRequest()
+            //{
+            //    Mode = ReadDbListRequest.ReadDbListMode.ListRam,
+            //    CardId = 0,
+            //    StartIndex = 0
+            //});
 
-            DlpArgumentCollection responseArgs = await dlp.Execute(DlpCommandDefinitions.ReadDbList, requestArgs);*/
+            DlpArgumentCollection responseArgs = await dlp.Execute(DlpCommandDefinitions.ReadDbList, requestArgs);
 
             //List<DlpDatabaseMetadata> metadata = await ReadDatabaseMetadata(dlp);
 
@@ -67,7 +90,7 @@ namespace Backhand.Cli
             });
             await dlp.Execute(DlpCommandDefinitions.EndOfSync, endOfSyncRequestArgs);
 
-            await ioTask;
+            await ioTask;*/
         }
 
         private static async Task<List<DlpDatabaseMetadata>> ReadDatabaseMetadata(DlpConnection dlp)
