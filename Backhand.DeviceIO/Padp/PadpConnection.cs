@@ -68,11 +68,11 @@ namespace Backhand.DeviceIO.Padp
             }
         }
 
-        public async Task SendData(Memory<byte> data)
+        public async Task SendData(ReadOnlySequence<byte> data)
         {
             for (int offset = 0; offset < data.Length; offset += PadpMtu)
             {
-                int txSize = Math.Min(data.Length - offset, PadpMtu);
+                uint txSize = (uint)Math.Min(data.Length - offset, PadpMtu);
 
                 bool first = offset == 0;
                 bool last = offset + txSize >= data.Length;
@@ -83,7 +83,7 @@ namespace Backhand.DeviceIO.Padp
                 ushort sizeOrOffset = first ? (ushort)data.Length : (ushort)offset;
 
                 Task ackWaitTask = WaitForAckAsync(sizeOrOffset);
-                SendFragment(PadpFragmentType.Data, flags, sizeOrOffset, data.Span.Slice(offset, txSize));
+                SendFragment(PadpFragmentType.Data, flags, sizeOrOffset, data.Slice(offset, txSize));
 
                 await ackWaitTask;
             }
@@ -148,10 +148,10 @@ namespace Backhand.DeviceIO.Padp
             return fragmentReader.Position;
         }
 
-        private void SendFragment(PadpFragmentType type, PadpFragmentFlags flags, uint sizeOrOffset, Span<byte> clientData)
+        private void SendFragment(PadpFragmentType type, PadpFragmentFlags flags, uint sizeOrOffset, ReadOnlySequence<byte> clientData)
         {
             // Get buffer to hold packet..
-            int packetSize = clientData.Length + (UseLongForm ? 6 : 4);
+            int packetSize = Convert.ToInt32(clientData.Length + (UseLongForm ? 6 : 4));
             byte[] padpBuffer = ArrayPool<byte>.Shared.Rent(packetSize);
 
             // Write header
@@ -192,7 +192,7 @@ namespace Backhand.DeviceIO.Padp
 
         private void SendAck(PadpFragmentFlags flags, ushort sizeOrOffset)
         {
-            SendFragment(PadpFragmentType.Ack, flags, sizeOrOffset, Span<byte>.Empty);
+            SendFragment(PadpFragmentType.Ack, flags, sizeOrOffset, ReadOnlySequence<byte>.Empty);
         }
 
         private async Task WaitForAckAsync(ushort sizeOrOffset)

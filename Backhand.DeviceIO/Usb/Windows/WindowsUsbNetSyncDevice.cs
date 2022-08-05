@@ -12,7 +12,7 @@ using System.Threading.Tasks.Dataflow;
 
 namespace Backhand.DeviceIO.Usb.Windows
 {
-    public class WindowsUsbNetSyncDevice : NetSyncDevice
+    public class WindowsUsbNetSyncDevice : NetSyncDevice, IDisposable
     {
         private class SendJob : IDisposable
         {
@@ -62,33 +62,37 @@ namespace Backhand.DeviceIO.Usb.Windows
         private const int ExtConnectionOutEndpointBitmask = 0b00001111;
         private const int ExtConnectionOutEndpointShift = 0;
 
-        private readonly Guid WinUsbGuid = new Guid("dee824ef-729b-4a0e-9c14-b7117d33a817");
-
         public WindowsUsbNetSyncDevice(USBDeviceInfo usbDeviceInfo)
         {
             _usbDevice = new USBDevice(usbDeviceInfo);
             _sendQueue = new BufferBlock<SendJob>();
         }
 
+        public void Dispose()
+        {
+            _usbDevice.Dispose();
+            
+            if (_sendQueue.TryReceiveAll(out IList<SendJob>? sendJobs))
+            {
+                foreach (SendJob sendJob in sendJobs)
+                {
+                    sendJob.Dispose();
+                }
+            }
+
+            _sendQueue.Complete();
+        }
+
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
         {
             DoHardwareHandshake();
-
-            Task netSyncHandshakeTask = DoNetSyncHandshake();
 
             using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, CancellationToken.None))
             {
                 Task readerTask = RunReaderAsync(linkedCts.Token);
                 Task writerTask = RunWriterAsync(linkedCts.Token);
 
-                try
-                {
-                    await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("EX");
-                }
+                await Task.WhenAll(readerTask, writerTask).ConfigureAwait(false);
             }
         }
 
@@ -124,12 +128,12 @@ namespace Backhand.DeviceIO.Usb.Windows
             _outEndpoint = syncPort.OutEndpoint;
         }
 
-        private Task RunReaderAsync(CancellationToken cancellationToken)
+        private async Task RunReaderAsync(CancellationToken cancellationToken)
         {
             Pipe readerPipe = new Pipe();
-            return Task.WhenAll(
+            await Task.WhenAll(
                 FillReadPipeAsync(readerPipe.Writer, cancellationToken),
-                ProcessReadPipeAsync(readerPipe.Reader, cancellationToken));
+                ProcessReadPipeAsync(readerPipe.Reader, cancellationToken)).ConfigureAwait(false);
         }
 
         private async Task FillReadPipeAsync(PipeWriter writer, CancellationToken cancellationToken)
@@ -140,35 +144,48 @@ namespace Backhand.DeviceIO.Usb.Windows
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                //Memory<byte> memory = writer.GetMemory(minimumBufferSize);
-
-                byte[] readBuffer = ArrayPool<byte>.Shared.Rent(minimumBufferSize);
-
-                TaskCompletionSource<int> readTcs = new TaskCompletionSource<int>();
-                usbPipe.BeginRead(readBuffer, 0, readBuffer.Length, (result) =>
+                try
                 {
-                    readTcs.TrySetResult(usbPipe.EndRead(result));
-                }, null);
-                int bytesRead = await readTcs.Task;
+                    byte[] readBuffer = ArrayPool<byte>.Shared.Rent(minimumBufferSize);
 
-                Memory<byte> pipeBuffer = writer.GetMemory(bytesRead);
-                ((Span<byte>)readBuffer).Slice(0, bytesRead).CopyTo(pipeBuffer.Span);
-                writer.Advance(bytesRead);
+                    TaskCompletionSource<int> readTcs = new TaskCompletionSource<int>();
+                    usbPipe.BeginRead(readBuffer, 0, readBuffer.Length, (result) =>
+                    {
+                        try
+                        {
+                            readTcs.TrySetResult(usbPipe.EndRead(result));
+                        }
+                        catch (Exception ex)
+                        {
+                            readTcs.TrySetException(ex);
+                        }
+                    }, null);
+                    int bytesRead = await readTcs.Task.ConfigureAwait(false);
 
-                FlushResult result = await writer.FlushAsync();
+                    Memory<byte> pipeBuffer = writer.GetMemory(bytesRead);
+                    ((Span<byte>)readBuffer).Slice(0, bytesRead).CopyTo(pipeBuffer.Span);
+                    writer.Advance(bytesRead);
 
-                if (result.IsCompleted)
+                    FlushResult result = await writer.FlushAsync().ConfigureAwait(false);
+
+                    if (result.IsCompleted)
+                        break;
+                }
+                catch (Exception ex)
+                {
+                    // TODO : log
                     break;
+                }
             }
 
-            await writer.CompleteAsync();
+            await writer.CompleteAsync().ConfigureAwait(false);
         }
 
         private async Task ProcessReadPipeAsync(PipeReader reader, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                ReadResult result = await reader.ReadAsync();
+                ReadResult result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
                 ReadOnlySequence<byte> buffer = result.Buffer;
 
                 SequencePosition processedPosition = ReadPackets(buffer);
@@ -179,7 +196,7 @@ namespace Backhand.DeviceIO.Usb.Windows
                     break;
             }
 
-            await reader.CompleteAsync();
+            await reader.CompleteAsync().ConfigureAwait(false);
         }
 
         private async Task RunWriterAsync(CancellationToken cancellationToken)
@@ -196,7 +213,7 @@ namespace Backhand.DeviceIO.Usb.Windows
                     usbPipe.EndWrite(result);
                     writeTcs.TrySetResult();
                 }, null);
-                await writeTcs.Task;
+                await writeTcs.Task.ConfigureAwait(false);
 
                 sendJob.Dispose();
             }

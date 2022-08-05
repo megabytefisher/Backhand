@@ -42,19 +42,17 @@ namespace Backhand.DeviceIO.Cmp
 
         public async Task DoHandshakeAsync()
         {
-            await WaitForWakeUpAsync();
-
             _padp.BumpTransactionId();
 
             byte[] initBuffer = ArrayPool<byte>.Shared.Rent(10);
             WriteInit(initBuffer);
-            await _padp.SendData(((Memory<byte>)initBuffer).Slice(0, 10));
+            await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10));
             ArrayPool<byte>.Shared.Return(initBuffer);
         }
 
-        private async Task WaitForWakeUpAsync()
+        public async Task WaitForWakeUpAsync(CancellationToken cancellationToken = default)
         {
-            using AsyncFlag wakeUpFlag = new AsyncFlag();
+            TaskCompletionSource wakeUpTcs = new TaskCompletionSource();
 
             Action<object?, PadpDataReceivedEventArgs> wakeUpReceiver = (sender, e) =>
             {
@@ -63,11 +61,17 @@ namespace Backhand.DeviceIO.Cmp
                 if (packetReader.Read() != (byte)CmpPacketType.WakeUp)
                     return;
 
-                wakeUpFlag.Set();
+                wakeUpTcs.TrySetResult();
             };
 
+            cancellationToken.Register(() =>
+            {
+                _padp.ReceivedData -= wakeUpReceiver.Invoke;
+                wakeUpTcs.TrySetCanceled();
+            });
+
             _padp.ReceivedData += wakeUpReceiver.Invoke;
-            await wakeUpFlag.WaitAsync();
+            await wakeUpTcs.Task;
             _padp.ReceivedData -= wakeUpReceiver.Invoke;
         }
 
