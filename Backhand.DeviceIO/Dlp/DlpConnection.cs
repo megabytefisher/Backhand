@@ -1,4 +1,5 @@
-﻿using Backhand.DeviceIO.Padp;
+﻿using Backhand.DeviceIO.DlpTransports;
+using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Utility;
 using System;
 using System.Buffers;
@@ -21,7 +22,7 @@ namespace Backhand.DeviceIO.Dlp
             All         = 0b11000000,
         }
 
-        private PadpConnection _padp;
+        private DlpTransport _transport;
 
         private const int DlpRequestHeaderSize = 2;
         private const int DlpResponseHeaderSize = 4;
@@ -32,21 +33,22 @@ namespace Backhand.DeviceIO.Dlp
         private const int DlpArgSmallMaxSize = ushort.MaxValue;
         private const int DlpArgSmallHeaderSize = 4;
 
-        public DlpConnection(PadpConnection padp)
+        public DlpConnection(DlpTransport transport)
         {
-            _padp = padp;
+            _transport = transport;
         }
 
         public async Task<DlpArgumentCollection> Execute(DlpCommandDefinition command, DlpArgumentCollection requestArguments)
         {
             Task<DlpArgumentCollection> responseWaitTask = WaitForResponseAsync(command);
 
+            await Task.Delay(100);
+
             byte[] requestBuffer = new byte[GetRequestSize(requestArguments)];
             WriteDlpRequest(command, requestArguments, requestBuffer);
-            await _padp.SendData(requestBuffer);
+            await _transport.SendPayload(new DlpPayload(new ReadOnlySequence<byte>(requestBuffer)));
 
             DlpArgumentCollection responseArguments = await responseWaitTask;
-            _padp.BumpTransactionId();
             return responseArguments;
         }
 
@@ -106,7 +108,7 @@ namespace Backhand.DeviceIO.Dlp
             }
         }
 
-        private DlpArgumentCollection ReadDlpResponse(DlpCommandDefinition command, ReadOnlySequence<byte> buffer)
+        private DlpArgumentCollection? ReadDlpResponse(DlpCommandDefinition command, ReadOnlySequence<byte> buffer)
         {
             DlpArgumentCollection result = new DlpArgumentCollection();
             SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
@@ -115,7 +117,7 @@ namespace Backhand.DeviceIO.Dlp
             byte argCount = bufferReader.Read();
 
             if (opcode != command.Opcode)
-                throw new DlpException("Got DLP response for different opcode");
+                return null;
 
             DlpErrorCode errorCode = (DlpErrorCode)bufferReader.ReadUInt16BigEndian();
             if (errorCode != DlpErrorCode.Okay)
@@ -161,22 +163,25 @@ namespace Backhand.DeviceIO.Dlp
             Exception? exception = null;
             DlpArgumentCollection? result = null;
 
-            Action<object?, PadpDataReceivedEventArgs> responseReceiver = (sender, e) =>
+            Action<object?, DlpPayloadTransmittedEventArgs> responseReceiver = (sender, e) =>
             {
                 try
                 {
-                    result = ReadDlpResponse(command, e.Data);
+                    result = ReadDlpResponse(command, e.Payload.Buffer);
+
+                    if (result != null)
+                        responseFlag.Set();
                 }
                 catch (Exception ex)
                 {
                     exception = ex;
+                    responseFlag.Set();
                 }
-                responseFlag.Set();
             };
 
-            _padp.ReceivedData += responseReceiver.Invoke;
+            _transport.ReceivedPayload += responseReceiver.Invoke;
             await responseFlag.WaitAsync();
-            _padp.ReceivedData -= responseReceiver.Invoke;
+            _transport.ReceivedPayload -= responseReceiver.Invoke;
 
             if (exception != null)
                 throw exception;

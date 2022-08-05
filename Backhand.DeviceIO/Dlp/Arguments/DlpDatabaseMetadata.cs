@@ -63,22 +63,28 @@ namespace Backhand.DeviceIO.Dlp.Arguments
         public void Deserialize(ref SequenceReader<byte> bufferReader)
         {
             byte length = bufferReader.Read();
-            MiscFlags = bufferReader.Read();
-            Flags = (DatabaseFlags)bufferReader.ReadUInt16BigEndian();
 
-            Type = Encoding.ASCII.GetString(bufferReader.Sequence.Slice(bufferReader.Position, 4));
-            bufferReader.Advance(4);
+            ReadOnlySequence<byte> metadataBuffer = bufferReader.Sequence.Slice(bufferReader.Position, length - 1);
+            SequenceReader<byte> metadataReader = new SequenceReader<byte>(metadataBuffer);
+            
+            MiscFlags = metadataReader.Read();
+            Flags = (DatabaseFlags)metadataReader.ReadUInt16BigEndian();
 
-            Creator = Encoding.ASCII.GetString(bufferReader.Sequence.Slice(bufferReader.Position, 4));
-            bufferReader.Advance(4);
+            Type = Encoding.ASCII.GetString(metadataReader.Sequence.Slice(metadataReader.Position, 4));
+            metadataReader.Advance(4);
 
-            Version = bufferReader.ReadUInt16BigEndian();
-            ModificationNumber = bufferReader.ReadUInt32BigEndian();
-            CreationDate = ReadDlpDateTime(ref bufferReader);
-            ModificationDate = ReadDlpDateTime(ref bufferReader);
-            LastBackupDate = ReadDlpDateTime(ref bufferReader);
-            Index = bufferReader.ReadUInt16BigEndian();
-            Name = ReadNullTerminatedString(ref bufferReader);
+            Creator = Encoding.ASCII.GetString(metadataReader.Sequence.Slice(metadataReader.Position, 4));
+            metadataReader.Advance(4);
+
+            Version = metadataReader.ReadUInt16BigEndian();
+            ModificationNumber = metadataReader.ReadUInt32BigEndian();
+            CreationDate = ReadDlpDateTime(ref metadataReader);
+            ModificationDate = ReadDlpDateTime(ref metadataReader);
+            LastBackupDate = ReadDlpDateTime(ref metadataReader);
+            Index = metadataReader.ReadUInt16BigEndian();
+            Name = ReadNullTerminatedString(ref metadataReader);
+
+            bufferReader.Advance(length - 1);
         }
     }
 }

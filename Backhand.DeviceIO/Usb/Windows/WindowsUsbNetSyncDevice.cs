@@ -70,26 +70,10 @@ namespace Backhand.DeviceIO.Usb.Windows
             _sendQueue = new BufferBlock<SendJob>();
         }
 
-        public override async Task DoHandshake()
-        {
-            // TODO: convert Control methods to async..
-            byte[] result = new byte[20];
-            int len = _usbDevice.ControlIn(UsbControlTransferRequestType, 0x04, 0x00, 0x00, result);
-
-            GetExtConnectionInfoResponse response = ReadGetExtConnectionInfoResponse(new ReadOnlySequence<byte>(result, 0, len));
-
-            ExtConnectionPortInfo? syncPort = response.Ports.FirstOrDefault(p => p.Type == "cnys");
-            if (syncPort == null)
-                throw new NetSyncException("Couldn't find correct USB device port");
-
-            _inEndpoint = (byte)(syncPort.InEndpoint | 0b10000000);
-            _outEndpoint = syncPort.OutEndpoint;
-
-            await base.DoHandshake().ConfigureAwait(false);
-        }
-
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
         {
+            DoHardwareHandshake();
+
             Task netSyncHandshakeTask = DoNetSyncHandshake();
 
             using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, CancellationToken.None))
@@ -106,8 +90,6 @@ namespace Backhand.DeviceIO.Usb.Windows
                     Console.WriteLine("EX");
                 }
             }
-
-            await netSyncHandshakeTask;
         }
 
         public override void SendPacket(NetSyncPacket packet)
@@ -124,6 +106,22 @@ namespace Backhand.DeviceIO.Usb.Windows
             {
                 throw new NetSyncException("Failed to post packet to send queue");
             }
+        }
+
+        private void DoHardwareHandshake()
+        {
+            // TODO: convert Control methods to async..
+            byte[] result = new byte[20];
+            int len = _usbDevice.ControlIn(UsbControlTransferRequestType, 0x04, 0x00, 0x00, result);
+
+            GetExtConnectionInfoResponse response = ReadGetExtConnectionInfoResponse(new ReadOnlySequence<byte>(result, 0, len));
+
+            ExtConnectionPortInfo? syncPort = response.Ports.FirstOrDefault(p => p.Type == "cnys");
+            if (syncPort == null)
+                throw new NetSyncException("Couldn't find correct USB device port");
+
+            _inEndpoint = (byte)(syncPort.InEndpoint | 0b10000000);
+            _outEndpoint = syncPort.OutEndpoint;
         }
 
         private Task RunReaderAsync(CancellationToken cancellationToken)
@@ -146,7 +144,13 @@ namespace Backhand.DeviceIO.Usb.Windows
 
                 byte[] readBuffer = ArrayPool<byte>.Shared.Rent(minimumBufferSize);
 
-                int bytesRead = await Task.Run(() => usbPipe.Read(readBuffer)).ConfigureAwait(false);
+                TaskCompletionSource<int> readTcs = new TaskCompletionSource<int>();
+                usbPipe.BeginRead(readBuffer, 0, readBuffer.Length, (result) =>
+                {
+                    readTcs.TrySetResult(usbPipe.EndRead(result));
+                }, null);
+                int bytesRead = await readTcs.Task;
+
                 Memory<byte> pipeBuffer = writer.GetMemory(bytesRead);
                 ((Span<byte>)readBuffer).Slice(0, bytesRead).CopyTo(pipeBuffer.Span);
                 writer.Advance(bytesRead);
@@ -189,6 +193,7 @@ namespace Backhand.DeviceIO.Usb.Windows
                 TaskCompletionSource writeTcs = new TaskCompletionSource();
                 usbPipe.BeginWrite(sendJob.Buffer, 0, sendJob.Length, (result) =>
                 {
+                    usbPipe.EndWrite(result);
                     writeTcs.TrySetResult();
                 }, null);
                 await writeTcs.Task;

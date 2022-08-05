@@ -57,9 +57,37 @@ namespace Backhand.DeviceIO.NetSync
 
         public abstract void SendPacket(NetSyncPacket packet);
 
-        public virtual Task DoHandshake()
+        public async Task DoNetSyncHandshake()
         {
-            return Task.CompletedTask;
+            // Wait for wakeup
+            await WatchPackets((p) =>
+            {
+                return p.Data.Length == NetSyncHandshakeWakeup.Length && p.TransactionId == 0xff;
+            });
+
+            // Watch for first response
+            Task response1Task = WatchPackets((p) =>
+            {
+                return p.Data.Length == NetSyncHandshakeResponse1.Length;
+            });
+
+            // Send first response
+            SendPacket(new NetSyncPacket(0x02, new ReadOnlySequence<byte>(NetSyncHandshakeRequest1)));
+
+            // Wait for first response
+            await response1Task;
+
+            // Watch for second response
+            Task response2Task = WatchPackets((p) =>
+            {
+                return p.Data.Length == NetSyncHandshakeResponse2.Length;
+            });
+
+            // Send second response
+            SendPacket(new NetSyncPacket(0x03, new ReadOnlySequence<byte>(NetSyncHandshakeRequest2)));
+
+            // Wait for second response
+            await response2Task;
         }
 
         protected SequencePosition ReadPackets(ReadOnlySequence<byte> buffer)
@@ -105,39 +133,6 @@ namespace Backhand.DeviceIO.NetSync
             BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), (uint)packet.Data.Length);
             offset += 4;
             packet.Data.CopyTo(buffer.Slice(offset));
-        }
-
-        protected async Task DoNetSyncHandshake()
-        {
-            // Wait for wakeup
-            await WatchPackets((p) =>
-            {
-                return p.Data.Length == NetSyncHandshakeWakeup.Length && p.TransactionId == 0xff;
-            });
-
-            // Watch for first response
-            Task response1Task = WatchPackets((p) =>
-            {
-                return p.Data.Length == NetSyncHandshakeResponse1.Length;
-            });
-
-            // Send first response
-            SendPacket(new NetSyncPacket(0x02, new ReadOnlySequence<byte>(NetSyncHandshakeRequest1)));
-
-            // Wait for first response
-            await response1Task;
-
-            // Watch for second response
-            Task response2Task = WatchPackets((p) =>
-            {
-                return p.Data.Length == NetSyncHandshakeResponse2.Length;
-            });
-
-            // Send second response
-            SendPacket(new NetSyncPacket(0x03, new ReadOnlySequence<byte>(NetSyncHandshakeRequest2)));
-
-            // Wait for second response
-            await response2Task;
         }
 
         private async Task WatchPackets(Func<NetSyncPacket, bool> handler)

@@ -30,6 +30,9 @@ namespace Backhand.DeviceIO.Dlp
             byte second = reader.Read();
             reader.Advance(1); // Padding byte
 
+            if (year == 0)
+                return DateTime.MinValue;
+
             return new DateTime(year != 0 ? year : 1900, month, day, hour, minute, second);
         }
 
