@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Backhand.DeviceIO.Dlp;
+using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -6,29 +7,24 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Dlp.Arguments
+namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
-    public class EndOfSyncRequest : DlpArgument
+    public class ReadSysInfoRequest : DlpArgument
     {
-        public enum EndOfSyncStatus : ushort
-        {
-            Okay                = 0x00,
-            OutOfMemoryError    = 0x01,
-            UseCancelledError   = 0x02,
-            UnknownError        = 0x03,
-        }
-
-        public EndOfSyncStatus Status { get; set; }
+        public ushort HostDlpVersionMajor { get; set; }
+        public ushort HostDlpVersionMinor { get; set; }
 
         public override int GetSerializedLength()
         {
-            return 2;
+            return 4;
         }
 
         public override int Serialize(Span<byte> buffer)
         {
             int offset = 0;
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(0, 2), (ushort)Status);
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), HostDlpVersionMajor);
+            offset += 2;
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), HostDlpVersionMinor);
             offset += 2;
 
             return offset;

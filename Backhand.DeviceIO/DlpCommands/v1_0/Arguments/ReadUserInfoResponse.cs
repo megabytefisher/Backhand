@@ -1,4 +1,5 @@
-﻿using Backhand.DeviceIO.Utility;
+﻿using Backhand.DeviceIO.Dlp;
+using Backhand.DeviceIO.Utility;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -6,9 +7,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Dlp.Arguments
+namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
-    public class UserInfoResponse : DlpArgument
+    public class ReadUserInfoResponse : DlpArgument
     {
         public uint UserId { get; set; }
         public uint ViewerId { get; set; }

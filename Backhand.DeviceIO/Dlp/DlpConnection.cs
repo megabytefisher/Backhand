@@ -38,11 +38,9 @@ namespace Backhand.DeviceIO.Dlp
             _transport = transport;
         }
 
-        public async Task<DlpArgumentCollection> Execute(DlpCommandDefinition command, DlpArgumentCollection requestArguments)
+        public async Task<DlpArgumentCollection> Execute(DlpCommandDefinition command, DlpArgumentCollection requestArguments, CancellationToken cancellationToken = default)
         {
-            Task<DlpArgumentCollection> responseWaitTask = WaitForResponseAsync(command);
-
-            await Task.Delay(100);
+            Task<DlpArgumentCollection> responseWaitTask = WaitForResponseAsync(command, cancellationToken);
 
             byte[] requestBuffer = new byte[GetRequestSize(requestArguments)];
             WriteDlpRequest(command, requestArguments, requestBuffer);
@@ -157,36 +155,34 @@ namespace Backhand.DeviceIO.Dlp
             return result;
         }
 
-        private async Task<DlpArgumentCollection> WaitForResponseAsync(DlpCommandDefinition command)
+        private async Task<DlpArgumentCollection> WaitForResponseAsync(DlpCommandDefinition command, CancellationToken cancellationToken = default)
         {
-            using AsyncFlag responseFlag = new AsyncFlag();
-            Exception? exception = null;
-            DlpArgumentCollection? result = null;
+            TaskCompletionSource<DlpArgumentCollection> responseTcs = new TaskCompletionSource<DlpArgumentCollection>();
 
             Action<object?, DlpPayloadTransmittedEventArgs> responseReceiver = (sender, e) =>
             {
-                try
-                {
-                    result = ReadDlpResponse(command, e.Payload.Buffer);
+                DlpArgumentCollection? result = ReadDlpResponse(command, e.Payload.Buffer);
 
-                    if (result != null)
-                        responseFlag.Set();
-                }
-                catch (Exception ex)
-                {
-                    exception = ex;
-                    responseFlag.Set();
-                }
+                if (result != null)
+                    responseTcs.TrySetResult(result);
             };
 
             _transport.ReceivedPayload += responseReceiver.Invoke;
-            await responseFlag.WaitAsync();
-            _transport.ReceivedPayload -= responseReceiver.Invoke;
 
-            if (exception != null)
-                throw exception;
-
-            return result!;
+            using (cancellationToken.Register(() =>
+            {
+                responseTcs.SetCanceled();
+            }))
+            {
+                try
+                {
+                    return await responseTcs.Task;
+                }
+                finally
+                {
+                    _transport.ReceivedPayload -= responseReceiver.Invoke;
+                }
+            } 
         }
     }
 }

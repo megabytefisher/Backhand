@@ -34,7 +34,7 @@ namespace Backhand.DeviceIO.Slp
         public event EventHandler<SlpPacketTransmittedArgs>? ReceivedPacket;
         public event EventHandler<SlpPacketTransmittedArgs>? SendingPacket;
 
-        private SerialPort _serialPort;
+        private string _serialPortName;
 
         private BufferBlock<SlpSendJob> _sendQueue;
         private CancellationTokenSource _workerCts;
@@ -54,15 +54,12 @@ namespace Backhand.DeviceIO.Slp
             _workerCts = new CancellationTokenSource();
             _workerExited = new ManualResetEventSlim();
 
-            _serialPort = new SerialPort(serialPortName);
-            _serialPort.BaudRate = 9600;
-            _serialPort.Open();
+            _serialPortName = serialPortName;
         }
 
         public void Dispose()
         {
             _workerCts.Cancel();
-            _serialPort.Dispose(); // dispose serial port early; the read will hang otherwise
             _workerExited.Wait();
 
             _workerCts.Dispose();
@@ -88,33 +85,56 @@ namespace Backhand.DeviceIO.Slp
 
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
         {
-            using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _workerCts.Token))
-            {
-                Task readerTask = RunReaderAsync(linkedCts.Token);
-                Task writerTask = RunWriterAsync(linkedCts.Token);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _workerCts.Token);
 
-                try
-                {
-                    await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("EX");
-                }
+            using SerialPort serialPort = new SerialPort(_serialPortName);
+            serialPort.BaudRate = 9600;
+            serialPort.Open();
+
+            PipeReader serialPortReader = PipeReader.Create(serialPort.BaseStream);
+            PipeWriter serialPortWriter = PipeWriter.Create(serialPort.BaseStream);
+
+            Task readerTask = RunReaderAsync(serialPortReader, linkedCts.Token);
+            Task writerTask = RunWriterAsync(serialPortWriter, linkedCts.Token);
+
+            // Fixes for CancellationToken not working..
+            linkedCts.Token.Register(() =>
+            {
+                serialPort.Dispose();
+                _sendQueue.Complete();
+            });
+
+            // Wait for either task to complete/fail
+            try
+            {
+                await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
+            }
+            catch
+            {
             }
 
-            _workerExited.Set();
+            // Request exit
+            _workerCts.Cancel();
+
+            // Wait for both tasks to complete..
+            try
+            {
+                await Task.WhenAll(readerTask, writerTask).ConfigureAwait(false);
+            }
+            finally
+            {
+                _workerExited.Set();
+            }
         }
 
-        private async Task RunReaderAsync(CancellationToken cancellationToken)
+        private async Task RunReaderAsync(PipeReader reader, CancellationToken cancellationToken)
         {
             bool firstPacket = true;
-            PipeReader serialPortReader = PipeReader.Create(_serialPort.BaseStream);
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 // Attempt reading from serial port
-                ReadResult readResult = await serialPortReader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                ReadResult readResult = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
                 if (readResult.IsCanceled)
                     break;
 
@@ -124,27 +144,32 @@ namespace Backhand.DeviceIO.Slp
                 SequencePosition processedPosition = ReadPackets(buffer, ref firstPacket);
 
                 // Advance the pipe
-                serialPortReader.AdvanceTo(processedPosition, buffer.End);
+                reader.AdvanceTo(processedPosition, buffer.End);
             }
+
+            //await reader.CompleteAsync();
         }
 
-        private async Task RunWriterAsync(CancellationToken cancellationToken)
+        private async Task RunWriterAsync(PipeWriter writer, CancellationToken cancellationToken)
         {
-            PipeWriter serialPortWriter = PipeWriter.Create(_serialPort.BaseStream);
-
             while (!cancellationToken.IsCancellationRequested)
             {
+                //await _sendQueue.OutputAvailableAsync(cancellationToken).ConfigureAwait(false);
                 SlpSendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
 
-                Memory<byte> sendBuffer = serialPortWriter.GetMemory(sendJob.Length);
+                Memory<byte> sendBuffer = writer.GetMemory(sendJob.Length);
                 sendJob.Buffer.CopyTo(sendBuffer);
 
-                serialPortWriter.Advance(sendJob.Length);
-                await serialPortWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
+                writer.Advance(sendJob.Length);
+                FlushResult flushResult = await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+                if (flushResult.IsCompleted)
+                    break;
 
                 // Dispose sendJob to return allocated array to pool
                 sendJob.Dispose();
             }
+            
+            //await writer.CompleteAsync();
         }
 
         private SequencePosition ReadPackets(ReadOnlySequence<byte> buffer, ref bool firstPacket)

@@ -1,5 +1,4 @@
 ﻿using Backhand.DeviceIO.Dlp;
-using Backhand.DeviceIO.Dlp.Arguments;
 using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Usb;
 using Backhand.DeviceIO.Usb.Windows;
@@ -10,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.DlpServer
+namespace Backhand.DeviceIO.DlpServers
 {
     public class UsbDlpServer : DlpServer
     {
@@ -30,7 +29,8 @@ namespace Backhand.DeviceIO.DlpServer
 
         private readonly Guid WinUsbGuid = new Guid("dee824ef-729b-4a0e-9c14-b7117d33a817");
 
-        public UsbDlpServer()
+        public UsbDlpServer(Func<DlpConnection, CancellationToken, Task> syncFunc)
+            : base(syncFunc)
         {
             _activeClients = new List<UsbDlpClient>();
         }

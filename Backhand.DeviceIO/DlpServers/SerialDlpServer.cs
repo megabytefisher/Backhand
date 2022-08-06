@@ -1,6 +1,5 @@
 ﻿using Backhand.DeviceIO.Cmp;
 using Backhand.DeviceIO.Dlp;
-using Backhand.DeviceIO.Dlp.Arguments;
 using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Slp;
@@ -10,13 +9,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.DlpServer
+namespace Backhand.DeviceIO.DlpServers
 {
     public class SerialDlpServer : DlpServer
     {
         private string _portName;
 
-        public SerialDlpServer(string portName)
+        public SerialDlpServer(string portName, Func<DlpConnection, CancellationToken, Task> syncFunc)
+            : base(syncFunc)
         {
             _portName = portName;
         }
@@ -35,19 +35,25 @@ namespace Backhand.DeviceIO.DlpServer
                     using SlpDevice slpDevice = new SlpDevice(_portName);
                     using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
 
+                    // Watch for wakeup packet
                     CmpConnection cmpConnection = new CmpConnection(padpConnection);
-
                     Task waitForWakeUpTask = cmpConnection.WaitForWakeUpAsync(linkedCts.Token);
+
+                    // Start device IO
                     Task ioTask = slpDevice.RunIOAsync(linkedCts.Token);
 
+                    // Wait for wakeup + do handshake
                     await waitForWakeUpTask;
                     await cmpConnection.DoHandshakeAsync();
 
+                    // Create DLP connection
                     using PadpDlpTransport dlpTransport = new PadpDlpTransport(padpConnection);
                     DlpConnection dlpConnection = new DlpConnection(dlpTransport);
 
                     // Do sync
                     syncTask = DoSync(dlpConnection, linkedCts.Token);
+
+                    // Wait for either sync or IO task to complete/fail
                     try
                     {
                         await Task.WhenAny(syncTask, ioTask);
@@ -56,11 +62,13 @@ namespace Backhand.DeviceIO.DlpServer
                     {
                     }
 
+                    // Abort both tasks
                     abortCts.Cancel();
 
+                    // Wait for completion
                     await Task.WhenAll(syncTask, ioTask);
                 }
-                catch (TaskCanceledException ex)
+                catch (Exception ex)
                 {
                     if (syncTask != null)
                     {

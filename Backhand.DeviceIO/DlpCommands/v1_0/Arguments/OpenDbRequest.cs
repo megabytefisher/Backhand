@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Backhand.DeviceIO.Dlp;
+using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -6,33 +7,34 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Dlp.Arguments
+namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
-    public class ReadDbListRequest : DlpArgument
+    public class OpenDbRequest : DlpArgument
     {
-        public enum ReadDbListMode : byte
+        [Flags]
+        public enum OpenDbMode : byte
         {
-            ListRam         = 0x80,
-            ListRom         = 0x40,
-            ListMultiple    = 0x20,
+            Read            = 0b10000000,
+            Write           = 0b01000000,
+            Exclusive       = 0b00100000,
+            Secret          = 0b00010000,
         }
 
-        public ReadDbListMode Mode { get; set; }
         public byte CardId { get; set; }
-        public ushort StartIndex { get; set; }
+        public OpenDbMode Mode { get; set; }
+        public string Name { get; set; }
 
         public override int GetSerializedLength()
         {
-            return 4;
+            return 2 + Name.Length + 1;
         }
 
         public override int Serialize(Span<byte> buffer)
         {
             int offset = 0;
-            buffer[offset++] = (byte)Mode;
             buffer[offset++] = CardId;
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), StartIndex);
-            offset += 2;
+            buffer[offset++] = (byte)Mode;
+            offset += WriteNullTerminatedString(Name, buffer.Slice(offset));
 
             return offset;
         }

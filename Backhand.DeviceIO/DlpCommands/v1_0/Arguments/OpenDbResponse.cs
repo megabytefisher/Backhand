@@ -1,4 +1,5 @@
-﻿using Backhand.DeviceIO.Utility;
+﻿using Backhand.DeviceIO.Dlp;
+using Backhand.DeviceIO.Utility;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -6,13 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Dlp.Arguments
+namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
-    public class ReadSysInfoResponse : DlpArgument
+    public class OpenDbResponse : DlpArgument
     {
-        public uint RomVersion { get; set; }
-        public uint Locale { get; set; }
-        public byte[] ProductId { get; set; }
+        public byte DbHandle { get; set; }
 
         public override int GetSerializedLength()
         {
@@ -33,12 +32,7 @@ namespace Backhand.DeviceIO.Dlp.Arguments
 
         public void Deserialize(ref SequenceReader<byte> bufferReader)
         {
-            RomVersion = bufferReader.ReadUInt32BigEndian();
-            Locale = bufferReader.ReadUInt32BigEndian();
-
-            byte productIdLength = bufferReader.Read();
-            ProductId = new byte[productIdLength];
-            bufferReader.Sequence.Slice(bufferReader.Position, productIdLength).CopyTo(ProductId);
+            DbHandle = bufferReader.Read();
         }
     }
 }

@@ -57,5 +57,13 @@ namespace Backhand.DeviceIO.Dlp
 
             return Encoding.ASCII.GetString(stringSequence);
         }
+
+        protected static int WriteNullTerminatedString(string value, Span<byte> buffer)
+        {
+            int offset = Encoding.ASCII.GetBytes(value, buffer);
+            buffer[offset++] = 0x00;
+
+            return offset;
+        }
     }
 }

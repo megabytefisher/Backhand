@@ -68,7 +68,7 @@ namespace Backhand.DeviceIO.Padp
             }
         }
 
-        public async Task SendData(ReadOnlySequence<byte> data)
+        public async Task SendData(ReadOnlySequence<byte> data, CancellationToken cancellationToken = default)
         {
             for (int offset = 0; offset < data.Length; offset += PadpMtu)
             {
@@ -82,7 +82,7 @@ namespace Backhand.DeviceIO.Padp
 
                 ushort sizeOrOffset = first ? (ushort)data.Length : (ushort)offset;
 
-                Task ackWaitTask = WaitForAckAsync(sizeOrOffset);
+                Task ackWaitTask = WaitForAckAsync(sizeOrOffset, cancellationToken);
                 SendFragment(PadpFragmentType.Data, flags, sizeOrOffset, data.Slice(offset, txSize));
 
                 await ackWaitTask;
@@ -195,9 +195,9 @@ namespace Backhand.DeviceIO.Padp
             SendFragment(PadpFragmentType.Ack, flags, sizeOrOffset, ReadOnlySequence<byte>.Empty);
         }
 
-        private async Task WaitForAckAsync(ushort sizeOrOffset)
+        private async Task WaitForAckAsync(ushort sizeOrOffset, CancellationToken cancellationToken = default)
         {
-            using AsyncFlag ackFlag = new AsyncFlag();
+            TaskCompletionSource ackTcs = new TaskCompletionSource();
 
             Action<object?, SlpPacketTransmittedArgs> ackReceiver = (sender, e) =>
             {
@@ -205,22 +205,34 @@ namespace Backhand.DeviceIO.Padp
                 if (e.Packet.PacketType != PadpSlpPacketType || e.Packet.DestinationSocket != _localSocketId || e.Packet.SourceSocket != _remoteSocketId)
                     return;
 
-                ReadFragmentHeader(e.Packet.Data, out PadpFragmentType type, out PadpFragmentFlags flags, out uint sizeOrOffset);
+                ReadFragmentHeader(e.Packet.Data, out PadpFragmentType type, out PadpFragmentFlags flags, out uint packetSizeOrOffset);
 
-                // Ignore anything other than ack fragments
-                if (type != PadpFragmentType.Ack)
+                if (type != PadpFragmentType.Ack ||
+                    e.Packet.TransactionId != _transactionId ||
+                    packetSizeOrOffset != sizeOrOffset)
+                {
                     return;
+                }
 
-                // If its not for our transaction ID, ignore
-                if (e.Packet.TransactionId != _transactionId)
-                    return;
-
-                ackFlag.Set();
+                ackTcs.TrySetResult();
             };
 
             _device.ReceivedPacket += ackReceiver.Invoke;
-            await ackFlag.WaitAsync();
-            _device.ReceivedPacket -= ackReceiver.Invoke;
+
+            using (cancellationToken.Register(() =>
+            {
+                ackTcs.SetCanceled();
+            }))
+            {
+                try
+                {
+                    await ackTcs.Task;
+                }
+                finally
+                {
+                    _device.ReceivedPacket -= ackReceiver.Invoke;
+                }
+            }
         }
     }
 }
