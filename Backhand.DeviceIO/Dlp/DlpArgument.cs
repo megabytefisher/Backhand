@@ -65,5 +65,22 @@ namespace Backhand.DeviceIO.Dlp
 
             return offset;
         }
+
+        protected static string ReadFixedLengthString(ref SequenceReader<byte> reader, int length)
+        {
+            string result = Encoding.ASCII.GetString(reader.Sequence.Slice(reader.Position, length));
+            reader.Advance(length);
+            return result;
+        }
+
+        protected static int WriteFixedLengthString(string value, int length, Span<byte> buffer)
+        {
+            int offset = Encoding.ASCII.GetBytes(value, buffer.Slice(0, length));
+
+            if (offset != length)
+                throw new DlpException("Didn't write correct fixed string length");
+
+            return offset;
+        }
     }
 }

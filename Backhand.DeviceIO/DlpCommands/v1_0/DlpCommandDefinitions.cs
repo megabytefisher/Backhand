@@ -30,6 +30,16 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.OpenDbRequest },
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.OpenDbResponse });
 
+        public static readonly DlpCommandDefinition ReadRecordById = new DlpCommandDefinition(
+            DlpOpcode.ReadRecord,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadRecordByIdRequest },
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadRecordByIdResponse });
+
+        public static readonly DlpCommandDefinition ReadResourceByIndex = new DlpCommandDefinition(
+            DlpOpcode.ReadResource,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadResourceByIndexRequest },
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadResourceByIndexResponse });
+
         public static readonly DlpCommandDefinition EndOfSync = new DlpCommandDefinition(
             DlpOpcode.EndOfSync,
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.EndOfSyncRequest },

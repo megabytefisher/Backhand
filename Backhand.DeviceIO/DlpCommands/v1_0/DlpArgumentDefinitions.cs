@@ -26,6 +26,14 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
         public static readonly DlpArgumentDefinition<OpenDbRequest> OpenDbRequest = new DlpArgumentDefinition<OpenDbRequest>();
         public static readonly DlpArgumentDefinition<OpenDbResponse> OpenDbResponse = new DlpArgumentDefinition<OpenDbResponse>();
 
+        /* ReadRecordById */
+        public static readonly DlpArgumentDefinition<ReadRecordByIdRequest> ReadRecordByIdRequest = new DlpArgumentDefinition<ReadRecordByIdRequest>();
+        public static readonly DlpArgumentDefinition<ReadRecordByIdResponse> ReadRecordByIdResponse = new DlpArgumentDefinition<ReadRecordByIdResponse>();
+
+        /* ReadResourceByIndex */
+        public static readonly DlpArgumentDefinition<ReadResourceByIndexRequest> ReadResourceByIndexRequest = new DlpArgumentDefinition<ReadResourceByIndexRequest>();
+        public static readonly DlpArgumentDefinition<ReadResourceByIndexResponse> ReadResourceByIndexResponse = new DlpArgumentDefinition<ReadResourceByIndexResponse>();
+
         /* EndOfSync */
         public static readonly DlpArgumentDefinition<EndOfSyncRequest> EndOfSyncRequest = new DlpArgumentDefinition<EndOfSyncRequest>();
 

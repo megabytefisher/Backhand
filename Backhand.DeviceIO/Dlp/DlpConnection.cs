@@ -161,10 +161,17 @@ namespace Backhand.DeviceIO.Dlp
 
             Action<object?, DlpPayloadTransmittedEventArgs> responseReceiver = (sender, e) =>
             {
-                DlpArgumentCollection? result = ReadDlpResponse(command, e.Payload.Buffer);
+                try
+                {
+                    DlpArgumentCollection? result = ReadDlpResponse(command, e.Payload.Buffer);
 
-                if (result != null)
-                    responseTcs.TrySetResult(result);
+                    if (result != null)
+                        responseTcs.TrySetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    responseTcs.TrySetException(ex);
+                }
             };
 
             _transport.ReceivedPayload += responseReceiver.Invoke;

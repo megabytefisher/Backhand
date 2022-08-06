@@ -75,6 +75,38 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             return response;
         }
 
+        public static async Task<ReadRecordByIdResponse> ReadRecordById(this DlpConnection dlp, ReadRecordByIdRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.ReadRecordByIdRequest, request);
+
+            DlpArgumentCollection responseArguments = await dlp.Execute(DlpCommandDefinitions.ReadRecordById, requestArguments, cancellationToken);
+
+            ReadRecordByIdResponse? response =
+                responseArguments.GetValue(DlpArgumentDefinitions.ReadRecordByIdResponse);
+
+            if (response == null)
+                throw new DlpCommandException("Missing required response argument");
+
+            return response;
+        }
+
+        public static async Task<ReadResourceByIndexResponse> ReadResourceByIndex(this DlpConnection dlp, ReadResourceByIndexRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.ReadResourceByIndexRequest, request);
+
+            DlpArgumentCollection responseArguments = await dlp.Execute(DlpCommandDefinitions.ReadResourceByIndex, requestArguments, cancellationToken);
+
+            ReadResourceByIndexResponse? response =
+                responseArguments.GetValue(DlpArgumentDefinitions.ReadResourceByIndexResponse);
+
+            if (response == null)
+                throw new DlpCommandException("Missing required response argument");
+
+            return response;
+        }
+
         public static async Task EndOfSync(this DlpConnection dlp, EndOfSyncRequest request, CancellationToken cancellationToken = default)
         {
             DlpArgumentCollection requestArguments = new DlpArgumentCollection();
