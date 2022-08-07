@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Backhand.DeviceIO\Backhand.DeviceIO.csproj" />
+    <ProjectReference Include="..\Backhand.Pdb\Backhand.Pdb.csproj" />
   </ItemGroup>
 
 </Project>

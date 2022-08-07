@@ -8,6 +8,7 @@ using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Slp;
 using Backhand.DeviceIO.Usb.Windows;
+using Backhand.Pdb;
 using MadWizard.WinUSBNet;
 using System.Buffers;
 
@@ -17,7 +18,13 @@ namespace Backhand.Cli
     {
         static async Task Main(string[] args)
         {
-            Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
+            using FileStream inStream = new FileStream("C:\\Users\\kfisher\\Documents\\Palm OS Desktop\\Kevin\\Backup\\_HaCkMe_.PRC", FileMode.Open, FileAccess.Read, FileShare.None, 1024, true);
+            using FileStream outStream = new FileStream("testout.prc", FileMode.Create, FileAccess.Write, FileShare.None, 1024, true);
+            ResourceDatabase database = new ResourceDatabase();
+            await database.Deserialize(inStream);
+            await database.Serialize(outStream);
+
+            /*Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
             {
                 Console.WriteLine("Starting sync");
                 try
@@ -37,7 +44,7 @@ namespace Backhand.Cli
                             StartIndex = 0
                         });
 
-                    string dbName = readDbListResponse.Metadata.First(m => m.Flags.HasFlag(DatabaseMetadata.DatabaseFlags.ResourceDb)).Name;
+                    string dbName = readDbListResponse.Metadata.First(m => m.Attributes.HasFlag(DlpDatabaseMetadata.DatabaseAttributes.ResourceDb)).Name;
 
                     OpenDbResponse openDbResponse =
                         await dlp.OpenDb(new OpenDbRequest()
@@ -51,12 +58,12 @@ namespace Backhand.Cli
                         await dlp.ReadResourceByIndex(new ReadResourceByIndexRequest()
                         {
                             DbHandle = openDbResponse.DbHandle,
-                            ResourceIndex = i,
+                            ResourceIndex = 0,
                             Offset = 0,
                             MaxLength = 0xff
                         });
 
-                    /*ReadRecordIdListResponse readRecordIdListResponse =
+                    ReadRecordIdListResponse readRecordIdListResponse =
                         await dlp.ReadRecordIdList(new ReadRecordIdListRequest()
                         {
                             DbHandle = openDbResponse.DbHandle,
@@ -71,7 +78,7 @@ namespace Backhand.Cli
                             RecordId = readRecordIdListResponse.RecordIds.First(),
                             Offset = 0,
                             MaxLength = 0xff
-                        });*/
+                        });
 
 
                     Console.WriteLine("Sync OK");
@@ -87,7 +94,7 @@ namespace Backhand.Cli
             SerialDlpServer server = new SerialDlpServer("COM3", syncFunc);
             //UsbDlpServer server = new UsbDlpServer(syncFunc);
 
-            await server.Run();
+            await server.Run();*/
         }
     }
 }

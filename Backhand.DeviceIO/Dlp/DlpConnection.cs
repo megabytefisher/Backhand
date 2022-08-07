@@ -1,6 +1,6 @@
 ﻿using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Padp;
-using Backhand.DeviceIO.Utility;
+using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;

@@ -11,7 +11,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class ReadResourceByIndexResponse : DlpArgument
     {
-        public ResourceMetadata Metadata { get; set; }
+        public DlpResourceMetadata Metadata { get; set; }
         public byte[] Data { get; set; } = Array.Empty<byte>();
 
         public override int GetSerializedLength()
@@ -33,7 +33,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 
         public void Deserialize(ref SequenceReader<byte> bufferReader)
         {
-            Metadata = new ResourceMetadata();
+            Metadata = new DlpResourceMetadata();
             Metadata.Deserialize(ref bufferReader);
             Data = new byte[bufferReader.Remaining];
             bufferReader.Sequence.Slice(bufferReader.Position).CopyTo(Data);

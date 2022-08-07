@@ -1,5 +1,5 @@
 ﻿using Backhand.DeviceIO.Dlp;
-using Backhand.DeviceIO.Utility;
+using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -9,22 +9,12 @@ using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Data
 {
-    public class RecordMetadata : DlpArgument
+    public class DlpResourceMetadata : DlpArgument
     {
-        [Flags]
-        public enum RecordFlags : byte
-        {
-            Delete          = 0b10000000,
-            Dirty           = 0b01000000,
-            Busy            = 0b00100000,
-            Secret          = 0b00010000,
-        }
-
-        public uint RecordId { get; set; }
+        public string Type { get; set; } = "";
+        public ushort ResourceId { get; set; }
         public ushort Index { get; set; }
-        public ushort Length { get; set; }
-        public RecordFlags Flags { get; set; }
-        public byte Category { get; set; }
+        public ushort Size { get; set; }
 
         public override int GetSerializedLength()
         {
@@ -45,11 +35,10 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Data
 
         public void Deserialize(ref SequenceReader<byte> bufferReader)
         {
-            RecordId = bufferReader.ReadUInt32BigEndian();
+            Type = ReadFixedLengthString(ref bufferReader, 4);
+            ResourceId = bufferReader.ReadUInt16BigEndian();
             Index = bufferReader.ReadUInt16BigEndian();
-            Length = bufferReader.ReadUInt16BigEndian();
-            Flags = (RecordFlags)bufferReader.Read();
-            Category = bufferReader.Read();
+            Size = bufferReader.ReadUInt16BigEndian();
         }
     }
 }

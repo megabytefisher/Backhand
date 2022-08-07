@@ -5,9 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Utility
+namespace Backhand.Utility.Buffers
 {
-    internal static class SequenceReaderExtensions
+    public static class SequenceReaderExtensions
     {
         public static byte Read(this ref SequenceReader<byte> reader)
         {

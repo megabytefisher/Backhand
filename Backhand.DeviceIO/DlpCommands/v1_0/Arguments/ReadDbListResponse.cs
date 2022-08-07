@@ -1,6 +1,6 @@
 ﻿using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.DlpCommands.v1_0.Data;
-using Backhand.DeviceIO.Utility;
+using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
     {
         public ushort LastIndex { get; set; }
         public byte Flags { get; set; }
-        public DatabaseMetadata[] Metadata { get; set; } = Array.Empty<DatabaseMetadata>();
+        public DlpDatabaseMetadata[] Metadata { get; set; } = Array.Empty<DlpDatabaseMetadata>();
 
         public override int GetSerializedLength()
         {
@@ -39,10 +39,10 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             Flags = bufferReader.Read();
 
             byte metadataCount = bufferReader.Read();
-            Metadata = new DatabaseMetadata[metadataCount];
+            Metadata = new DlpDatabaseMetadata[metadataCount];
             for (int i = 0; i < metadataCount; i++)
             {
-                Metadata[i] = new DatabaseMetadata();
+                Metadata[i] = new DlpDatabaseMetadata();
                 Metadata[i].Deserialize(ref bufferReader);
             }
         }

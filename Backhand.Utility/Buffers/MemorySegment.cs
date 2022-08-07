@@ -1,9 +1,9 @@
 ﻿using System.Buffers;
 
-namespace Backhand.DeviceIO
+namespace Backhand.Utility.Buffers
 {
     // https://www.stevejgordon.co.uk/creating-a-readonlysequence-from-array-data-in-dotnet
-    internal class MemorySegment<T> : ReadOnlySequenceSegment<T>
+    public class MemorySegment<T> : ReadOnlySequenceSegment<T>
     {
         public MemorySegment(ReadOnlyMemory<T> memory)
         {

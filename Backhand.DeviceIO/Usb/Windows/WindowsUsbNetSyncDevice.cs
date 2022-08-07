@@ -1,5 +1,5 @@
 ﻿using Backhand.DeviceIO.NetSync;
-using Backhand.DeviceIO.Utility;
+using Backhand.Utility.Buffers;
 using MadWizard.WinUSBNet;
 using System;
 using System.Buffers;
