@@ -75,6 +75,30 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             return response;
         }
 
+        public static async Task<CreateDbResponse> CreateDb(this DlpConnection dlp, CreateDbRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.CreateDbRequest, request);
+
+            DlpArgumentCollection responseArguments = await dlp.Execute(DlpCommandDefinitions.CreateDb, requestArguments, cancellationToken);
+
+            CreateDbResponse? response =
+                responseArguments.GetValue(DlpArgumentDefinitions.CreateDbResponse);
+
+            if (response == null)
+                throw new DlpCommandException("Missing required response argument");
+
+            return response;
+        }
+
+        public static async Task CloseDb(this DlpConnection dlp, CloseDbRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.CloseDbRequest, request);
+
+            await dlp.Execute(DlpCommandDefinitions.CloseDb, requestArguments, cancellationToken);
+        }
+
         public static async Task<ReadRecordByIdResponse> ReadRecordById(this DlpConnection dlp, ReadRecordByIdRequest request, CancellationToken cancellationToken = default)
         {
             DlpArgumentCollection requestArguments = new DlpArgumentCollection();
@@ -105,6 +129,14 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
                 throw new DlpCommandException("Missing required response argument");
 
             return response;
+        }
+
+        public static async Task WriteResource(this DlpConnection dlp, WriteResourceRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.WriteResourceRequest, request);
+
+            await dlp.Execute(DlpCommandDefinitions.WriteResource, requestArguments, cancellationToken);
         }
 
         public static async Task EndOfSync(this DlpConnection dlp, EndOfSyncRequest request, CancellationToken cancellationToken = default)

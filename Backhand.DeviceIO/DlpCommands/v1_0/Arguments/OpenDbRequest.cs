@@ -34,7 +34,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             int offset = 0;
             buffer[offset++] = CardId;
             buffer[offset++] = (byte)Mode;
-            offset += WriteNullTerminatedString(Name, buffer.Slice(offset));
+            offset += WriteNullTerminatedString(buffer.Slice(offset), Name);
 
             return offset;
         }

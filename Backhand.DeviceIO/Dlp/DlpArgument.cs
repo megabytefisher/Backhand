@@ -36,7 +36,7 @@ namespace Backhand.DeviceIO.Dlp
             return new DateTime(year != 0 ? year : 1900, month, day, hour, minute, second);
         }
 
-        protected static void WriteDlpDateTime(DateTime value, Span<byte> buffer)
+        protected static void WriteDlpDateTime(Span<byte> buffer, DateTime value)
         {
             if (buffer.Length < 8)
                 throw new DlpException("Not enough space to write DLP date time");
@@ -58,7 +58,7 @@ namespace Backhand.DeviceIO.Dlp
             return Encoding.ASCII.GetString(stringSequence);
         }
 
-        protected static int WriteNullTerminatedString(string value, Span<byte> buffer)
+        protected static int WriteNullTerminatedString(Span<byte> buffer, string value)
         {
             int offset = Encoding.ASCII.GetBytes(value, buffer);
             buffer[offset++] = 0x00;
@@ -68,19 +68,16 @@ namespace Backhand.DeviceIO.Dlp
 
         protected static string ReadFixedLengthString(ref SequenceReader<byte> reader, int length)
         {
-            string result = Encoding.ASCII.GetString(reader.Sequence.Slice(reader.Position, length));
+            string result = Encoding.ASCII.GetString(reader.Sequence.Slice(reader.Position, length)).TrimEnd('\0');
             reader.Advance(length);
             return result;
         }
 
-        protected static int WriteFixedLengthString(string value, int length, Span<byte> buffer)
+        protected static void WriteFixedLengthString(Span<byte> buffer, string value)
         {
-            int offset = Encoding.ASCII.GetBytes(value, buffer.Slice(0, length));
-
-            if (offset != length)
-                throw new DlpException("Didn't write correct fixed string length");
-
-            return offset;
+            int offset = Encoding.ASCII.GetBytes(value, buffer);
+            for (; offset < buffer.Length; offset++)
+                buffer[offset] = 0;
         }
     }
 }

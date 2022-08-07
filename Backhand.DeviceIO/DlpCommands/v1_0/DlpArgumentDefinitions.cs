@@ -26,6 +26,13 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
         public static readonly DlpArgumentDefinition<OpenDbRequest> OpenDbRequest = new DlpArgumentDefinition<OpenDbRequest>();
         public static readonly DlpArgumentDefinition<OpenDbResponse> OpenDbResponse = new DlpArgumentDefinition<OpenDbResponse>();
 
+        /* CreateDb */
+        public static readonly DlpArgumentDefinition<CreateDbRequest> CreateDbRequest = new DlpArgumentDefinition<CreateDbRequest>();
+        public static readonly DlpArgumentDefinition<CreateDbResponse> CreateDbResponse = new DlpArgumentDefinition<CreateDbResponse>();
+
+        /* CloseDb */
+        public static readonly DlpArgumentDefinition<CloseDbRequest> CloseDbRequest = new DlpArgumentDefinition<CloseDbRequest>();
+
         /* ReadRecordById */
         public static readonly DlpArgumentDefinition<ReadRecordByIdRequest> ReadRecordByIdRequest = new DlpArgumentDefinition<ReadRecordByIdRequest>();
         public static readonly DlpArgumentDefinition<ReadRecordByIdResponse> ReadRecordByIdResponse = new DlpArgumentDefinition<ReadRecordByIdResponse>();
@@ -33,6 +40,9 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
         /* ReadResourceByIndex */
         public static readonly DlpArgumentDefinition<ReadResourceByIndexRequest> ReadResourceByIndexRequest = new DlpArgumentDefinition<ReadResourceByIndexRequest>();
         public static readonly DlpArgumentDefinition<ReadResourceByIndexResponse> ReadResourceByIndexResponse = new DlpArgumentDefinition<ReadResourceByIndexResponse>();
+
+        /* WriteResource */
+        public static readonly DlpArgumentDefinition<WriteResourceRequest> WriteResourceRequest = new DlpArgumentDefinition<WriteResourceRequest>();
 
         /* EndOfSync */
         public static readonly DlpArgumentDefinition<EndOfSyncRequest> EndOfSyncRequest = new DlpArgumentDefinition<EndOfSyncRequest>();

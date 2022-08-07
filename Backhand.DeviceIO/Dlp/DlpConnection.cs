@@ -95,6 +95,7 @@ namespace Backhand.DeviceIO.Dlp
                 {
                     buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Small);
                     BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset + 1, 2), Convert.ToUInt16(argumentSize));
+                    offset += 3;
                 }
                 else
                 {

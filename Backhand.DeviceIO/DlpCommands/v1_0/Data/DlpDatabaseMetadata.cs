@@ -11,29 +11,8 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Data
 {
     public class DlpDatabaseMetadata : DlpArgument
     {
-        [Flags]
-        public enum DatabaseAttributes : ushort
-        {
-            Open                = 0b10000000_00000000,
-            Unused1             = 0b01000000_00000000,
-            Unused2             = 0b00100000_00000000,
-            Unused3             = 0b00010000_00000000,
-            Bundle              = 0b00001000_00000000,
-            Recyclable          = 0b00000100_00000000,
-            LaunchableData      = 0b00000010_00000000,
-            Hidden              = 0b00000001_00000000,
-            Stream              = 0b00000000_10000000,
-            CopyPrevention      = 0b00000000_01000000,
-            ResetAfterInstall   = 0b00000000_00100000,
-            OkToInstallNewer    = 0b00000000_00010000,
-            Backup              = 0b00000000_00001000,
-            AppInfoDirty        = 0b00000000_00000100,
-            ReadOnly            = 0b00000000_00000010,
-            ResourceDb          = 0b00000000_00000001,
-        }
-
         public byte MiscFlags { get; set; }
-        public DatabaseAttributes Attributes { get; set; }
+        public DlpDatabaseAttributes Attributes { get; set; }
         public string Type { get; set; } = "";
         public string Creator { get; set; } = "";
         public ushort Version { get; set; }
@@ -69,7 +48,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Data
             SequenceReader<byte> metadataReader = new SequenceReader<byte>(metadataBuffer);
 
             MiscFlags = metadataReader.Read();
-            Attributes = (DatabaseAttributes)metadataReader.ReadUInt16BigEndian();
+            Attributes = (DlpDatabaseAttributes)metadataReader.ReadUInt16BigEndian();
 
             Type = Encoding.ASCII.GetString(metadataReader.Sequence.Slice(metadataReader.Position, 4));
             metadataReader.Advance(4);

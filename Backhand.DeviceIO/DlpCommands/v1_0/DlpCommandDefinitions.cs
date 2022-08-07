@@ -30,6 +30,16 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.OpenDbRequest },
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.OpenDbResponse });
 
+        public static readonly DlpCommandDefinition CreateDb = new DlpCommandDefinition(
+            DlpOpcode.CreateDb,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.CreateDbRequest },
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.CreateDbResponse });
+
+        public static readonly DlpCommandDefinition CloseDb = new DlpCommandDefinition(
+            DlpOpcode.CloseDb,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.CloseDbRequest },
+            new DlpArgumentDefinition[] { });
+
         public static readonly DlpCommandDefinition ReadRecordById = new DlpCommandDefinition(
             DlpOpcode.ReadRecord,
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadRecordByIdRequest },
@@ -39,6 +49,11 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             DlpOpcode.ReadResource,
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadResourceByIndexRequest },
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadResourceByIndexResponse });
+
+        public static readonly DlpCommandDefinition WriteResource = new DlpCommandDefinition(
+            DlpOpcode.WriteResource,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.WriteResourceRequest },
+            new DlpArgumentDefinition[] { });
 
         public static readonly DlpCommandDefinition EndOfSync = new DlpCommandDefinition(
             DlpOpcode.EndOfSync,

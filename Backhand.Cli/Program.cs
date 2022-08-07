@@ -19,12 +19,12 @@ namespace Backhand.Cli
         static async Task Main(string[] args)
         {
             using FileStream inStream = new FileStream("C:\\Users\\kfisher\\Documents\\Palm OS Desktop\\Kevin\\Backup\\_HaCkMe_.PRC", FileMode.Open, FileAccess.Read, FileShare.None, 1024, true);
-            using FileStream outStream = new FileStream("testout.prc", FileMode.Create, FileAccess.Write, FileShare.None, 1024, true);
+            //using FileStream outStream = new FileStream("testout.prc", FileMode.Create, FileAccess.Write, FileShare.None, 1024, true);
             ResourceDatabase database = new ResourceDatabase();
             await database.Deserialize(inStream);
-            await database.Serialize(outStream);
+            //await database.Serialize(outStream);
 
-            /*Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
+            Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
             {
                 Console.WriteLine("Starting sync");
                 try
@@ -36,7 +36,35 @@ namespace Backhand.Cli
                         HostDlpVersionMinor = 4,
                     });
 
-                    ReadDbListResponse readDbListResponse =
+                    CreateDbResponse createDbResponse =
+                        await dlp.CreateDb(new CreateDbRequest()
+                        {
+                            Type = database.Header.Type,
+                            Creator = database.Header.Creator,
+                            Attributes = (DlpDatabaseAttributes)database.Header.Attributes,
+                            CardId = 0,
+                            Version = database.Header.Version,
+                            Name = database.Header.Name
+                        });
+
+                    foreach (DatabaseResource resource in database.Resources.Skip(2))
+                    {
+                        await dlp.WriteResource(new WriteResourceRequest()
+                        {
+                            DbHandle = createDbResponse.DbHandle,
+                            Type = resource.Type,
+                            ResourceId = resource.ResourceId,
+                            Size = Convert.ToUInt16(resource.Data.Length),
+                            Data = resource.Data,
+                        });
+                    }
+
+                    await dlp.CloseDb(new CloseDbRequest()
+                    {
+                        DbHandle = createDbResponse.DbHandle
+                    });
+
+                    /*ReadDbListResponse readDbListResponse =
                         await dlp.ReadDbList(new ReadDbListRequest()
                         {
                             CardId = 0,
@@ -44,7 +72,7 @@ namespace Backhand.Cli
                             StartIndex = 0
                         });
 
-                    string dbName = readDbListResponse.Metadata.First(m => m.Attributes.HasFlag(DlpDatabaseMetadata.DatabaseAttributes.ResourceDb)).Name;
+                    string dbName = readDbListResponse.Metadata.First(m => m.Attributes.HasFlag(DlpDatabaseAttributes.ResourceDb)).Name;
 
                     OpenDbResponse openDbResponse =
                         await dlp.OpenDb(new OpenDbRequest()
@@ -78,7 +106,7 @@ namespace Backhand.Cli
                             RecordId = readRecordIdListResponse.RecordIds.First(),
                             Offset = 0,
                             MaxLength = 0xff
-                        });
+                        });*/
 
 
                     Console.WriteLine("Sync OK");
@@ -94,7 +122,7 @@ namespace Backhand.Cli
             SerialDlpServer server = new SerialDlpServer("COM3", syncFunc);
             //UsbDlpServer server = new UsbDlpServer(syncFunc);
 
-            await server.Run();*/
+            await server.Run();
         }
     }
 }
