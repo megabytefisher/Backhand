@@ -12,7 +12,7 @@ namespace Backhand.Pdb.Internal
 {
     public class FileDatabaseHeader
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public DatabaseAttributes Attributes { get; set; }
         public ushort Version { get; set; }
         public DateTime CreationDate { get; set; }
@@ -21,11 +21,11 @@ namespace Backhand.Pdb.Internal
         public uint ModificationNumber { get; set; }
         public uint AppInfoId { get; set; }
         public uint SortInfoId { get; set; }
-        public string Type { get; set; }
-        public string Creator { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Creator { get; set; } = string.Empty;
         public uint UniqueIdSeed { get; set; }
 
-        public const int SerializedLength =
+        public const uint SerializedLength =
             32 +                                        // Name
             sizeof(DatabaseAttributes) +                // Attributes
             sizeof(ushort) +                            // Version

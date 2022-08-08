@@ -8,44 +8,25 @@ using System.Threading.Tasks;
 
 namespace Backhand.Pdb
 {
-    public class RecordDatabase
+    public class RecordDatabase : Database
     {
-        public DatabaseHeader Header { get; set; } = new DatabaseHeader();
-        public byte[]? AppInfo { get; set; }
-        public byte[]? SortInfo { get; set; }
         public List<DatabaseRecord> Records { get; set; } = new List<DatabaseRecord>();
 
-        public async Task Serialize(Stream stream)
+        public override async Task Serialize(Stream stream)
         {
-            int appInfoOffset =
+            uint appInfoOffset =
                 FileDatabaseHeader.SerializedLength +
                 FileEntryMetadataListHeader.SerializedLength +
-                (FileRecordMetadata.SerializedLength * Records.Count) +
+                (FileRecordMetadata.SerializedLength * (uint)Records.Count) +
                 2;
-            int sortInfoOffset = appInfoOffset + (AppInfo?.Length ?? 0);
-            int recordBlockOffset = sortInfoOffset + (SortInfo?.Length ?? 0);
+            uint sortInfoOffset = appInfoOffset + (uint)(AppInfo?.Length ?? 0);
+            uint recordBlockOffset = sortInfoOffset + (uint)(SortInfo?.Length ?? 0);
 
-            FileDatabaseHeader fileHeader = new FileDatabaseHeader();
-            fileHeader.Name = Header.Name;
-            fileHeader.Attributes = Header.Attributes;
-            fileHeader.Version = Header.Version;
-            fileHeader.CreationDate = Header.CreationDate;
-            fileHeader.ModificationDate = Header.ModificationDate;
-            fileHeader.LastBackupDate = Header.LastBackupDate;
-            fileHeader.ModificationNumber = Header.ModificationNumber;
-            fileHeader.AppInfoId = (uint)(AppInfo != null && AppInfo.Length > 0 ? appInfoOffset : 0);
-            fileHeader.SortInfoId = (uint)(SortInfo != null && SortInfo.Length > 0 ? sortInfoOffset : 0);
-            fileHeader.Type = Header.Type;
-            fileHeader.Creator = Header.Creator;
-            fileHeader.UniqueIdSeed = Header.UniqueIdSeed;
+            await SerializeHeader(stream,
+                (AppInfo != null && AppInfo.Length > 0) ? appInfoOffset : 0,
+                (SortInfo != null && SortInfo.Length > 0) ? sortInfoOffset : 0);
 
-            await SerializeHeader(stream, fileHeader);
-
-            FileEntryMetadataListHeader metadataListHeader = new FileEntryMetadataListHeader();
-            metadataListHeader.NextListId = 0;
-            metadataListHeader.Length = Convert.ToUInt16(Records.Count);
-
-            await SerializeEntryMetadataListHeader(stream, metadataListHeader);
+            await SerializeEntryMetadataListHeader(stream, Convert.ToUInt16(Records.Count));
 
             int blockOffset = 0;
             foreach (DatabaseRecord record in Records)
@@ -82,54 +63,40 @@ namespace Backhand.Pdb
             }
         }
 
-        public async Task Deserialize(Stream stream)
+        public override async Task Deserialize(Stream stream)
         {
-            FileDatabaseHeader fileHeader = await DeserializeHeader(stream);
+            (uint appInfoId, uint sortInfoId) = await DeserializeHeader(stream);
 
-            Header.Name = fileHeader.Name;
-            Header.Attributes = fileHeader.Attributes;
-            Header.Version = fileHeader.Version;
-            Header.CreationDate = fileHeader.CreationDate;
-            Header.ModificationDate = fileHeader.ModificationDate;
-            Header.LastBackupDate = fileHeader.LastBackupDate;
-            Header.ModificationNumber = fileHeader.ModificationNumber;
-            Header.Type = fileHeader.Type;
-            Header.Creator = fileHeader.Creator;
-            Header.UniqueIdSeed = fileHeader.UniqueIdSeed;
-
-            FileEntryMetadataListHeader metadataListHeader = await DeserializeEntryMetadataListHeader(stream);
-
-            if (metadataListHeader.NextListId != 0)
-                throw new Exception("PDB files with multiple record lists aren't supported");
+            ushort entryCount = await DeserializeEntryMetadataListHeader(stream);
 
             // Read each metadata entry
             List<FileRecordMetadata> metadataList = new List<FileRecordMetadata>();
-            for (ushort i = 0; i < metadataListHeader.Length; i++)
+            for (ushort i = 0; i < entryCount; i++)
             {
                 metadataList.Add(await DeserializeRecordMetadata(stream));
             }
 
             // Read AppInfo block
-            if (fileHeader.AppInfoId != 0)
+            if (appInfoId != 0)
             {
                 uint appInfoLength =
-                    fileHeader.SortInfoId != 0 ? fileHeader.SortInfoId - fileHeader.AppInfoId :
-                    metadataList.Count > 0 ? metadataList.Min(md => md.LocalChunkId) - fileHeader.AppInfoId :
-                    (uint)stream.Length - fileHeader.AppInfoId;
+                    sortInfoId != 0 ? sortInfoId - appInfoId :
+                    metadataList.Count > 0 ? metadataList.Min(md => md.LocalChunkId) - appInfoId :
+                    (uint)stream.Length - appInfoId;
 
-                stream.Seek(fileHeader.AppInfoId, SeekOrigin.Begin);
+                stream.Seek(appInfoId, SeekOrigin.Begin);
                 AppInfo = new byte[appInfoLength];
                 await FillBuffer(stream, AppInfo);
             }
             
             // Read SortInfo block
-            if (fileHeader.SortInfoId != 0)
+            if (sortInfoId != 0)
             {
                 uint sortInfoLength =
-                    metadataList.Count > 0 ? metadataList.Min(md => md.LocalChunkId) - fileHeader.SortInfoId :
-                    (uint)stream.Length - fileHeader.SortInfoId;
+                    metadataList.Count > 0 ? metadataList.Min(md => md.LocalChunkId) - sortInfoId :
+                    (uint)stream.Length - sortInfoId;
 
-                stream.Seek(fileHeader.SortInfoId, SeekOrigin.Begin);
+                stream.Seek(sortInfoId, SeekOrigin.Begin);
                 SortInfo = new byte[sortInfoLength];
                 await FillBuffer(stream, SortInfo);
             }
@@ -156,53 +123,6 @@ namespace Backhand.Pdb
                 record.Data = recordBuffer;
                 Records.Add(record);
             }
-        }
-
-        private static async Task FillBuffer(Stream stream, Memory<byte> buffer)
-        {
-            int readOffset = 0;
-            do
-            {
-                readOffset += await stream.ReadAsync(buffer.Slice(readOffset));
-            } while (readOffset < buffer.Length);
-        }
-
-        private static async Task SerializeHeader(Stream stream, FileDatabaseHeader header)
-        {
-            byte[] buffer = new byte[FileDatabaseHeader.SerializedLength];
-            header.Serialize(buffer);
-
-            await stream.WriteAsync(buffer, 0, buffer.Length);
-        }
-
-        private static async Task<FileDatabaseHeader> DeserializeHeader(Stream stream)
-        {
-            byte[] buffer = new byte[FileDatabaseHeader.SerializedLength];
-            await FillBuffer(stream, buffer);
-
-            FileDatabaseHeader fileHeader = new FileDatabaseHeader();
-            fileHeader.Deserialize(new ReadOnlySequence<byte>(buffer));
-
-            return fileHeader;
-        }
-
-        private static async Task SerializeEntryMetadataListHeader(Stream stream, FileEntryMetadataListHeader header)
-        {
-            byte[] buffer = new byte[FileEntryMetadataListHeader.SerializedLength];
-            header.Serialize(buffer);
-
-            await stream.WriteAsync(buffer, 0, buffer.Length);
-        }
-
-        private static async Task<FileEntryMetadataListHeader> DeserializeEntryMetadataListHeader(Stream stream)
-        {
-            byte[] buffer = new byte[FileEntryMetadataListHeader.SerializedLength];
-            await FillBuffer(stream, buffer);
-
-            FileEntryMetadataListHeader fileEntryMetadataListHeader = new FileEntryMetadataListHeader();
-            fileEntryMetadataListHeader.Deserialize(new ReadOnlySequence<byte>(buffer));
-
-            return fileEntryMetadataListHeader;
         }
 
         private static async Task SerializeRecordMetadata(Stream stream, FileRecordMetadata metadata)

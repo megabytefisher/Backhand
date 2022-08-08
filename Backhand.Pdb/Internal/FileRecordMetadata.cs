@@ -15,7 +15,7 @@ namespace Backhand.Pdb.Internal
         public RecordAttributes Attributes { get; set; }
         public uint UniqueId { get; set; }
 
-        public const int SerializedLength =
+        public const uint SerializedLength =
             sizeof(uint) +                  // LocalChunkId
             sizeof(RecordAttributes) +      // Attributes
             (sizeof(byte) * 3);             // UniqueId

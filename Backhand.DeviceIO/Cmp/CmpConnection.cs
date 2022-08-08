@@ -40,12 +40,12 @@ namespace Backhand.DeviceIO.Cmp
             _padp = padp;
         }
 
-        public async Task DoHandshakeAsync()
+        public async Task DoHandshakeAsync(uint? newBaudRate = null)
         {
             _padp.BumpTransactionId();
 
             byte[] initBuffer = ArrayPool<byte>.Shared.Rent(10);
-            WriteInit(initBuffer);
+            WriteInit(initBuffer, newBaudRate);
             await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10));
             ArrayPool<byte>.Shared.Return(initBuffer);
         }
@@ -75,15 +75,15 @@ namespace Backhand.DeviceIO.Cmp
             _padp.ReceivedData -= wakeUpReceiver.Invoke;
         }
 
-        private void WriteInit(Span<byte> buffer)
+        private void WriteInit(Span<byte> buffer, uint? newBaudRate = null)
         {
             buffer[0] = (byte)CmpPacketType.Init;
-            buffer[1] = (byte)CmpInitPacketFlags.None;
+            buffer[1] = (byte)(CmpInitPacketFlags.None | (newBaudRate != null ? CmpInitPacketFlags.ShouldChangeBaudRate : CmpInitPacketFlags.None));
             buffer[2] = CmpMajorVersion;
             buffer[3] = CmpMinorVersion;
             buffer[4] = 0x00;
             buffer[5] = 0x00;
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(6), 0); // Baud rate
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(6), (newBaudRate ?? 0)); // Baud rate
         }
     }
 }

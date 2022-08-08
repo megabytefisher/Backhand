@@ -14,7 +14,7 @@ namespace Backhand.Pdb.Internal
         public uint NextListId { get; set; }
         public ushort Length { get; set; }
 
-        public const int SerializedLength =
+        public const uint SerializedLength =
             sizeof(uint) +  // NextListId
             sizeof(ushort); // Length
 

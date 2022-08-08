@@ -25,66 +25,101 @@ namespace Backhand.DeviceIO.DlpServers
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                Task? syncTask = null;
+                await DoCmpPortion(cancellationToken);
+                await DoDlpPortion(cancellationToken);
+            }
+        }
 
-                using CancellationTokenSource abortCts = new CancellationTokenSource();
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
+        private async Task DoCmpPortion(CancellationToken cancellationToken)
+        {
+            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-                try
+            using SlpDevice slpDevice = new SlpDevice(_portName);
+            using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
+
+            // Watch for wakeup packet
+            CmpConnection cmpConnection = new CmpConnection(padpConnection);
+            Task waitForWakeUpTask = cmpConnection.WaitForWakeUpAsync(linkedCts.Token);
+
+            // Start device IO
+            Task ioTask = slpDevice.RunIOAsync(linkedCts.Token);
+
+            // Wait for wakeup + do handshake
+            await waitForWakeUpTask;
+            Task handshakeTask = cmpConnection.DoHandshakeAsync(57600);
+
+            try
+            {
+                await Task.WhenAny(handshakeTask, ioTask);
+            }
+            catch
+            {
+            }
+
+            abortCts.Cancel();
+
+            try
+            {
+                await Task.WhenAll(handshakeTask, ioTask);
+            }
+            catch
+            {
+                if (handshakeTask.IsCompletedSuccessfully)
                 {
-                    using SlpDevice slpDevice = new SlpDevice(_portName);
-                    using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
-
-                    // Watch for wakeup packet
-                    CmpConnection cmpConnection = new CmpConnection(padpConnection);
-                    Task waitForWakeUpTask = cmpConnection.WaitForWakeUpAsync(linkedCts.Token);
-
-                    // Start device IO
-                    Task ioTask = slpDevice.RunIOAsync(linkedCts.Token);
-
-                    // Wait for wakeup + do handshake
-                    await waitForWakeUpTask;
-                    await cmpConnection.DoHandshakeAsync();
-
-                    // Create DLP connection
-                    using PadpDlpTransport dlpTransport = new PadpDlpTransport(padpConnection);
-                    DlpConnection dlpConnection = new DlpConnection(dlpTransport);
-
-                    // Do sync
-                    syncTask = DoSync(dlpConnection, linkedCts.Token);
-
-                    // Wait for either sync or IO task to complete/fail
-                    try
-                    {
-                        await Task.WhenAny(syncTask, ioTask);
-                    }
-                    catch
-                    {
-                    }
-
-                    // Abort both tasks
-                    abortCts.Cancel();
-
-                    // Wait for completion
-                    await Task.WhenAll(syncTask, ioTask);
+                    // Swallow
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (syncTask != null)
-                    {
-                        if (syncTask.IsCompletedSuccessfully)
-                        {
-                            // Swallow
-                        }
-                        else
-                        {
-                            throw;
-                        }
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    throw;
+                }
+            }
+        }
+
+        private async Task DoDlpPortion(CancellationToken cancellationToken)
+        {
+            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
+
+            using SlpDevice slpDevice = new SlpDevice(_portName, 57600);
+            using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
+            padpConnection.BumpTransactionId();
+            padpConnection.BumpTransactionId();
+
+            // Start device IO
+            Task ioTask = slpDevice.RunIOAsync(linkedCts.Token);
+
+            // Create DLP connection
+            using PadpDlpTransport dlpTransport = new PadpDlpTransport(padpConnection);
+            DlpConnection dlpConnection = new DlpConnection(dlpTransport);
+
+            // Do sync
+            Task syncTask = DoSync(dlpConnection, linkedCts.Token);
+
+            // Wait for either sync or IO task to complete/fail
+            try
+            {
+                await Task.WhenAny(syncTask, ioTask);
+            }
+            catch
+            {
+            }
+
+            abortCts.Cancel();
+
+            try
+            {
+                await Task.WhenAll(syncTask, ioTask);
+            }
+            catch
+            {
+                if (syncTask.IsCompletedSuccessfully)
+                {
+                    // Swallow
+                }
+                else
+                {
+                    throw;
                 }
             }
         }

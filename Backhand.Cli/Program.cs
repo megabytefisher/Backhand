@@ -11,118 +11,126 @@ using Backhand.DeviceIO.Usb.Windows;
 using Backhand.Pdb;
 using MadWizard.WinUSBNet;
 using System.Buffers;
+using System.CommandLine;
 
 namespace Backhand.Cli
 {
     internal class Program
     {
-        static async Task Main(string[] args)
+        static async Task<int> Main(string[] args)
         {
-            using FileStream inStream = new FileStream("C:\\Users\\kfisher\\Documents\\Palm OS Desktop\\Kevin\\Backup\\_HaCkMe_.PRC", FileMode.Open, FileAccess.Read, FileShare.None, 1024, true);
-            //using FileStream outStream = new FileStream("testout.prc", FileMode.Create, FileAccess.Write, FileShare.None, 1024, true);
-            ResourceDatabase database = new ResourceDatabase();
-            await database.Deserialize(inStream);
-            //await database.Serialize(outStream);
+            var rootCommand = new RootCommand("Backhand CLI Utility");
 
-            Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
+            // install command
+            var installDeviceOption = new Option<string[]>(
+                name: "--device",
+                description: "Device(s) to use for communication. Either the name of a serial port or 'USB'.")
             {
-                Console.WriteLine("Starting sync");
-                try
-                {
-                    (ReadSysInfoResponse readSysInforesponse, ReadSysInfoDlpVersionsResponse dlpVersionsResponse) =
-                    await dlp.ReadSysInfo(new ReadSysInfoRequest()
-                    {
-                        HostDlpVersionMajor = 1,
-                        HostDlpVersionMinor = 4,
-                    });
-
-                    CreateDbResponse createDbResponse =
-                        await dlp.CreateDb(new CreateDbRequest()
-                        {
-                            Type = database.Header.Type,
-                            Creator = database.Header.Creator,
-                            Attributes = (DlpDatabaseAttributes)database.Header.Attributes,
-                            CardId = 0,
-                            Version = database.Header.Version,
-                            Name = database.Header.Name
-                        });
-
-                    foreach (DatabaseResource resource in database.Resources.Skip(2))
-                    {
-                        await dlp.WriteResource(new WriteResourceRequest()
-                        {
-                            DbHandle = createDbResponse.DbHandle,
-                            Type = resource.Type,
-                            ResourceId = resource.ResourceId,
-                            Size = Convert.ToUInt16(resource.Data.Length),
-                            Data = resource.Data,
-                        });
-                    }
-
-                    await dlp.CloseDb(new CloseDbRequest()
-                    {
-                        DbHandle = createDbResponse.DbHandle
-                    });
-
-                    /*ReadDbListResponse readDbListResponse =
-                        await dlp.ReadDbList(new ReadDbListRequest()
-                        {
-                            CardId = 0,
-                            Mode = ReadDbListRequest.ReadDbListMode.ListRam | ReadDbListRequest.ReadDbListMode.ListMultiple,
-                            StartIndex = 0
-                        });
-
-                    string dbName = readDbListResponse.Metadata.First(m => m.Attributes.HasFlag(DlpDatabaseAttributes.ResourceDb)).Name;
-
-                    OpenDbResponse openDbResponse =
-                        await dlp.OpenDb(new OpenDbRequest()
-                        {
-                            CardId = 0,
-                            Mode = OpenDbRequest.OpenDbMode.Read,
-                            Name = dbName
-                        });
-
-                    ReadResourceByIndexResponse readResourceByIndexResponse =
-                        await dlp.ReadResourceByIndex(new ReadResourceByIndexRequest()
-                        {
-                            DbHandle = openDbResponse.DbHandle,
-                            ResourceIndex = 0,
-                            Offset = 0,
-                            MaxLength = 0xff
-                        });
-
-                    ReadRecordIdListResponse readRecordIdListResponse =
-                        await dlp.ReadRecordIdList(new ReadRecordIdListRequest()
-                        {
-                            DbHandle = openDbResponse.DbHandle,
-                            MaxRecords = 100,
-                            StartIndex = 0,
-                        });
-
-                    ReadRecordByIdResponse readRecordByIdResponse =
-                        await dlp.ReadRecordById(new ReadRecordByIdRequest()
-                        {
-                            DbHandle = openDbResponse.DbHandle,
-                            RecordId = readRecordIdListResponse.RecordIds.First(),
-                            Offset = 0,
-                            MaxLength = 0xff
-                        });*/
-
-
-                    Console.WriteLine("Sync OK");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Sync failed");
-                    Console.WriteLine(ex);
-                }
-                
+                IsRequired = true,
+                Arity = ArgumentArity.OneOrMore,
             };
 
-            SerialDlpServer server = new SerialDlpServer("COM3", syncFunc);
-            //UsbDlpServer server = new UsbDlpServer(syncFunc);
+            var installPathOption = new Option<string[]>(
+                name: "--path",
+                description: "Path to file(s) to install.")
+            {
+                IsRequired = true,
+                Arity = ArgumentArity.OneOrMore,
+            };
 
-            await server.Run();
+            var installCommand = new Command("install", "Install PDB/PRC files onto a device.")
+            {
+                installDeviceOption,
+                installPathOption
+            };
+            rootCommand.AddCommand(installCommand);
+            installCommand.SetHandler(DoInstall, installDeviceOption, installPathOption);
+
+            return await rootCommand.InvokeAsync(args);
+        }
+
+        private static async Task DoInstall(string[] deviceNames, string[] paths)
+        {
+            Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
+            {
+                foreach (string path in paths)
+                {
+                    switch (Path.GetExtension(path).ToLower())
+                    {
+                        case ".prc":
+                            await InstallPrc(dlp, path);
+                            break;
+                            //case ".pdb":
+                            //    break;
+                    }
+                }
+            };
+
+            await RunDeviceServers(deviceNames, syncFunc);
+        }
+
+        private static async Task RunDeviceServers(string[] deviceNames, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken = default)
+        {
+            List<DlpServer> servers = new List<DlpServer>();
+
+            foreach (string device in deviceNames)
+            {
+                if (device.ToLower() == "usb")
+                {
+                    servers.Add(new UsbDlpServer(syncFunc));
+                }
+                else
+                {
+                    servers.Add(new SerialDlpServer(device, syncFunc));
+                }
+            }
+
+            List<Task> serverTasks = servers.Select(s => s.Run(cancellationToken)).ToList();
+
+            await Task.WhenAll(serverTasks);
+        }
+
+        private static async Task InstallPrc(DlpConnection dlp, string path)
+        {
+            ResourceDatabase database = new ResourceDatabase();
+
+            using (FileStream inStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 512, true))
+            {
+                await database.Deserialize(inStream);
+            }
+
+            // Create database
+            CreateDbResponse createDbResponse =
+                await dlp.CreateDb(new CreateDbRequest
+                {
+                    Creator = database.Creator,
+                    Type = database.Type,
+                    CardId = 0,
+                    Attributes = (DlpDatabaseAttributes)database.Attributes,
+                    Version = database.Version,
+                    Name = database.Name,
+                });
+
+            byte dbHandle = createDbResponse.DbHandle;
+
+            // Write each resource
+            foreach (DatabaseResource resource in database.Resources)
+            {
+                await dlp.WriteResource(new WriteResourceRequest
+                {
+                    DbHandle = dbHandle,
+                    Type = resource.Type,
+                    ResourceId = resource.ResourceId,
+                    Size = Convert.ToUInt16(resource.Data.Length),
+                    Data = resource.Data,
+                });
+            }
+
+            // Close database
+            await dlp.CloseDb(new CloseDbRequest
+            {
+                DbHandle = dbHandle
+            });
         }
     }
 }

@@ -36,6 +36,7 @@ namespace Backhand.DeviceIO.Slp
         public event EventHandler<SlpPacketTransmittedArgs>? SendingPacket;
 
         private string _serialPortName;
+        private int _baudRate;
 
         private BufferBlock<SlpSendJob> _sendQueue;
         private CancellationTokenSource _workerCts;
@@ -49,13 +50,14 @@ namespace Backhand.DeviceIO.Slp
         private const int PacketFooterSize = 2;
         private const int MinPacketSize = PacketHeaderSize + PacketFooterSize;
 
-        public SlpDevice(string serialPortName)
+        public SlpDevice(string serialPortName, int baudRate = 9600)
         {
+            _serialPortName = serialPortName;
+            _baudRate = baudRate;
+
             _sendQueue = new BufferBlock<SlpSendJob>();
             _workerCts = new CancellationTokenSource();
             _workerExited = new ManualResetEventSlim();
-
-            _serialPortName = serialPortName;
         }
 
         public void Dispose()
@@ -89,7 +91,8 @@ namespace Backhand.DeviceIO.Slp
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _workerCts.Token);
 
             using SerialPort serialPort = new SerialPort(_serialPortName);
-            serialPort.BaudRate = 9600;
+            serialPort.BaudRate = _baudRate;
+            serialPort.Handshake = Handshake.RequestToSend;
             serialPort.Open();
 
             PipeReader serialPortReader = PipeReader.Create(serialPort.BaseStream);
