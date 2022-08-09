@@ -13,10 +13,10 @@ using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands
 {
-    public class InstallCommand : BaseCommand
+    public class PushDbCommand : BaseCommand
     {
-        public InstallCommand(ILoggerFactory loggerFactory)
-            : base("install", "Installs a PDB/PRC file onto a connected device.", loggerFactory)
+        public PushDbCommand(ILoggerFactory loggerFactory)
+            : base("pushdb", "Uploads one or more databases (in .PRC/.PDB file format) to a connected device.", loggerFactory)
         {
             var deviceOption = new Option<string[]>(
                 name: "--device",
@@ -29,17 +29,17 @@ namespace Backhand.Cli.Commands
 
             var pathOption = new Option<string[]>(
                 name: "--path",
-                description: "Path to file(s) to install.")
+                description: "Path to database file(s) to install. If a directory is specified, it will be recursively searched.")
             {
                 IsRequired = true,
                 Arity = ArgumentArity.OneOrMore,
             };
             AddOption(pathOption);
 
-            this.SetHandler(DoInstall, deviceOption, pathOption);
+            this.SetHandler(DoPushDb, deviceOption, pathOption);
         }
 
-        private async Task DoInstall(string[] deviceNames, string[] paths)
+        private async Task DoPushDb(string[] deviceNames, string[] paths)
         {
             List<string> filePaths = GetFilePaths(paths);
             _logger.LogInformation($"Will install {filePaths.Count} file(s) to device.");

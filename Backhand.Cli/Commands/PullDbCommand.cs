@@ -78,9 +78,6 @@ namespace Backhand.Cli.Commands
                         await PullResourceDb(dlp, metadata, filePath, cancellationToken);
                     }
                 }
-
-
-                
             };
 
             _logger.LogInformation("Running device servers...");

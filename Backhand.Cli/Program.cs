@@ -30,7 +30,7 @@ namespace Backhand.Cli
             });
 
             var rootCommand = new RootCommand("Backhand CLI Utility");
-            rootCommand.AddCommand(new InstallCommand(loggerFactory));
+            rootCommand.AddCommand(new PushDbCommand(loggerFactory));
             rootCommand.AddCommand(new PullDbCommand(loggerFactory));
             return await rootCommand.InvokeAsync(args);
         }

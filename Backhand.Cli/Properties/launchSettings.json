@@ -11,7 +11,7 @@
     },
     "pulldb": {
       "commandName": "Project",
-      "commandLineArgs": "pulldb --device COM4 --path C:\\Users\\kfisher\\palmout\r\n"
+      "commandLineArgs": "pulldb --device usb --path C:\\Users\\kfisher\\palmout\r\n"
     }
   }
 }
