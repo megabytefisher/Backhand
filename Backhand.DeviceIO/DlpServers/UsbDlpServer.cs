@@ -27,8 +27,6 @@ namespace Backhand.DeviceIO.DlpServers
 
         private List<UsbDlpClient> _activeClients;
 
-        //private readonly Guid WinUsbGuid = new Guid("dee824ef-729b-4a0e-9c14-b7117d33a817");
-
         public UsbDlpServer(Func<DlpConnection, CancellationToken, Task> syncFunc)
             : base(syncFunc)
         {

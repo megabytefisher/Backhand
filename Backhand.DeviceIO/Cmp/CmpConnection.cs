@@ -64,15 +64,22 @@ namespace Backhand.DeviceIO.Cmp
                 wakeUpTcs.TrySetResult();
             };
 
-            cancellationToken.Register(() =>
-            {
-                _padp.ReceivedData -= wakeUpReceiver.Invoke;
-                wakeUpTcs.TrySetCanceled();
-            });
-
             _padp.ReceivedData += wakeUpReceiver.Invoke;
-            await wakeUpTcs.Task;
-            _padp.ReceivedData -= wakeUpReceiver.Invoke;
+
+            using (cancellationToken.Register(() =>
+            {
+                wakeUpTcs.TrySetCanceled();
+            }))
+            {
+                try
+                {
+                    await wakeUpTcs.Task;
+                }
+                finally
+                {
+                    _padp.ReceivedData -= wakeUpReceiver.Invoke;
+                }
+            }
         }
 
         private void WriteInit(Span<byte> buffer, uint? newBaudRate = null)

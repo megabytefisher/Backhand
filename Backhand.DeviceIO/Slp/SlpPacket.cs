@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Backhand.Utility.Buffers;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +20,7 @@ namespace Backhand.DeviceIO.Slp
         {
             StringBuilder result = new StringBuilder();
             result.AppendLine($"Dest: {DestinationSocket}, Src: {SourceSocket}, Type: {PacketType}, TxId: {TransactionId}, Data Length: {Data.Length}");
-            result.Append(BitConverter.ToString(Data.ToArray()));
+            result.Append(HexSerialization.GetHexString(Data));
             return result.ToString();
         }
     }

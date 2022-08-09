@@ -36,6 +36,9 @@ namespace Backhand.DeviceIO.DlpServers
             {
                 Status = EndOfSyncRequest.EndOfSyncStatus.Okay
             });
+
+            // Give device time to read our message before tearing down the connection..
+            await Task.Delay(50);
         }
     }
 }

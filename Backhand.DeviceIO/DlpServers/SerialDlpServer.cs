@@ -3,6 +3,8 @@ using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Slp;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,18 +17,21 @@ namespace Backhand.DeviceIO.DlpServers
     {
         private string _portName;
 
-        public SerialDlpServer(string portName, Func<DlpConnection, CancellationToken, Task> syncFunc)
+        private ILoggerFactory _loggerFactory;
+
+        public SerialDlpServer(string portName, Func<DlpConnection, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
             : base(syncFunc)
         {
             _portName = portName;
+            _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         }
 
         public override async Task Run(CancellationToken cancellationToken = default)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await DoCmpPortion(cancellationToken);
-                await DoDlpPortion(cancellationToken);
+                await DoCmpPortion(cancellationToken).ConfigureAwait(false);
+                await DoDlpPortion(cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -35,7 +40,7 @@ namespace Backhand.DeviceIO.DlpServers
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SlpDevice slpDevice = new SlpDevice(_portName);
+            using SlpDevice slpDevice = new SlpDevice(_portName, logger: _loggerFactory.CreateLogger("SlpDevice"));
             using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
 
             // Watch for wakeup packet
@@ -51,7 +56,7 @@ namespace Backhand.DeviceIO.DlpServers
 
             try
             {
-                await Task.WhenAny(handshakeTask, ioTask);
+                await Task.WhenAny(handshakeTask, ioTask).ConfigureAwait(false);
             }
             catch
             {
@@ -61,7 +66,7 @@ namespace Backhand.DeviceIO.DlpServers
 
             try
             {
-                await Task.WhenAll(handshakeTask, ioTask);
+                await Task.WhenAll(handshakeTask, ioTask).ConfigureAwait(false);
             }
             catch
             {
@@ -81,7 +86,7 @@ namespace Backhand.DeviceIO.DlpServers
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SlpDevice slpDevice = new SlpDevice(_portName, 57600);
+            using SlpDevice slpDevice = new SlpDevice(_portName, 57600, logger: _loggerFactory.CreateLogger("SlpDevice"));
             using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
             padpConnection.BumpTransactionId();
             padpConnection.BumpTransactionId();
@@ -99,7 +104,7 @@ namespace Backhand.DeviceIO.DlpServers
             // Wait for either sync or IO task to complete/fail
             try
             {
-                await Task.WhenAny(syncTask, ioTask);
+                await Task.WhenAny(syncTask, ioTask).ConfigureAwait(false);
             }
             catch
             {
@@ -109,7 +114,7 @@ namespace Backhand.DeviceIO.DlpServers
 
             try
             {
-                await Task.WhenAll(syncTask, ioTask);
+                await Task.WhenAll(syncTask, ioTask).ConfigureAwait(false);
             }
             catch
             {

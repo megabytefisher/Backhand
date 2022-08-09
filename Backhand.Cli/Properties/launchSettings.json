@@ -1,8 +1,17 @@
 {
   "profiles": {
-    "Backhand.Cli": {
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    },
+    "install": {
       "commandName": "Project",
-      "commandLineArgs": "install --device usb --path \"C:\\Users\\kfisher\\Downloads\\BikeOrDie-1.6b\\BikeOrDie-1.6b-Lowres.prc\""
+      "commandLineArgs": "install --device COM4 --path \"C:\\Users\\kfisher\\Downloads\\Filez.prc\""
+    },
+    "pulldb": {
+      "commandName": "Project",
+      "commandLineArgs": "pulldb --device COM4 --path C:\\Users\\kfisher\\palmout\r\n"
     }
   }
 }

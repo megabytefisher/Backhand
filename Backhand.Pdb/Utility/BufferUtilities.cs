@@ -45,11 +45,17 @@ namespace Backhand.Pdb.Utility
         {
             if (epochType == DatabaseTimestampEpoch.Palm)
             {
+                if (value == DateTime.MinValue)
+                    value = PalmEpoch;
+
                 uint offsetSeconds = Convert.ToUInt32(value.Subtract(PalmEpoch).TotalSeconds);
                 BinaryPrimitives.WriteUInt32BigEndian(buffer, offsetSeconds);
             }
             else
             {
+                if (value == DateTime.MinValue)
+                    value = UnixEpoch;
+
                 int offsetSeconds = Convert.ToInt32(value.Subtract(UnixEpoch).TotalSeconds);
                 BinaryPrimitives.WriteInt32BigEndian(buffer, offsetSeconds);
             }

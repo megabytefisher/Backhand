@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Backhand.DeviceIO.Utility;
 using Backhand.Utility.Buffers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Backhand.DeviceIO.Slp
 {
@@ -42,6 +44,10 @@ namespace Backhand.DeviceIO.Slp
         private CancellationTokenSource _workerCts;
         private ManualResetEventSlim _workerExited;
 
+        private ILogger _logger;
+        private bool _traceEnabled;
+        private bool _debugEnabled;
+
         private const byte HeaderMagic1 = 0xBE;
         private const byte HeaderMagic2 = 0xEF;
         private const byte HeaderMagic3 = 0xED;
@@ -50,10 +56,13 @@ namespace Backhand.DeviceIO.Slp
         private const int PacketFooterSize = 2;
         private const int MinPacketSize = PacketHeaderSize + PacketFooterSize;
 
-        public SlpDevice(string serialPortName, int baudRate = 9600)
+        public SlpDevice(string serialPortName, int baudRate = 9600, ILogger? logger = null)
         {
             _serialPortName = serialPortName;
             _baudRate = baudRate;
+            _logger = logger ?? NullLogger.Instance;
+            _traceEnabled = _logger.IsEnabled(LogLevel.Trace);
+            _debugEnabled = _logger.IsEnabled(LogLevel.Debug);
 
             _sendQueue = new BufferBlock<SlpSendJob>();
             _workerCts = new CancellationTokenSource();
@@ -71,6 +80,11 @@ namespace Backhand.DeviceIO.Slp
 
         public void SendPacket(SlpPacket packet)
         {
+            if (_debugEnabled)
+            {
+                _logger.LogDebug($"Enqueueing packet; Dst: {packet.DestinationSocket}, Src: {packet.SourceSocket}, Type: {packet.PacketType}, TxId: {packet.TransactionId} [{HexSerialization.GetHexString(packet.Data)}]");
+            }
+
             SendingPacket?.Invoke(this, new SlpPacketTransmittedArgs(packet));
 
             // Get buffer to hold the serialized packet
@@ -102,32 +116,37 @@ namespace Backhand.DeviceIO.Slp
             Task writerTask = RunWriterAsync(serialPortWriter, linkedCts.Token);
 
             // Fixes for CancellationToken not working..
-            linkedCts.Token.Register(() =>
+            using (linkedCts.Token.Register(() =>
             {
                 serialPort.Dispose();
                 _sendQueue.Complete();
-            });
+            }))
+            {
+                // Wait for either task to complete/fail
+                try
+                {
+                    await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
+                }
+                catch
+                {
+                }
 
-            // Wait for either task to complete/fail
-            try
-            {
-                await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
-            }
-            catch
-            {
-            }
+                // Request exit
+                _workerCts.Cancel();
 
-            // Request exit
-            _workerCts.Cancel();
-
-            // Wait for both tasks to complete..
-            try
-            {
-                await Task.WhenAll(readerTask, writerTask).ConfigureAwait(false);
-            }
-            finally
-            {
-                _workerExited.Set();
+                // Wait for both tasks to complete..
+                try
+                {
+                    await Task.WhenAll(readerTask, writerTask).ConfigureAwait(false);
+                }
+                catch
+                {
+                    throw;
+                }
+                finally
+                {
+                    _workerExited.Set();
+                }
             }
         }
 
@@ -147,6 +166,14 @@ namespace Backhand.DeviceIO.Slp
                 // Read SLP packets from the buffer
                 SequencePosition processedPosition = ReadPackets(buffer, ref firstPacket);
 
+                // Log what we processed
+                if (_traceEnabled)
+                {
+                    ReadOnlySequence<byte> processedSequence = buffer.Slice(0, processedPosition);
+                    if (processedSequence.Length > 0)
+                        _logger.LogTrace($"Received and processed {processedSequence.Length} bytes: {HexSerialization.GetHexString(processedSequence)}");
+                }
+
                 // Advance the pipe
                 reader.AdvanceTo(processedPosition, buffer.End);
             }
@@ -160,6 +187,11 @@ namespace Backhand.DeviceIO.Slp
             {
                 //await _sendQueue.OutputAvailableAsync(cancellationToken).ConfigureAwait(false);
                 SlpSendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+
+                if (_traceEnabled)
+                {
+                    _logger.LogTrace($"Sending {sendJob.Length} bytes: {HexSerialization.GetHexString(((Span<byte>)sendJob.Buffer).Slice(0, sendJob.Length))}"); ;
+                }
 
                 Memory<byte> sendBuffer = writer.GetMemory(sendJob.Length);
                 sendJob.Buffer.CopyTo(sendBuffer);
@@ -296,6 +328,11 @@ namespace Backhand.DeviceIO.Slp
                     TransactionId = transactionId,
                     Data = packetBody
                 };
+
+                if (_debugEnabled)
+                {
+                    _logger.LogDebug($"Received packet; Dst: {packet.DestinationSocket}, Src: {packet.SourceSocket}, Type: {packet.PacketType}, TxId: {packet.TransactionId} [{HexSerialization.GetHexString(packet.Data)}]");
+                }
 
                 ReceivedPacket?.Invoke(this, new SlpPacketTransmittedArgs(packet));
             }

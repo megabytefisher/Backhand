@@ -221,7 +221,7 @@ namespace Backhand.DeviceIO.Padp
 
             using (cancellationToken.Register(() =>
             {
-                ackTcs.SetCanceled();
+                ackTcs.TrySetCanceled();
             }))
             {
                 try
