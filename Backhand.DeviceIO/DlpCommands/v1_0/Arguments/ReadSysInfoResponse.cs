@@ -13,7 +13,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
     {
         public uint RomVersion { get; set; }
         public uint Locale { get; set; }
-        public byte[] ProductId { get; set; }
+        public byte[] ProductId { get; set; } = Array.Empty<byte>();
 
         public override int GetSerializedLength()
         {

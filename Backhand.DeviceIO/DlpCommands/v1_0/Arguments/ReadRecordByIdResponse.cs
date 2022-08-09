@@ -11,7 +11,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class ReadRecordByIdResponse : DlpArgument
     {
-        public DlpRecordMetadata Metadata { get; set; }
+        public DlpRecordMetadata Metadata { get; set; } = new DlpRecordMetadata();
         public byte[] Data { get; set; } = Array.Empty<byte>();
 
         public override int GetSerializedLength()

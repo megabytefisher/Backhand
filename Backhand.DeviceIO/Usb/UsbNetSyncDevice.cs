@@ -1,6 +1,7 @@
 ﻿using Backhand.DeviceIO.NetSync;
 using Backhand.Utility.Buffers;
-using MadWizard.WinUSBNet;
+using LibUsbDotNet;
+using LibUsbDotNet.Main;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -10,9 +11,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
-namespace Backhand.DeviceIO.Usb.Windows
+namespace Backhand.DeviceIO.Usb
 {
-    public class WindowsUsbNetSyncDevice : NetSyncDevice, IDisposable
+    public class UsbNetSyncDevice : NetSyncDevice
     {
         private class SendJob : IDisposable
         {
@@ -35,18 +36,18 @@ namespace Backhand.DeviceIO.Usb.Windows
         {
             public byte PortCount { get; set; }
             public bool HasDifferentEndpoints { get; set; }
-            public ExtConnectionPortInfo[] Ports { get; set; }
+            public ExtConnectionPortInfo[] Ports { get; set; } = Array.Empty<ExtConnectionPortInfo>();
         }
 
         private class ExtConnectionPortInfo
         {
-            public string Type { get; set; }
+            public string Type { get; set; } = "";
             public byte PortNumber { get; set; }
             public byte InEndpoint { get; set; }
             public byte OutEndpoint { get; set; }
         }
 
-        private USBDevice _usbDevice;
+        private UsbRegistry _usbRegistry;
 
         private byte? _inEndpoint;
         private byte? _outEndpoint;
@@ -62,37 +63,38 @@ namespace Backhand.DeviceIO.Usb.Windows
         private const int ExtConnectionOutEndpointBitmask = 0b00001111;
         private const int ExtConnectionOutEndpointShift = 0;
 
-        public WindowsUsbNetSyncDevice(USBDeviceInfo usbDeviceInfo)
+        public UsbNetSyncDevice(UsbRegistry usbRegistry)
         {
-            _usbDevice = new USBDevice(usbDeviceInfo);
+            _usbRegistry = usbRegistry;
             _sendQueue = new BufferBlock<SendJob>();
         }
 
         public void Dispose()
         {
-            _usbDevice.Dispose();
-            
-            if (_sendQueue.TryReceiveAll(out IList<SendJob>? sendJobs))
-            {
-                foreach (SendJob sendJob in sendJobs)
-                {
-                    sendJob.Dispose();
-                }
-            }
-
             _sendQueue.Complete();
         }
 
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
         {
-            DoHardwareHandshake();
+            bool success = _usbRegistry.Open(out UsbDevice usbDevice);
+            if (!success)
+                throw new NetSyncException("Failed to open USB device");
 
-            using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, CancellationToken.None))
+            try
             {
-                Task readerTask = RunReaderAsync(linkedCts.Token);
-                Task writerTask = RunWriterAsync(linkedCts.Token);
+                DoHardwareHandshake(usbDevice);
 
-                await Task.WhenAll(readerTask, writerTask).ConfigureAwait(false);
+                using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, CancellationToken.None))
+                {
+                    Task readerTask = RunReaderAsync(usbDevice, linkedCts.Token);
+                    Task writerTask = RunWriterAsync(usbDevice, linkedCts.Token);
+
+                    await Task.WhenAll(readerTask, writerTask).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                usbDevice.Close();
             }
         }
 
@@ -112,11 +114,14 @@ namespace Backhand.DeviceIO.Usb.Windows
             }
         }
 
-        private void DoHardwareHandshake()
+        private void DoHardwareHandshake(UsbDevice usbDevice)
         {
             // TODO: convert Control methods to async..
             byte[] result = new byte[20];
-            int len = _usbDevice.ControlIn(UsbControlTransferRequestType, 0x04, 0x00, 0x00, result);
+            UsbSetupPacket setupPacket = new UsbSetupPacket(UsbControlTransferRequestType, 0x04, 0, 0, 20);
+            bool success = usbDevice.ControlTransfer(ref setupPacket, result, 20, out int len);
+            if (len != 20)
+                throw new NetSyncException("Didn't get expected length from USB control transfer");
 
             GetExtConnectionInfoResponse response = ReadGetExtConnectionInfoResponse(new ReadOnlySequence<byte>(result, 0, len));
 
@@ -128,54 +133,54 @@ namespace Backhand.DeviceIO.Usb.Windows
             _outEndpoint = syncPort.OutEndpoint;
         }
 
-        private async Task RunReaderAsync(CancellationToken cancellationToken)
+        private async Task RunReaderAsync(UsbDevice usbDevice, CancellationToken cancellationToken)
         {
             Pipe readerPipe = new Pipe();
             await Task.WhenAll(
-                FillReadPipeAsync(readerPipe.Writer, cancellationToken),
+                FillReadPipeAsync(usbDevice, readerPipe.Writer, cancellationToken),
                 ProcessReadPipeAsync(readerPipe.Reader, cancellationToken)).ConfigureAwait(false);
         }
 
-        private async Task FillReadPipeAsync(PipeWriter writer, CancellationToken cancellationToken)
+        private async Task FillReadPipeAsync(UsbDevice usbDevice, PipeWriter writer, CancellationToken cancellationToken)
         {
             const int minimumBufferSize = 256;
+            byte[] readBuffer = ArrayPool<byte>.Shared.Rent(minimumBufferSize);
 
-            USBPipe usbPipe = _usbDevice.Interfaces.First().Pipes[_inEndpoint.Value];
+            using UsbEndpointReader usbReader = usbDevice.OpenEndpointReader((ReadEndpointID)_inEndpoint!);
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                try
-                {
-                    byte[] readBuffer = ArrayPool<byte>.Shared.Rent(minimumBufferSize);
+                ErrorCode errorCode = usbReader.SubmitAsyncTransfer(readBuffer, 0, readBuffer.Length, int.MaxValue, out UsbTransfer transferContext);
+                if (errorCode != ErrorCode.Ok)
+                    throw new NetSyncException("Failed to submit read transfer on USB device");
 
-                    TaskCompletionSource<int> readTcs = new TaskCompletionSource<int>();
-                    usbPipe.BeginRead(readBuffer, 0, readBuffer.Length, (result) =>
+                int bytesRead;
+                using (CancellationTokenRegistration cancelRegistration = cancellationToken.Register(() =>
+                {
+                    transferContext.Cancel();
+                }))
+                {
+                    bytesRead = await Task.Run(() =>
                     {
-                        try
-                        {
-                            readTcs.TrySetResult(usbPipe.EndRead(result));
-                        }
-                        catch (Exception ex)
-                        {
-                            readTcs.TrySetException(ex);
-                        }
-                    }, null);
-                    int bytesRead = await readTcs.Task.ConfigureAwait(false);
+                        var test = cancellationToken;
+                        ErrorCode usbError = transferContext.Wait(out int transferredCount);
+                        if (usbError == ErrorCode.IoCancelled)
+                            throw new TaskCanceledException();
+                        if (usbError != ErrorCode.Ok)
+                            throw new NetSyncException("Error reading from device");
 
-                    Memory<byte> pipeBuffer = writer.GetMemory(bytesRead);
-                    ((Span<byte>)readBuffer).Slice(0, bytesRead).CopyTo(pipeBuffer.Span);
-                    writer.Advance(bytesRead);
-
-                    FlushResult result = await writer.FlushAsync().ConfigureAwait(false);
-
-                    if (result.IsCompleted)
-                        break;
+                        return transferredCount;
+                    }).ConfigureAwait(false);
                 }
-                catch (Exception ex)
-                {
-                    // TODO : log
+
+                Memory<byte> pipeBuffer = writer.GetMemory(bytesRead);
+                ((Span<byte>)readBuffer).Slice(0, bytesRead).CopyTo(pipeBuffer.Span);
+                writer.Advance(bytesRead);
+
+                FlushResult result = await writer.FlushAsync().ConfigureAwait(false);
+
+                if (result.IsCompleted)
                     break;
-                }
             }
 
             await writer.CompleteAsync().ConfigureAwait(false);
@@ -199,44 +204,36 @@ namespace Backhand.DeviceIO.Usb.Windows
             await reader.CompleteAsync().ConfigureAwait(false);
         }
 
-        private async Task RunWriterAsync(CancellationToken cancellationToken)
+        private async Task RunWriterAsync(UsbDevice usbDevice, CancellationToken cancellationToken)
         {
-            USBPipe usbPipe = _usbDevice.Interfaces.First().Pipes[_outEndpoint.Value];
+            using UsbEndpointWriter usbWriter = usbDevice.OpenEndpointWriter((WriteEndpointID)_outEndpoint!);
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 SendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
 
-                TaskCompletionSource writeTcs = new TaskCompletionSource();
-                usbPipe.BeginWrite(sendJob.Buffer, 0, sendJob.Length, (result) =>
+                ErrorCode errorCode = usbWriter.SubmitAsyncTransfer(sendJob.Buffer, 0, sendJob.Length, int.MaxValue, out UsbTransfer transferContext);
+                if (errorCode != ErrorCode.Ok)
+                    throw new NetSyncException("Failed to submit write transfer to USB device");
+
+                using (CancellationTokenRegistration cancelRegistration = cancellationToken.Register(() =>
                 {
-                    usbPipe.EndWrite(result);
-                    writeTcs.TrySetResult();
-                }, null);
-                await writeTcs.Task.ConfigureAwait(false);
+                    transferContext.Cancel();
+                }))
+                {
+                    await Task.Run(() =>
+                    {
+                        ErrorCode usbError = transferContext.Wait(out int transferredCount);
+                        if (usbError != ErrorCode.Ok)
+                            throw new NetSyncException("Error reading from device");
+
+                        return transferredCount;
+                    }).ConfigureAwait(false);
+                }
 
                 sendJob.Dispose();
             }
         }
-
-        /*private async Task RunWriterAsync(CancellationToken cancellationToken)
-        {
-            PipeWriter serialPortWriter = PipeWriter.Create(_serialPort.BaseStream);
-
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                SlpSendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-
-                Memory<byte> sendBuffer = serialPortWriter.GetMemory(sendJob.Length);
-                sendJob.Buffer.CopyTo(sendBuffer);
-
-                serialPortWriter.Advance(sendJob.Length);
-                await serialPortWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
-
-                // Dispose sendJob to return allocated array to pool
-                sendJob.Dispose();
-            }
-        }*/
 
         private GetExtConnectionInfoResponse ReadGetExtConnectionInfoResponse(ReadOnlySequence<byte> buffer)
         {

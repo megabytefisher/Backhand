@@ -60,10 +60,10 @@ namespace Backhand.DeviceIO.NetSync
         public async Task DoNetSyncHandshake()
         {
             // Wait for wakeup
-            await WatchPackets((p) =>
-            {
-                return p.Data.Length == NetSyncHandshakeWakeup.Length && p.TransactionId == 0xff;
-            });
+            //await WatchPackets((p) =>
+            //{
+            //    return p.Data.Length == NetSyncHandshakeWakeup.Length && p.TransactionId == 0xff;
+            //});
 
             // Watch for first response
             Task response1Task = WatchPackets((p) =>

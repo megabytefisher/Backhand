@@ -11,7 +11,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class ReadResourceByIndexResponse : DlpArgument
     {
-        public DlpResourceMetadata Metadata { get; set; }
+        public DlpResourceMetadata Metadata { get; set; } = new DlpResourceMetadata();
         public byte[] Data { get; set; } = Array.Empty<byte>();
 
         public override int GetSerializedLength()

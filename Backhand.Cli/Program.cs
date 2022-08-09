@@ -7,9 +7,7 @@ using Backhand.DeviceIO.DlpServers;
 using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Slp;
-using Backhand.DeviceIO.Usb.Windows;
 using Backhand.Pdb;
-using MadWizard.WinUSBNet;
 using System.Buffers;
 using System.CommandLine;
 

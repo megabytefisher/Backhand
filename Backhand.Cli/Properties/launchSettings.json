@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Backhand.Cli": {
+      "commandName": "Project",
+      "commandLineArgs": "install --device usb --path \"C:\\Users\\kfisher\\Downloads\\BikeOrDie-1.6b\\BikeOrDie-1.6b-Lowres.prc\""
+    }
+  }
+}

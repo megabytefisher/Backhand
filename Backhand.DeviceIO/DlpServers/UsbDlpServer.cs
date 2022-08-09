@@ -1,8 +1,8 @@
 ﻿using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Usb;
-using Backhand.DeviceIO.Usb.Windows;
-using MadWizard.WinUSBNet;
+using LibUsbDotNet;
+using LibUsbDotNet.Main;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +27,7 @@ namespace Backhand.DeviceIO.DlpServers
 
         private List<UsbDlpClient> _activeClients;
 
-        private readonly Guid WinUsbGuid = new Guid("dee824ef-729b-4a0e-9c14-b7117d33a817");
+        //private readonly Guid WinUsbGuid = new Guid("dee824ef-729b-4a0e-9c14-b7117d33a817");
 
         public UsbDlpServer(Func<DlpConnection, CancellationToken, Task> syncFunc)
             : base(syncFunc)
@@ -41,16 +41,16 @@ namespace Backhand.DeviceIO.DlpServers
             {
                 MaintainClients();
 
-                (USBDeviceInfo? info, UsbDeviceConfig? config) newDevice = USBDevice.GetDevices(WinUsbGuid)
-                    .Select(di => (deviceInfo: di, deviceConfig: UsbDeviceConfigs.Devices.GetValueOrDefault(((ushort)di.VID, (ushort)di.PID))))
+                (UsbRegistry? newDeviceInfo, UsbDeviceConfig? config) newDevice = UsbDevice.AllDevices
+                    .Select(di => (deviceInfo: di, deviceConfig: UsbDeviceConfigs.Devices.GetValueOrDefault(((ushort)di.Vid, (ushort)di.Pid))))
                     .Where(d => d.deviceConfig != null)
                     .Where(d => !_activeClients.Any(c => c.DevicePath == d.deviceInfo.DevicePath))
-                    .Select(d => d)
-                    .FirstOrDefault();
+                    .SingleOrDefault();
 
-                if (newDevice.info != null)
+
+                if (newDevice.newDeviceInfo != null)
                 {
-                    _activeClients.Add(new UsbDlpClient(newDevice.info.DevicePath, HandleDevice(newDevice.info, newDevice.config!)));
+                    _activeClients.Add(new UsbDlpClient(newDevice.newDeviceInfo.DevicePath, HandleDevice(newDevice.newDeviceInfo, newDevice.config!)));
                 }
 
                 await Task.Delay(500).ConfigureAwait(false);
@@ -62,55 +62,51 @@ namespace Backhand.DeviceIO.DlpServers
             _activeClients.RemoveAll(c => c.HandlerTask.IsCompleted);
         }
 
-        private async Task HandleDevice(USBDeviceInfo info, UsbDeviceConfig config, CancellationToken cancellationToken = default)
+        private async Task HandleDevice(UsbRegistry info, UsbDeviceConfig config, CancellationToken cancellationToken = default)
         {
             Task? syncTask = null;
 
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
+            UsbNetSyncDevice netSyncDevice = new UsbNetSyncDevice(info);
+
+            Task ioTask = netSyncDevice.RunIOAsync(linkedCts.Token);
+            await netSyncDevice.DoNetSyncHandshake().ConfigureAwait(false);
+
+            using NetSyncDlpTransport transport = new NetSyncDlpTransport(netSyncDevice);
+            DlpConnection dlpConnection = new DlpConnection(transport);
+
+            syncTask = DoSync(dlpConnection, linkedCts.Token);
+
             try
             {
-                using WindowsUsbNetSyncDevice netSyncDevice = new WindowsUsbNetSyncDevice(info);
+                await Task.WhenAny(syncTask, ioTask).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
 
-                Task ioTask = netSyncDevice.RunIOAsync(linkedCts.Token);
-                await netSyncDevice.DoNetSyncHandshake().ConfigureAwait(false);
+            abortCts.Cancel();
 
-                using NetSyncDlpTransport transport = new NetSyncDlpTransport(netSyncDevice);
-                DlpConnection dlpConnection = new DlpConnection(transport);
-
-                syncTask = DoSync(dlpConnection, linkedCts.Token);
-
-                try
-                {
-                    await Task.WhenAny(syncTask, ioTask).ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-
-                abortCts.Cancel();
-
+            try
+            {
                 await Task.WhenAll(syncTask, ioTask).ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch
             {
-                if (syncTask != null)
+                if (syncTask.IsCompletedSuccessfully)
                 {
-                    if (syncTask.IsCompletedSuccessfully)
-                    {
-                        // Swallow
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    // Swallow
                 }
                 else
                 {
-                    throw;
+                    // Do something
                 }
             }
+
+            // Don't allow immediate reconnection
+            await Task.Delay(2000);
         }
     }
 }

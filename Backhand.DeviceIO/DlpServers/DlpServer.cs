@@ -22,7 +22,15 @@ namespace Backhand.DeviceIO.DlpServers
 
         protected async Task DoSync(DlpConnection dlpConnection, CancellationToken cancellationToken = default)
         {
-            await _syncFunc(dlpConnection, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _syncFunc(dlpConnection, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("DoSync failed");
+                Console.WriteLine(ex);
+            }
 
             await dlpConnection.EndOfSync(new EndOfSyncRequest()
             {

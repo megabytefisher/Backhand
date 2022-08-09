@@ -22,7 +22,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 
         public byte CardId { get; set; }
         public OpenDbMode Mode { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = "";
 
         public override int GetSerializedLength()
         {
