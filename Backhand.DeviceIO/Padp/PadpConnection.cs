@@ -43,6 +43,7 @@ namespace Backhand.DeviceIO.Padp
         private const byte PadpSlpPacketType = 0x02;
         private const int PadpMtu = 1024;
         private const int PadpHeaderSize = 4;
+        private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(1);
 
         public PadpConnection(SlpDevice device, byte localSocketId, byte remoteSocketId, byte initialTransactionId)
         {
@@ -57,6 +58,7 @@ namespace Backhand.DeviceIO.Padp
         public void Dispose()
         {
             _device.ReceivedPacket -= SlpPacketReceived;
+            _readBuffer?.Dispose();
         }
 
         public void BumpTransactionId()
@@ -70,6 +72,7 @@ namespace Backhand.DeviceIO.Padp
 
         public async Task SendData(ReadOnlySequence<byte> data, CancellationToken cancellationToken = default)
         {
+            BumpTransactionId();
             for (int offset = 0; offset < data.Length; offset += PadpMtu)
             {
                 uint txSize = (uint)Math.Min(data.Length - offset, PadpMtu);
@@ -219,7 +222,10 @@ namespace Backhand.DeviceIO.Padp
 
             _device.ReceivedPacket += ackReceiver.Invoke;
 
-            using (cancellationToken.Register(() =>
+            using CancellationTokenSource timeoutCts = new CancellationTokenSource(AckTimeout);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            using (linkedCts.Token.Register(() =>
             {
                 ackTcs.TrySetCanceled();
             }))
@@ -227,6 +233,13 @@ namespace Backhand.DeviceIO.Padp
                 try
                 {
                     await ackTcs.Task;
+                }
+                catch (TaskCanceledException ex)
+                {
+                    if (timeoutCts.IsCancellationRequested)
+                    {
+                        throw new PadpException("Didn't receive PADP ack in time");
+                    }
                 }
                 finally
                 {

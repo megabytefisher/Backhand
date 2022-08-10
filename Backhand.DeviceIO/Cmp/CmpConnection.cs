@@ -42,8 +42,6 @@ namespace Backhand.DeviceIO.Cmp
 
         public async Task DoHandshakeAsync(uint? newBaudRate = null)
         {
-            _padp.BumpTransactionId();
-
             byte[] initBuffer = ArrayPool<byte>.Shared.Rent(10);
             WriteInit(initBuffer, newBaudRate);
             await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10));

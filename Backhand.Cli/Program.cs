@@ -26,7 +26,7 @@ namespace Backhand.Cli
                     options.IncludeScopes = true;
                     options.SingleLine = true;
                     options.TimestampFormat = "hh:mm:ss ";
-                });
+                }).AddFilter(l => true);
             });
 
             var rootCommand = new RootCommand("Backhand CLI Utility");

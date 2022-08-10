@@ -41,12 +41,22 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             byte usernameLength = bufferReader.Read();
             byte passwordLength = bufferReader.Read();
 
-            Username = Encoding.ASCII.GetString(buffer.Slice(bufferReader.Position, usernameLength - 1));
-            bufferReader.Advance(usernameLength);
+            if (usernameLength > 0)
+            {
+                Username = Encoding.ASCII.GetString(buffer.Slice(bufferReader.Position, usernameLength - 1));
+                bufferReader.Advance(usernameLength);
+            }
+            else
+            {
+                Username = string.Empty;
+            }
 
-            Password = new byte[passwordLength];
-            buffer.Slice(bufferReader.Position, passwordLength).CopyTo(Password);
-            bufferReader.Advance(passwordLength);
+            if (passwordLength > 0)
+            {
+                Password = new byte[passwordLength];
+                buffer.Slice(bufferReader.Position, passwordLength).CopyTo(Password);
+                bufferReader.Advance(passwordLength);
+            }
 
             return bufferReader.Position;
         }

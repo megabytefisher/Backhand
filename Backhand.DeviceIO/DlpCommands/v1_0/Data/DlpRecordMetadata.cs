@@ -11,19 +11,10 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Data
 {
     public class DlpRecordMetadata : DlpArgument
     {
-        [Flags]
-        public enum RecordFlags : byte
-        {
-            Delete          = 0b10000000,
-            Dirty           = 0b01000000,
-            Busy            = 0b00100000,
-            Secret          = 0b00010000,
-        }
-
         public uint RecordId { get; set; }
         public ushort Index { get; set; }
         public ushort Length { get; set; }
-        public RecordFlags Flags { get; set; }
+        public DlpRecordAttributes Attributes { get; set; }
         public byte Category { get; set; }
 
         public override int GetSerializedLength()
@@ -48,7 +39,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Data
             RecordId = bufferReader.ReadUInt32BigEndian();
             Index = bufferReader.ReadUInt16BigEndian();
             Length = bufferReader.ReadUInt16BigEndian();
-            Flags = (RecordFlags)bufferReader.Read();
+            Attributes = (DlpRecordAttributes)bufferReader.Read();
             Category = bufferReader.Read();
         }
     }

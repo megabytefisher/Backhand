@@ -40,7 +40,7 @@ namespace Backhand.DeviceIO.DlpServers
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SlpDevice slpDevice = new SlpDevice(_portName, logger: _loggerFactory.CreateLogger("SlpDevice"));
+            using SerialSlpDevice slpDevice = new SerialSlpDevice(_portName, logger: _loggerFactory.CreateLogger("SlpDevice"));
             using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
 
             // Watch for wakeup packet
@@ -86,10 +86,8 @@ namespace Backhand.DeviceIO.DlpServers
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SlpDevice slpDevice = new SlpDevice(_portName, 57600, logger: _loggerFactory.CreateLogger("SlpDevice"));
+            using SerialSlpDevice slpDevice = new SerialSlpDevice(_portName, 57600, logger: _loggerFactory.CreateLogger("SlpDevice"));
             using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
-            padpConnection.BumpTransactionId();
-            padpConnection.BumpTransactionId();
 
             // Start device IO
             Task ioTask = slpDevice.RunIOAsync(linkedCts.Token);

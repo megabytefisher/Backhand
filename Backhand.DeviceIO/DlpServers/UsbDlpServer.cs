@@ -1,5 +1,8 @@
-﻿using Backhand.DeviceIO.Dlp;
+﻿using Backhand.DeviceIO.Cmp;
+using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.DlpTransports;
+using Backhand.DeviceIO.Padp;
+using Backhand.DeviceIO.Slp;
 using Backhand.DeviceIO.Usb;
 using LibUsbDotNet;
 using LibUsbDotNet.Main;
@@ -43,7 +46,7 @@ namespace Backhand.DeviceIO.DlpServers
                     .Select(di => (deviceInfo: di, deviceConfig: UsbDeviceConfigs.Devices.GetValueOrDefault(((ushort)di.Vid, (ushort)di.Pid))))
                     .Where(d => d.deviceConfig != null)
                     .Where(d => !_activeClients.Any(c => c.DevicePath == d.deviceInfo.DevicePath))
-                    .SingleOrDefault();
+                    .FirstOrDefault();
 
 
                 if (newDevice.newDeviceInfo != null)
@@ -62,44 +65,99 @@ namespace Backhand.DeviceIO.DlpServers
 
         private async Task HandleDevice(UsbRegistry info, UsbDeviceConfig config, CancellationToken cancellationToken = default)
         {
-            Task? syncTask = null;
+            Task? syncTask;
 
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            UsbNetSyncDevice netSyncDevice = new UsbNetSyncDevice(info);
+            bool openSuccess = info.Open(out UsbDevice usbDevice);
+            if (!openSuccess)
+                throw new DlpException("Couldn't open USB device");
 
-            Task ioTask = netSyncDevice.RunIOAsync(linkedCts.Token);
-            await netSyncDevice.DoNetSyncHandshake().ConfigureAwait(false);
+            (ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint) = UsbHandshake.DoHardwareHandshake(usbDevice, config.HandshakeType);
 
-            using NetSyncDlpTransport transport = new NetSyncDlpTransport(netSyncDevice);
-            DlpConnection dlpConnection = new DlpConnection(transport);
-
-            syncTask = DoSync(dlpConnection, linkedCts.Token);
-
-            try
+            if (config.ProtocolType == UsbProtocolType.NetSync)
             {
-                await Task.WhenAny(syncTask, ioTask).ConfigureAwait(false);
-            }
-            catch
-            {
-            }
+                UsbNetSyncDevice netSyncDevice = new UsbNetSyncDevice(usbDevice, readEndpoint, writeEndpoint);
 
-            abortCts.Cancel();
+                Task ioTask = netSyncDevice.RunIOAsync(linkedCts.Token);
+                await netSyncDevice.DoNetSyncHandshake().ConfigureAwait(false);
 
-            try
-            {
-                await Task.WhenAll(syncTask, ioTask).ConfigureAwait(false);
-            }
-            catch
-            {
-                if (syncTask.IsCompletedSuccessfully)
+                using NetSyncDlpTransport transport = new NetSyncDlpTransport(netSyncDevice);
+                DlpConnection dlpConnection = new DlpConnection(transport);
+
+                syncTask = DoSync(dlpConnection, linkedCts.Token);
+
+                try
                 {
-                    // Swallow
+                    await Task.WhenAny(syncTask, ioTask).ConfigureAwait(false);
                 }
-                else
+                catch
                 {
-                    // Do something
+                }
+
+                abortCts.Cancel();
+
+                try
+                {
+                    await Task.WhenAll(syncTask, ioTask).ConfigureAwait(false);
+                }
+                catch
+                {
+                    if (syncTask.IsCompletedSuccessfully)
+                    {
+                        // Swallow
+                    }
+                    else
+                    {
+                        // Do something
+                    }
+                }
+            }
+            else if (config.ProtocolType == UsbProtocolType.Slp)
+            {
+                using UsbSlpDevice slpDevice = new UsbSlpDevice(usbDevice, readEndpoint, writeEndpoint);
+                using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
+
+                // Watch for wakeup packet(?)
+                CmpConnection cmpConnection = new CmpConnection(padpConnection);
+                Task waitForWakeupTask = cmpConnection.WaitForWakeUpAsync(cancellationToken);
+
+                Task ioTask = slpDevice.RunIOAsync(cancellationToken);
+
+                await waitForWakeupTask;
+
+                await cmpConnection.DoHandshakeAsync();
+
+                using PadpDlpTransport transport = new PadpDlpTransport(padpConnection);
+                DlpConnection dlpConnection = new DlpConnection(transport);
+
+                syncTask = DoSync(dlpConnection, linkedCts.Token);
+
+                try
+                {
+                    await Task.WhenAny(syncTask, ioTask).ConfigureAwait(false);
+                }
+                catch
+                {
+                }
+
+                abortCts.Cancel();
+
+                try
+                {
+                    await Task.WhenAll(syncTask, ioTask).ConfigureAwait(false);
+                }
+                catch
+                {
+                    if (syncTask.IsCompletedSuccessfully)
+                    {
+                        // Swallow
+                    }
+                    else
+                    {
+                        // Do something
+                    }
                 }
             }
 

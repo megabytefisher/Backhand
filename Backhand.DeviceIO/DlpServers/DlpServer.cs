@@ -24,6 +24,13 @@ namespace Backhand.DeviceIO.DlpServers
         {
             try
             {
+                await dlpConnection.ReadUserInfo().ConfigureAwait(false);
+                await dlpConnection.ReadSysInfo(new ReadSysInfoRequest
+                {
+                    HostDlpVersionMajor = 1,
+                    HostDlpVersionMinor = 4,
+                }).ConfigureAwait(false);
+
                 await _syncFunc(dlpConnection, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)

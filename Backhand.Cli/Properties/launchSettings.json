@@ -2,16 +2,19 @@
   "profiles": {
     "WSL": {
       "commandName": "WSL2",
-      "environmentVariables": {},
       "distributionName": ""
     },
     "install": {
       "commandName": "Project",
       "commandLineArgs": "install --device COM4 --path \"C:\\Users\\kfisher\\Downloads\\Filez.prc\""
     },
-    "pulldb": {
+    "pulldb-COM": {
       "commandName": "Project",
-      "commandLineArgs": "pulldb --device usb --path C:\\Users\\kfisher\\palmout\r\n"
+      "commandLineArgs": "pulldb --device COM3 --path C:\\Users\\kfisher\\palmout\r\n"
+    },
+    "pulldb-USB": {
+      "commandName": "Project",
+      "commandLineArgs": "pulldb --device usb --path C:\\Users\\kfisher\\palmout"
     }
   }
 }

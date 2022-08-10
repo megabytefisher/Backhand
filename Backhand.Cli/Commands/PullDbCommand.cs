@@ -53,7 +53,7 @@ namespace Backhand.Cli.Commands
                 _logger.LogInformation("Beginning sync process.");
 
                 _logger.LogInformation("Reading database list from device...");
-                List<DlpDatabaseMetadata> metadataList = await ReadFullDbList(dlp, cancellationToken);
+                List<DlpDatabaseMetadata> metadataList = await ReadFullDbList(dlp, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation($"Found {metadataList.Count} databases.");
 
                 if (databaseNames == null || databaseNames.Length == 0)
@@ -75,13 +75,18 @@ namespace Backhand.Cli.Commands
                     if (metadata.Attributes.HasFlag(DlpDatabaseAttributes.ResourceDb))
                     {
                         string filePath = Path.ChangeExtension(Path.Combine(path, GetSafeFileName(databaseName)), ".PRC");
-                        await PullResourceDb(dlp, metadata, filePath, cancellationToken);
+                        await PullResourceDb(dlp, metadata, filePath, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        string filePath = Path.ChangeExtension(Path.Combine(path, GetSafeFileName(databaseName)), ".PDB");
+                        await PullRecordDb(dlp, metadata, filePath, cancellationToken).ConfigureAwait(false);
                     }
                 }
             };
 
             _logger.LogInformation("Running device servers...");
-            await RunDeviceServers(deviceNames, syncFunc);
+            await RunDeviceServers(deviceNames, syncFunc).ConfigureAwait(false);
         }
 
         private string GetSafeFileName(string name)
@@ -107,7 +112,7 @@ namespace Backhand.Cli.Commands
                             CardId = 0,
                             Mode = ReadDbListRequest.ReadDbListMode.ListRam | ReadDbListRequest.ReadDbListMode.ListMultiple,
                             StartIndex = Convert.ToUInt16(index),
-                        }, cancellationToken);
+                        }, cancellationToken).ConfigureAwait(false);
 
                     metadataList.AddRange(readDbListResponse.Metadata);
                     index = readDbListResponse.LastIndex + 1;
@@ -137,7 +142,7 @@ namespace Backhand.Cli.Commands
             database.ModificationNumber = metadata.ModificationNumber;
             database.Type = metadata.Type;
             database.Creator = metadata.Creator;
-            database.UniqueIdSeed = 0; // ?
+            database.UniqueIdSeed = 0;
 
             OpenDbResponse openDbResponse =
                 await dlp.OpenDb(new OpenDbRequest
@@ -145,11 +150,11 @@ namespace Backhand.Cli.Commands
                     CardId = 0,
                     Mode = OpenDbRequest.OpenDbMode.Read,
                     Name = metadata.Name
-                }, cancellationToken);
+                }, cancellationToken).ConfigureAwait(false);
 
             byte dbHandle = openDbResponse.DbHandle;
 
-            const ushort readLengthPerRequest = 512;
+            const ushort readLengthPerRequest = 1;
             for (ushort resourceIndex = 0; true; resourceIndex++)
             {
                 ushort resourceId;
@@ -161,20 +166,24 @@ namespace Backhand.Cli.Commands
                 // Can we read ANY of it?
                 try
                 {
+                    Console.WriteLine($"Reading resource: {resourceIndex:X8}");
                     ReadResourceByIndexResponse readResourceResponse =
                         await dlp.ReadResourceByIndex(new ReadResourceByIndexRequest
                         {
                             DbHandle = dbHandle,
                             ResourceIndex = resourceIndex,
                             Offset = 0,
-                            MaxLength = readLengthPerRequest,
-                        });
+                            MaxLength = 0,
+                        }).ConfigureAwait(false);
 
                     resourceId = readResourceResponse.Metadata.ResourceId;
                     resourceType = readResourceResponse.Metadata.Type;
                     resourceBuffer = new byte[readResourceResponse.Metadata.Size];
-                    readResourceResponse.Data.CopyTo(resourceBuffer, 0);
-                    offset += Convert.ToUInt16(readResourceResponse.Data.Length);
+                    resourceLength = readResourceResponse.Metadata.Size;
+                    //readResourceResponse.Data.CopyTo(resourceBuffer, 0);
+                    //offset += Convert.ToUInt16(readResourceResponse.Data.Length);
+                    Console.WriteLine($"Resource size: {readResourceResponse.Metadata.Size}");
+                    
                 }
                 catch (DlpCommandErrorException ex)
                 {
@@ -189,14 +198,15 @@ namespace Backhand.Cli.Commands
 
                 while (offset < resourceLength)
                 {
+                    Console.WriteLine($"Reading resource data: {resourceIndex:X8}");
                     ReadResourceByIndexResponse readResourceResponse =
                         await dlp.ReadResourceByIndex(new ReadResourceByIndexRequest
                         {
                             DbHandle = dbHandle,
                             ResourceIndex = resourceIndex,
                             Offset = offset,
-                            MaxLength = readLengthPerRequest,
-                        });
+                            MaxLength = resourceLength,
+                        }).ConfigureAwait(false);
 
                     readResourceResponse.Data.CopyTo(((Span<byte>)resourceBuffer).Slice(offset));
                     offset += Convert.ToUInt16(readResourceResponse.Data.Length);
@@ -214,12 +224,115 @@ namespace Backhand.Cli.Commands
             await dlp.CloseDb(new CloseDbRequest
             {
                 DbHandle = dbHandle,
-            });
+            }).ConfigureAwait(false);
 
             // Write database to file
             using (FileStream fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None, 512, true))
             {
-                await database.Serialize(fileStream);
+                await database.Serialize(fileStream).ConfigureAwait(false);
+            }
+        }
+
+        private async Task PullRecordDb(DlpConnection dlp, DlpDatabaseMetadata metadata, string outputPath, CancellationToken cancellationToken)
+        {
+            RecordDatabase database = new RecordDatabase();
+            database.Name = metadata.Name;
+            database.Attributes = (DatabaseAttributes)metadata.Attributes;
+            database.Version = metadata.Version;
+            database.CreationDate = metadata.CreationDate;
+            database.ModificationDate = metadata.ModificationDate;
+            database.LastBackupDate = metadata.LastBackupDate;
+            database.ModificationNumber = metadata.ModificationNumber;
+            database.Type = metadata.Type;
+            database.Creator = metadata.Creator;
+            database.UniqueIdSeed = 0; // ?
+
+            OpenDbResponse openDbResponse =
+                await dlp.OpenDb(new OpenDbRequest
+                {
+                    CardId = 0,
+                    Mode = OpenDbRequest.OpenDbMode.Read,
+                    Name = metadata.Name
+                }, cancellationToken).ConfigureAwait(false);
+
+            byte dbHandle = openDbResponse.DbHandle;
+
+            // Read record ids
+            List<uint> recordIds = new List<uint>();
+            for (ushort startIndex = 0; true; startIndex = Convert.ToUInt16(recordIds.Count))
+            {
+                try
+                {
+                    ReadRecordIdListResponse recordIdListResponse =
+                        await dlp.ReadRecordIdList(new ReadRecordIdListRequest
+                        {
+                            DbHandle = dbHandle,
+                            Flags = 0,
+                            StartIndex = startIndex,
+                            MaxRecords = 4
+                        }).ConfigureAwait(false);
+
+                    recordIds.AddRange(recordIdListResponse.RecordIds);
+                }
+                catch (DlpCommandErrorException ex)
+                {
+                    if (ex.ErrorCode == DlpErrorCode.NotFoundError)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // Read records..
+            foreach (uint recordId in recordIds)
+            {
+                //uint recordId = 0x381005;
+                ushort recordOffset = 0;
+                ushort? recordLength = null;
+                byte[]? recordBuffer = null;
+                DlpRecordMetadata? recordMetadata = null;
+
+                do
+                {
+                    Console.WriteLine($"Reading record: {recordId:X8}");
+                    ReadRecordByIdResponse readRecordResponse =
+                        await dlp.ReadRecordById(new ReadRecordByIdRequest
+                        {
+                            DbHandle = dbHandle,
+                            RecordId = recordId,
+                            MaxLength = 1024,
+                            Offset = recordOffset
+                        }).ConfigureAwait(false);
+
+                    if (recordBuffer == null)
+                    {
+                        recordMetadata = readRecordResponse.Metadata;
+                        recordLength = readRecordResponse.Metadata.Length;
+                        recordBuffer = new byte[recordLength.Value];
+                    }
+
+                    readRecordResponse.Data.CopyTo(((Span<byte>)recordBuffer).Slice(recordOffset));
+                    recordOffset += Convert.ToUInt16(readRecordResponse.Data.Length);
+                } while (recordOffset < recordLength!.Value);
+
+                DatabaseRecord record = new DatabaseRecord
+                {
+                    UniqueId = recordId,
+                    Attributes = (RecordAttributes)recordMetadata!.Attributes,
+                    Data = recordBuffer
+                };
+                database.Records.Add(record);
+            }
+
+            await dlp.CloseDb(new CloseDbRequest
+            {
+                DbHandle = dbHandle,
+            }).ConfigureAwait(false);
+
+            // Write database to file
+            using (FileStream fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None, 512, true))
+            {
+                await database.Serialize(fileStream).ConfigureAwait(false);
             }
         }
     }
