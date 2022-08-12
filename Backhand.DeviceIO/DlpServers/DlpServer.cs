@@ -34,8 +34,8 @@ namespace Backhand.DeviceIO.DlpServers
         {
             try
             {
-                await dlpConnection.ReadUserInfo(cancellationToken).ConfigureAwait(false);
-                await dlpConnection.ReadSysInfo(new ReadSysInfoRequest
+                await dlpConnection.ReadUserInfoAsync(cancellationToken).ConfigureAwait(false);
+                await dlpConnection.ReadSysInfoAsync(new ReadSysInfoRequest
                 {
                     HostDlpVersionMajor = 1,
                     HostDlpVersionMinor = 4,
@@ -49,7 +49,7 @@ namespace Backhand.DeviceIO.DlpServers
                 Console.WriteLine(ex);
             }
 
-            await dlpConnection.EndOfSync(new EndOfSyncRequest()
+            await dlpConnection.EndOfSyncAsync(new EndOfSyncRequest()
             {
                 Status = EndOfSyncRequest.EndOfSyncStatus.Okay
             }, cancellationToken);

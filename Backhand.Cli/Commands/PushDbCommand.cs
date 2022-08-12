@@ -29,17 +29,22 @@ namespace Backhand.Cli.Commands
 
             var pathOption = new Option<string[]>(
                 name: "--path",
-                description: "Path to database file(s) to install. If a directory is specified, it will be recursively searched.")
+                description: "Path to database file(s) to install. If a directory is specified, database files will be recursively pushed.")
             {
                 IsRequired = true,
                 Arity = ArgumentArity.OneOrMore,
             };
             AddOption(pathOption);
 
-            this.SetHandler(DoPushDb, deviceOption, pathOption);
+            var overwriteOption = new Option<bool>(
+                name: "--overwrite",
+                description: "If a database already exists on the device, it will be deleted and rewritten.");
+            AddOption(overwriteOption);
+
+            this.SetHandler(DoPushDb, deviceOption, pathOption, overwriteOption);
         }
 
-        private async Task DoPushDb(string[] deviceNames, string[] paths)
+        private async Task DoPushDb(string[] deviceNames, string[] paths, bool overwrite)
         {
             List<string> filePaths = GetFilePaths(paths);
             _logger.LogInformation($"Will install {filePaths.Count} file(s) to device.");
@@ -48,17 +53,12 @@ namespace Backhand.Cli.Commands
             {
                 _logger.LogInformation("Beginning sync process");
 
+                await dlp.OpenConduitAsync();
+
                 foreach (string filePath in filePaths)
                 {
                     _logger.LogInformation($"Installing: {filePath}");
-                    switch (Path.GetExtension(filePath).ToLower())
-                    {
-                        case ".prc":
-                            await InstallPrc(dlp, filePath);
-                            break;
-                            //case ".pdb":
-                            //    break;
-                    }
+                    await InstallDbAsync(dlp, filePath, overwrite, cancellationToken);
                 }
 
                 _logger.LogInformation("Sync complete");
@@ -100,47 +100,130 @@ namespace Backhand.Cli.Commands
             }
         }
 
-        private static async Task InstallPrc(DlpConnection dlp, string path)
+        private async Task InstallDbAsync(DlpConnection dlp, string path, bool overwrite, CancellationToken cancellationToken)
         {
-            ResourceDatabase database = new ResourceDatabase();
+            bool isResource = Path.GetExtension(path).ToLower() == ".prc";
+            Database database = isResource ?
+                new ResourceDatabase() :
+                new RecordDatabase();
 
-            using (FileStream inStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 512, true))
+            using (FileStream inStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true))
             {
-                await database.Deserialize(inStream);
+                await database.DeserializeAsync(inStream);
             }
 
-            // Create database
-            CreateDbResponse createDbResponse =
-                await dlp.CreateDb(new CreateDbRequest
+            CreateDbRequest createDbRequest = new CreateDbRequest
+            {
+                Creator = database.Creator,
+                Type = database.Type,
+                CardId = 0,
+                Attributes = (DlpDatabaseAttributes)database.Attributes,
+                Version = database.Version,
+                Name = database.Name,
+            };
+
+            CreateDbResponse createDbResponse;
+            try
+            {
+                createDbResponse = await dlp.CreateDbAsync(createDbRequest, cancellationToken);
+            }
+            catch (DlpCommandErrorException ex)
+            {
+                if (ex.ErrorCode == DlpErrorCode.AlreadyExistsError)
                 {
-                    Creator = database.Creator,
-                    Type = database.Type,
-                    CardId = 0,
-                    Attributes = (DlpDatabaseAttributes)database.Attributes,
-                    Version = database.Version,
-                    Name = database.Name,
-                });
+                    if (overwrite)
+                    {
+                        _logger.LogInformation($"Database '{database.Name}' already exists on device. Deleting and rewriting...");
+
+                        // Delete existing
+                        await dlp.DeleteDbAsync(new DeleteDbRequest
+                        {
+                            CardId = 0,
+                            Name = database.Name
+                        }, cancellationToken);
+
+                        // Try creating again..
+                        createDbResponse = await dlp.CreateDbAsync(createDbRequest, cancellationToken);
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"Database '{database.Name}' already exists on device. Skipping.");
+                        return;
+                    }
+                }
+                else
+                {
+                    throw;
+                }
+            }
 
             byte dbHandle = createDbResponse.DbHandle;
 
-            // Write each resource
+            // Write AppInfo block
+            if (database.AppInfo != null && database.AppInfo.Length > 0)
+            {
+                await dlp.WriteAppBlockAsync(new WriteAppBlockRequest
+                {
+                    DbHandle = dbHandle,
+                    Data = database.AppInfo,
+                }, cancellationToken);
+            }
+
+            // Write SortInfo block
+            if (database.SortInfo != null && database.SortInfo.Length > 0)
+            {
+                await dlp.WriteSortBlockAsync(new WriteSortBlockRequest
+                {
+                    DbHandle = dbHandle,
+                    Data = database.SortInfo,
+                }, cancellationToken);
+            }
+
+            // Install entries
+            if (isResource)
+            {
+                await InstallResourcesAsync(dlp, dbHandle, (ResourceDatabase)database, cancellationToken);
+            }
+            else
+            {
+                await InstallRecordsAsync(dlp, dbHandle, (RecordDatabase)database, cancellationToken);
+            }
+
+            // Close device database
+            await dlp.CloseDbAsync(new CloseDbRequest
+            {
+                DbHandle = dbHandle
+            }, cancellationToken);
+        }
+
+        private static async Task InstallResourcesAsync(DlpConnection dlp, byte dbHandle, ResourceDatabase database, CancellationToken cancellationToken)
+        {
             foreach (DatabaseResource resource in database.Resources)
             {
-                await dlp.WriteResource(new WriteResourceRequest
+                await dlp.WriteResourceAsync(new WriteResourceRequest
                 {
                     DbHandle = dbHandle,
                     Type = resource.Type,
                     ResourceId = resource.ResourceId,
                     Size = Convert.ToUInt16(resource.Data.Length),
-                    Data = resource.Data,
+                    Data = resource.Data
                 });
             }
+        }
 
-            // Close database
-            await dlp.CloseDb(new CloseDbRequest
+        private static async Task InstallRecordsAsync(DlpConnection dlp, byte dbHandle, RecordDatabase database, CancellationToken cancellationToken)
+        {
+            foreach (DatabaseRecord record in database.Records)
             {
-                DbHandle = dbHandle
-            });
+                await dlp.WriteRecordAsync(new WriteRecordRequest
+                {
+                    DbHandle = dbHandle,
+                    RecordId = record.UniqueId,
+                    Attributes = (DlpRecordAttributes)record.Attributes,
+                    Category = record.Category,
+                    Data = record.Data
+                });
+            }
         }
     }
 }

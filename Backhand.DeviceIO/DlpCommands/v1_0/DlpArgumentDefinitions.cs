@@ -33,6 +33,9 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
         /* CloseDb */
         public static readonly DlpArgumentDefinition<CloseDbRequest> CloseDbRequest = new DlpArgumentDefinition<CloseDbRequest>();
 
+        /* DeleteDb */
+        public static readonly DlpArgumentDefinition<DeleteDbRequest> DeleteDbRequest = new DlpArgumentDefinition<DeleteDbRequest>();
+
         /* ReadAppBlock */
         public static readonly DlpArgumentDefinition<ReadAppBlockRequest> ReadAppBlockRequest = new DlpArgumentDefinition<ReadAppBlockRequest>();
         public static readonly DlpArgumentDefinition<ReadAppBlockResponse> ReadAppBlockResponse = new DlpArgumentDefinition<ReadAppBlockResponse>();
@@ -50,6 +53,10 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
         /* ReadRecordById */
         public static readonly DlpArgumentDefinition<ReadRecordByIdRequest> ReadRecordByIdRequest = new DlpArgumentDefinition<ReadRecordByIdRequest>();
         public static readonly DlpArgumentDefinition<ReadRecordByIdResponse> ReadRecordByIdResponse = new DlpArgumentDefinition<ReadRecordByIdResponse>();
+
+        /* WriteRecord */
+        public static readonly DlpArgumentDefinition<WriteRecordRequest> WriteRecordRequest = new DlpArgumentDefinition<WriteRecordRequest>();
+        public static readonly DlpArgumentDefinition<WriteRecordResponse> WriteRecordResponse = new DlpArgumentDefinition<WriteRecordResponse>();
 
         /* ReadResourceByIndex */
         public static readonly DlpArgumentDefinition<ReadResourceByIndexRequest> ReadResourceByIndexRequest = new DlpArgumentDefinition<ReadResourceByIndexRequest>();

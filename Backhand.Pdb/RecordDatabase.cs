@@ -12,37 +12,39 @@ namespace Backhand.Pdb
     {
         public List<DatabaseRecord> Records { get; set; } = new List<DatabaseRecord>();
 
-        public override async Task Serialize(Stream stream)
+        public override async Task SerializeAsync(Stream stream)
         {
             uint appInfoOffset =
                 FileDatabaseHeader.SerializedLength +
                 FileEntryMetadataListHeader.SerializedLength +
                 (FileRecordMetadata.SerializedLength * (uint)Records.Count) +
-                2;
+                HeaderPaddingLength;
             uint sortInfoOffset = appInfoOffset + (uint)(AppInfo?.Length ?? 0);
             uint recordBlockOffset = sortInfoOffset + (uint)(SortInfo?.Length ?? 0);
 
-            await SerializeHeader(stream,
+            await SerializeHeaderAsync(stream,
                 (AppInfo != null && AppInfo.Length > 0) ? appInfoOffset : 0,
                 (SortInfo != null && SortInfo.Length > 0) ? sortInfoOffset : 0);
 
-            await SerializeEntryMetadataListHeader(stream, Convert.ToUInt16(Records.Count));
+            await SerializeEntryMetadataListHeaderAsync(stream, Convert.ToUInt16(Records.Count));
 
             int blockOffset = 0;
             foreach (DatabaseRecord record in Records)
             {
                 FileRecordMetadata metadata = new FileRecordMetadata();
                 metadata.Attributes = record.Attributes;
+                metadata.Category = record.Category;
+                metadata.Archive = record.Archive;
                 metadata.UniqueId = record.UniqueId;
                 metadata.LocalChunkId = (uint)(recordBlockOffset + blockOffset);
 
-                await SerializeRecordMetadata(stream, metadata);
+                await SerializeRecordMetadataAsync(stream, metadata);
 
                 blockOffset += record.Data.Length;
             }
 
             // Write padding
-            await stream.WriteAsync(new byte[] { 0x00, 0x00 });
+            await stream.WriteAsync(new byte[HeaderPaddingLength]);
 
             // Write AppInfo
             if (AppInfo != null && AppInfo.Length > 0)
@@ -63,11 +65,11 @@ namespace Backhand.Pdb
             }
         }
 
-        public override async Task Deserialize(Stream stream)
+        public override async Task DeserializeAsync(Stream stream)
         {
-            (uint appInfoId, uint sortInfoId) = await DeserializeHeader(stream);
+            (uint appInfoId, uint sortInfoId) = await DeserializeHeaderAsync(stream);
 
-            ushort entryCount = await DeserializeEntryMetadataListHeader(stream);
+            ushort entryCount = await DeserializeEntryMetadataListHeaderAsync(stream);
 
             // Read each metadata entry
             List<FileRecordMetadata> metadataList = new List<FileRecordMetadata>();
@@ -119,13 +121,15 @@ namespace Backhand.Pdb
 
                 DatabaseRecord record = new DatabaseRecord();
                 record.Attributes = metadata.Attributes;
+                record.Category = metadata.Category;
+                record.Archive = metadata.Archive;
                 record.UniqueId = metadata.UniqueId;
                 record.Data = recordBuffer;
                 Records.Add(record);
             }
         }
 
-        private static async Task SerializeRecordMetadata(Stream stream, FileRecordMetadata metadata)
+        private static async Task SerializeRecordMetadataAsync(Stream stream, FileRecordMetadata metadata)
         {
             byte[] buffer = new byte[FileRecordMetadata.SerializedLength];
             metadata.Serialize(buffer);

@@ -15,6 +15,9 @@ namespace Backhand.Pdb.Internal
         public RecordAttributes Attributes { get; set; }
         public uint UniqueId { get; set; }
 
+        public byte Category { get; set; }
+        public bool Archive { get; set; }
+
         public const uint SerializedLength =
             sizeof(uint) +                  // LocalChunkId
             sizeof(RecordAttributes) +      // Attributes
@@ -27,7 +30,17 @@ namespace Backhand.Pdb.Internal
             BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), LocalChunkId);
             offset += 4;
 
-            buffer[offset] = (byte)Attributes;
+            int attributesValue = (int)Attributes & 0b11110000;
+            if (Attributes.HasFlag(RecordAttributes.Delete) || Attributes.HasFlag(RecordAttributes.Busy))
+            {
+                if (Archive)
+                    attributesValue = attributesValue | 0b1000;
+            }
+            else
+            {
+                attributesValue = attributesValue | (Category & 0b1111);
+            }
+            buffer[offset] = (byte)attributesValue;
             offset += 1;
 
             buffer[offset + 0] = (byte)(UniqueId >> 16);
@@ -46,7 +59,21 @@ namespace Backhand.Pdb.Internal
         public void Deserialize(ref SequenceReader<byte> bufferReader)
         {
             LocalChunkId = bufferReader.ReadUInt32BigEndian();
+
             Attributes = (RecordAttributes)bufferReader.Read();
+            if (Attributes.HasFlag(RecordAttributes.Delete) || Attributes.HasFlag(RecordAttributes.Busy))
+            {
+                // Last 4 bits of Attributes contains a bit determining Archive
+                int extraBits = ((int)Attributes) & 0b1111;
+                Archive = (extraBits & 0b1000) != 0;
+            }
+            else
+            {
+                // Last 4 bits of Attributes contains the Category
+                int extraBits = ((int)Attributes) & 0b1111;
+                Category = (byte)extraBits;
+            }
+
             UniqueId = (uint)((bufferReader.Read() << 16) |
                               (bufferReader.Read() << 8) |
                                bufferReader.Read());

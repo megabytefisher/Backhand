@@ -4,17 +4,17 @@
       "commandName": "WSL2",
       "distributionName": ""
     },
-    "install": {
-      "commandName": "Project",
-      "commandLineArgs": "pushdb --device USB --path \"C:\\Users\\kfisher\\Downloads\\BikeOrDie-1.6b\\BikeOrDie-1.6b-Lowres.prc\""
-    },
     "pulldb-COM": {
       "commandName": "Project",
       "commandLineArgs": "pulldb --device COM3 --path C:\\Users\\kfisher\\palmout\r\n"
     },
     "pulldb-USB": {
       "commandName": "Project",
-      "commandLineArgs": "pulldb --device usb --path C:\\Users\\kfisher\\palmout"
+      "commandLineArgs": "pulldb --device usb --path C:\\Users\\kfisher\\palmout --all"
+    },
+    "install-USB": {
+      "commandName": "Project",
+      "commandLineArgs": "pushdb --device USB --path \"C:\\Users\\kfisher\\palmout\\Kevin-23302\\Daily Journal.PDB\" --overwrite"
     }
   }
 }

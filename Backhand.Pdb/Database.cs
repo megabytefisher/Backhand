@@ -24,8 +24,10 @@ namespace Backhand.Pdb
         public byte[]? AppInfo { get; set; }
         public byte[]? SortInfo { get; set; }
 
-        public abstract Task Serialize(Stream stream);
-        public abstract Task Deserialize(Stream stream);
+        protected const int HeaderPaddingLength = 2;
+
+        public abstract Task SerializeAsync(Stream stream);
+        public abstract Task DeserializeAsync(Stream stream);
 
         protected static async Task FillBuffer(Stream stream, Memory<byte> buffer)
         {
@@ -36,7 +38,7 @@ namespace Backhand.Pdb
             } while (readOffset < buffer.Length);
         }
 
-        protected async Task SerializeHeader(Stream stream, uint appInfoId, uint sortInfoId)
+        protected async Task SerializeHeaderAsync(Stream stream, uint appInfoId, uint sortInfoId)
         {
             FileDatabaseHeader fileHeader = new FileDatabaseHeader
             {
@@ -60,7 +62,7 @@ namespace Backhand.Pdb
             await stream.WriteAsync(buffer);
         }
 
-        protected async Task<(uint appInfoId, uint sortInfoId)> DeserializeHeader(Stream stream)
+        protected async Task<(uint appInfoId, uint sortInfoId)> DeserializeHeaderAsync(Stream stream)
         {
             byte[] buffer = new byte[FileDatabaseHeader.SerializedLength];
             await FillBuffer(stream, buffer);
@@ -82,7 +84,7 @@ namespace Backhand.Pdb
             return (fileHeader.AppInfoId, fileHeader.SortInfoId);
         }
 
-        protected async Task SerializeEntryMetadataListHeader(Stream stream, ushort entryCount)
+        protected async Task SerializeEntryMetadataListHeaderAsync(Stream stream, ushort entryCount)
         {
             FileEntryMetadataListHeader fileEntryMetadataListHeader = new FileEntryMetadataListHeader
             {
@@ -96,7 +98,7 @@ namespace Backhand.Pdb
             await stream.WriteAsync(buffer);
         }
 
-        protected async Task<ushort> DeserializeEntryMetadataListHeader(Stream stream)
+        protected async Task<ushort> DeserializeEntryMetadataListHeaderAsync(Stream stream)
         {
             byte[] buffer = new byte[FileEntryMetadataListHeader.SerializedLength];
             await FillBuffer(stream, buffer);
