@@ -33,6 +33,8 @@ namespace Backhand.DeviceIO.Dlp
         private const int DlpArgSmallMaxSize = ushort.MaxValue;
         private const int DlpArgSmallHeaderSize = 4;
 
+        private readonly TimeSpan DlpCommandResponseTimeout = TimeSpan.FromSeconds(30);
+
         public DlpConnection(DlpTransport transport)
         {
             _transport = transport;
@@ -40,13 +42,16 @@ namespace Backhand.DeviceIO.Dlp
 
         public async Task<DlpArgumentCollection> Execute(DlpCommandDefinition command, DlpArgumentCollection requestArguments, CancellationToken cancellationToken = default)
         {
-            Task<DlpArgumentCollection> responseWaitTask = WaitForResponseAsync(command, cancellationToken);
+            using CancellationTokenSource timeoutCts = new CancellationTokenSource(DlpCommandResponseTimeout);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+            Task<DlpArgumentCollection> responseWaitTask = WaitForResponseAsync(command, linkedCts.Token);
 
             byte[] requestBuffer = new byte[GetRequestSize(requestArguments)];
             WriteDlpRequest(command, requestArguments, requestBuffer);
             await _transport.SendPayload(new DlpPayload(new ReadOnlySequence<byte>(requestBuffer)));
 
-            DlpArgumentCollection responseArguments = await responseWaitTask;
+            DlpArgumentCollection responseArguments = await responseWaitTask.ConfigureAwait(false);
             return responseArguments;
         }
 

@@ -2,11 +2,13 @@
 using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.DlpTransports;
 using Backhand.DeviceIO.Padp;
+using Backhand.DeviceIO.Serial;
 using Backhand.DeviceIO.Slp;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.IO.Ports;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,21 +19,27 @@ namespace Backhand.DeviceIO.DlpServers
     {
         private string _portName;
 
-        private ILoggerFactory _loggerFactory;
+        private const int InitialBaudRate = 9600;
+        private const int TargetBaudRate = 57600;
 
         public SerialDlpServer(string portName, Func<DlpConnection, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
-            : base(syncFunc)
+            : base(syncFunc, loggerFactory)
         {
             _portName = portName;
-            _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         }
 
         public override async Task Run(CancellationToken cancellationToken = default)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await DoCmpPortion(cancellationToken).ConfigureAwait(false);
-                await DoDlpPortion(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await DoCmpPortion(cancellationToken).ConfigureAwait(false);
+                    await DoDlpPortion(cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                }
             }
         }
 
@@ -40,7 +48,15 @@ namespace Backhand.DeviceIO.DlpServers
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SerialSlpDevice slpDevice = new SerialSlpDevice(_portName, logger: _loggerFactory.CreateLogger("SlpDevice"));
+            using SerialPort serialPort = new SerialPort(_portName);
+            serialPort.BaudRate = 9600;
+            serialPort.Handshake = Handshake.RequestToSend;
+            serialPort.Parity = Parity.None;
+            serialPort.StopBits = StopBits.One;
+            serialPort.Open();
+
+            SerialPortPipe serialPortPipe = new SerialPortPipe(serialPort);
+            using SlpDevice slpDevice = new SlpDevice(serialPortPipe, logger: _loggerFactory.CreateLogger<SlpDevice>());
             using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
 
             // Watch for wakeup packet
@@ -79,6 +95,10 @@ namespace Backhand.DeviceIO.DlpServers
                     throw;
                 }
             }
+            finally
+            {
+                serialPort.Close();
+            }
         }
 
         private async Task DoDlpPortion(CancellationToken cancellationToken)
@@ -86,7 +106,15 @@ namespace Backhand.DeviceIO.DlpServers
             using CancellationTokenSource abortCts = new CancellationTokenSource();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SerialSlpDevice slpDevice = new SerialSlpDevice(_portName, 57600, logger: _loggerFactory.CreateLogger("SlpDevice"));
+            using SerialPort serialPort = new SerialPort(_portName);
+            serialPort.BaudRate = 57600;
+            serialPort.Handshake = Handshake.RequestToSend;
+            serialPort.Parity = Parity.None;
+            serialPort.StopBits = StopBits.One;
+            serialPort.Open();
+
+            SerialPortPipe serialPortPipe = new SerialPortPipe(serialPort);
+            using SlpDevice slpDevice = new SlpDevice(serialPortPipe, logger: _loggerFactory.CreateLogger<SlpDevice>());
             using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
 
             // Start device IO
@@ -124,6 +152,10 @@ namespace Backhand.DeviceIO.DlpServers
                 {
                     throw;
                 }
+            }
+            finally
+            {
+                serialPort.Close();
             }
         }
     }

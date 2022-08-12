@@ -6,6 +6,7 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,7 +14,7 @@ using System.Threading.Tasks.Dataflow;
 
 namespace Backhand.DeviceIO.Slp
 {
-    public abstract class SlpDevice : IDisposable
+    public class SlpDevice : IDisposable
     {
         protected class SlpSendJob : IDisposable
         {
@@ -35,6 +36,7 @@ namespace Backhand.DeviceIO.Slp
         public event EventHandler<SlpPacketTransmittedArgs>? ReceivedPacket;
         public event EventHandler<SlpPacketTransmittedArgs>? SendingPacket;
 
+        private IDuplexPipe _basePipe;
         protected BufferBlock<SlpSendJob> _sendQueue;
 
         protected ILogger _logger;
@@ -49,8 +51,9 @@ namespace Backhand.DeviceIO.Slp
         protected const int PacketFooterSize = 2;
         protected const int MinPacketSize = PacketHeaderSize + PacketFooterSize;
 
-        public SlpDevice(ILogger? logger = null)
+        public SlpDevice(IDuplexPipe basePipe, ILogger? logger = null)
         {
+            _basePipe = basePipe;
             _logger = logger ?? NullLogger.Instance;
             _sendQueue = new BufferBlock<SlpSendJob>();
 
@@ -67,9 +70,28 @@ namespace Backhand.DeviceIO.Slp
                     sendJob.Dispose();
                 }
             }
+            _sendQueue.Complete();
         }
 
-        public abstract Task RunIOAsync(CancellationToken cancellationToken = default);
+        public async Task RunIOAsync(CancellationToken cancellationToken = default)
+        {
+            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, abortCts.Token);
+
+            Task readerTask = RunReaderAsync(linkedCts.Token);
+            Task writerTask = RunWriterAsync(linkedCts.Token);
+
+            try
+            {
+                await Task.WhenAny(readerTask, writerTask);
+            }
+            catch
+            {
+            }
+
+            abortCts.Cancel();
+            await Task.WhenAll(readerTask, writerTask);
+        }
 
         public void SendPacket(SlpPacket packet)
         {
@@ -90,6 +112,40 @@ namespace Backhand.DeviceIO.Slp
             if (!_sendQueue.Post(sendJob))
             {
                 throw new SlpException("Failed to enqueue send packet");
+            }
+        }
+
+        private async Task RunReaderAsync(CancellationToken cancellationToken)
+        {
+            bool firstPacket = true;
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                ReadResult readResult = await _basePipe.Input.ReadAsync(cancellationToken).ConfigureAwait(false);
+                ReadOnlySequence<byte> buffer = readResult.Buffer;
+
+                SequencePosition processedPosition = ReadPackets(buffer, ref firstPacket);
+
+                _basePipe.Input.AdvanceTo(processedPosition, buffer.End);
+
+                if (readResult.IsCompleted)
+                    break;
+            }
+        }
+
+        private async Task RunWriterAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                SlpSendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+
+                Memory<byte> sendBuffer = _basePipe.Output.GetMemory(sendJob.Length);
+                ((Span<byte>)sendJob.Buffer).Slice(0, sendJob.Length).CopyTo(sendBuffer.Span);
+                _basePipe.Output.Advance(sendJob.Length);
+
+                FlushResult flushResult = await _basePipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
+                if (flushResult.IsCompleted)
+                    break;
             }
         }
 

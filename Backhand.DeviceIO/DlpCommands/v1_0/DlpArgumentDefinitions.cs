@@ -33,6 +33,20 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
         /* CloseDb */
         public static readonly DlpArgumentDefinition<CloseDbRequest> CloseDbRequest = new DlpArgumentDefinition<CloseDbRequest>();
 
+        /* ReadAppBlock */
+        public static readonly DlpArgumentDefinition<ReadAppBlockRequest> ReadAppBlockRequest = new DlpArgumentDefinition<ReadAppBlockRequest>();
+        public static readonly DlpArgumentDefinition<ReadAppBlockResponse> ReadAppBlockResponse = new DlpArgumentDefinition<ReadAppBlockResponse>();
+
+        /* ReadSortBlock */
+        public static readonly DlpArgumentDefinition<WriteAppBlockRequest> WriteAppBlockRequest = new DlpArgumentDefinition<WriteAppBlockRequest>();
+
+        /* ReadSortBlock */
+        public static readonly DlpArgumentDefinition<ReadSortBlockRequest> ReadSortBlockRequest = new DlpArgumentDefinition<ReadSortBlockRequest>();
+        public static readonly DlpArgumentDefinition<ReadSortBlockResponse> ReadSortBlockResponse = new DlpArgumentDefinition<ReadSortBlockResponse>();
+
+        /* WriteSortBlock */
+        public static readonly DlpArgumentDefinition<WriteSortBlockRequest> WriteSortBlockRequest = new DlpArgumentDefinition<WriteSortBlockRequest>();
+
         /* ReadRecordById */
         public static readonly DlpArgumentDefinition<ReadRecordByIdRequest> ReadRecordByIdRequest = new DlpArgumentDefinition<ReadRecordByIdRequest>();
         public static readonly DlpArgumentDefinition<ReadRecordByIdResponse> ReadRecordByIdResponse = new DlpArgumentDefinition<ReadRecordByIdResponse>();

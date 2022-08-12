@@ -35,7 +35,7 @@ namespace Backhand.Cli.Commands
             };
             AddOption(pathOption);
 
-            var databaseOption = new Option<string[]?>(
+            var databaseOption = new Option<string[]>(
                 name: "--database",
                 description: "Name of database(s) to retrieve. If omitted, all databases will be retrieved.")
             {
@@ -46,22 +46,21 @@ namespace Backhand.Cli.Commands
             this.SetHandler(DoPullDb, deviceOption, pathOption, databaseOption);
         }
 
-        private async Task DoPullDb(string[] deviceNames, string path, string[]? databaseNames)
+        private async Task DoPullDb(string[] deviceNames, string path, string[] databaseNames)
         {
             Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
             {
                 _logger.LogInformation("Beginning sync process.");
 
-                _logger.LogInformation("Reading database list from device...");
+                await dlp.OpenConduit();
+
+                _logger.LogDebug("Reading database list from device...");
                 List<DlpDatabaseMetadata> metadataList = await ReadFullDbList(dlp, cancellationToken).ConfigureAwait(false);
-                _logger.LogInformation($"Found {metadataList.Count} databases.");
+                _logger.LogDebug($"Found {metadataList.Count} databases.");
 
-                if (databaseNames == null || databaseNames.Length == 0)
-                {
-                    databaseNames = metadataList.Select(md => md.Name).ToArray();
-                }
-
-                foreach (string databaseName in databaseNames)
+                foreach (string databaseName in (databaseNames != null && databaseNames.Length > 0 ?
+                                                    databaseNames :
+                                                    metadataList.Where(md => md.Attributes.HasFlag(DlpDatabaseAttributes.Backup)).Select(md => md.Name)))
                 {
                     _logger.LogInformation($"Attempting to pull database: {databaseName}...");
 
@@ -83,6 +82,8 @@ namespace Backhand.Cli.Commands
                         await PullRecordDb(dlp, metadata, filePath, cancellationToken).ConfigureAwait(false);
                     }
                 }
+
+                _logger.LogInformation("Completed sync process.");
             };
 
             _logger.LogInformation("Running device servers...");
@@ -154,7 +155,42 @@ namespace Backhand.Cli.Commands
 
             byte dbHandle = openDbResponse.DbHandle;
 
-            const ushort readLengthPerRequest = 1;
+            try
+            {
+                ReadAppBlockResponse readAppBlockResponse =
+                    await dlp.ReadAppBlock(new ReadAppBlockRequest
+                    {
+                        DbHandle = dbHandle,
+                        Length = ushort.MaxValue,
+                        Offset = 0
+                    });
+
+                database.AppInfo = readAppBlockResponse.Data;
+            }
+            catch (DlpCommandErrorException ex)
+            {
+                if (ex.ErrorCode != DlpErrorCode.NotFoundError)
+                    throw;
+            }
+
+            try
+            {
+                ReadSortBlockResponse readSortBlockResponse =
+                    await dlp.ReadSortBlock(new ReadSortBlockRequest
+                    {
+                        DbHandle = dbHandle,
+                        Length = ushort.MaxValue,
+                        Offset = 0
+                    });
+
+                database.SortInfo = readSortBlockResponse.Data;
+            }
+            catch (DlpCommandErrorException ex)
+            {
+                if (ex.ErrorCode != DlpErrorCode.NotFoundError)
+                    throw;
+            }
+
             for (ushort resourceIndex = 0; true; resourceIndex++)
             {
                 ushort resourceId;
@@ -166,7 +202,6 @@ namespace Backhand.Cli.Commands
                 // Can we read ANY of it?
                 try
                 {
-                    Console.WriteLine($"Reading resource: {resourceIndex:X8}");
                     ReadResourceByIndexResponse readResourceResponse =
                         await dlp.ReadResourceByIndex(new ReadResourceByIndexRequest
                         {
@@ -180,9 +215,6 @@ namespace Backhand.Cli.Commands
                     resourceType = readResourceResponse.Metadata.Type;
                     resourceBuffer = new byte[readResourceResponse.Metadata.Size];
                     resourceLength = readResourceResponse.Metadata.Size;
-                    //readResourceResponse.Data.CopyTo(resourceBuffer, 0);
-                    //offset += Convert.ToUInt16(readResourceResponse.Data.Length);
-                    Console.WriteLine($"Resource size: {readResourceResponse.Metadata.Size}");
                     
                 }
                 catch (DlpCommandErrorException ex)
@@ -198,7 +230,6 @@ namespace Backhand.Cli.Commands
 
                 while (offset < resourceLength)
                 {
-                    Console.WriteLine($"Reading resource data: {resourceIndex:X8}");
                     ReadResourceByIndexResponse readResourceResponse =
                         await dlp.ReadResourceByIndex(new ReadResourceByIndexRequest
                         {
@@ -257,6 +288,42 @@ namespace Backhand.Cli.Commands
 
             byte dbHandle = openDbResponse.DbHandle;
 
+            try
+            {
+                ReadAppBlockResponse readAppBlockResponse =
+                    await dlp.ReadAppBlock(new ReadAppBlockRequest
+                    {
+                        DbHandle = dbHandle,
+                        Length = ushort.MaxValue,
+                        Offset = 0
+                    });
+
+                database.AppInfo = readAppBlockResponse.Data;
+            }
+            catch (DlpCommandErrorException ex)
+            {
+                if (ex.ErrorCode != DlpErrorCode.NotFoundError)
+                    throw;
+            }
+
+            try
+            {
+                ReadSortBlockResponse readSortBlockResponse =
+                    await dlp.ReadSortBlock(new ReadSortBlockRequest
+                    {
+                        DbHandle = dbHandle,
+                        Length = ushort.MaxValue,
+                        Offset = 0
+                    });
+
+                database.SortInfo = readSortBlockResponse.Data;
+            }
+            catch (DlpCommandErrorException ex)
+            {
+                if (ex.ErrorCode != DlpErrorCode.NotFoundError)
+                    throw;
+            }
+
             // Read record ids
             List<uint> recordIds = new List<uint>();
             for (ushort startIndex = 0; true; startIndex = Convert.ToUInt16(recordIds.Count))
@@ -269,7 +336,7 @@ namespace Backhand.Cli.Commands
                             DbHandle = dbHandle,
                             Flags = 0,
                             StartIndex = startIndex,
-                            MaxRecords = 4
+                            MaxRecords = 50
                         }).ConfigureAwait(false);
 
                     recordIds.AddRange(recordIdListResponse.RecordIds);
@@ -294,7 +361,6 @@ namespace Backhand.Cli.Commands
 
                 do
                 {
-                    Console.WriteLine($"Reading record: {recordId:X8}");
                     ReadRecordByIdResponse readRecordResponse =
                         await dlp.ReadRecordById(new ReadRecordByIdRequest
                         {

@@ -20,7 +20,7 @@ namespace Backhand.Cli.Commands
             : base(name, description)
         {
             _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
-            _logger = _loggerFactory.CreateLogger("Command");
+            _logger = _loggerFactory.CreateLogger(GetType());
         }
 
         protected async Task RunDeviceServers(string[] deviceNames, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken = default)

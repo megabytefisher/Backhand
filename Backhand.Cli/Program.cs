@@ -24,8 +24,6 @@ namespace Backhand.Cli
                 builder.AddSimpleConsole(options =>
                 {
                     options.IncludeScopes = true;
-                    options.SingleLine = true;
-                    options.TimestampFormat = "hh:mm:ss ";
                 }).AddFilter(l => true);
             });
 

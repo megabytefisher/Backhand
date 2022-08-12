@@ -40,6 +40,26 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.CloseDbRequest },
             new DlpArgumentDefinition[] { });
 
+        public static readonly DlpCommandDefinition ReadAppBlock = new DlpCommandDefinition(
+            DlpOpcode.ReadAppBlock,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadAppBlockRequest },
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadAppBlockResponse });
+
+        public static readonly DlpCommandDefinition WriteAppBlock = new DlpCommandDefinition(
+            DlpOpcode.WriteAppBlock,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.WriteAppBlockRequest },
+            new DlpArgumentDefinition[] { });
+
+        public static readonly DlpCommandDefinition ReadSortBlock = new DlpCommandDefinition(
+            DlpOpcode.ReadSortBlock,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadSortBlockRequest },
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadSortBlockResponse });
+
+        public static readonly DlpCommandDefinition WriteSortBlock = new DlpCommandDefinition(
+            DlpOpcode.WriteSortBlock,
+            new DlpArgumentDefinition[] { DlpArgumentDefinitions.WriteSortBlockRequest },
+            new DlpArgumentDefinition[] { });
+
         public static readonly DlpCommandDefinition ReadRecordById = new DlpCommandDefinition(
             DlpOpcode.ReadRecord,
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.ReadRecordByIdRequest },
@@ -53,6 +73,11 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
         public static readonly DlpCommandDefinition WriteResource = new DlpCommandDefinition(
             DlpOpcode.WriteResource,
             new DlpArgumentDefinition[] { DlpArgumentDefinitions.WriteResourceRequest },
+            new DlpArgumentDefinition[] { });
+
+        public static readonly DlpCommandDefinition OpenConduit = new DlpCommandDefinition(
+            DlpOpcode.OpenConduit,
+            new DlpArgumentDefinition[] { },
             new DlpArgumentDefinition[] { });
 
         public static readonly DlpCommandDefinition EndOfSync = new DlpCommandDefinition(

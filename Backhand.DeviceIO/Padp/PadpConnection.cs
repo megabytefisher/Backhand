@@ -43,7 +43,7 @@ namespace Backhand.DeviceIO.Padp
         private const byte PadpSlpPacketType = 0x02;
         private const int PadpMtu = 1024;
         private const int PadpHeaderSize = 4;
-        private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(3);
 
         public PadpConnection(SlpDevice device, byte localSocketId, byte remoteSocketId, byte initialTransactionId)
         {

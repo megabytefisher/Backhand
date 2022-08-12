@@ -3,15 +3,37 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 
 namespace Backhand.DeviceIO.NetSync
 {
-    public abstract class NetSyncDevice
+    public class NetSyncDevice
     {
+        private class NetSyncSendJob : IDisposable
+        {
+            public int Length { get; private init; }
+            public byte[] Buffer { get; private init; }
+
+            public NetSyncSendJob(int length)
+            {
+                Length = length;
+                Buffer = ArrayPool<byte>.Shared.Rent(length);
+            }
+
+            public void Dispose()
+            {
+                ArrayPool<byte>.Shared.Return(Buffer);
+            }
+        }
+
         public event EventHandler<NetSyncPacketTransmittedEventArgs>? ReceivedPacket;
+
+        private IDuplexPipe _basePipe;
+        private BufferBlock<NetSyncSendJob> _sendQueue;
 
         protected const int NetSyncHeaderLength = 6;
 
@@ -50,12 +72,47 @@ namespace Backhand.DeviceIO.NetSync
             0x93, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         };
 
-        public NetSyncDevice()
+        public NetSyncDevice(IDuplexPipe basePipe)
         {
-
+            _basePipe = basePipe;
+            _sendQueue = new BufferBlock<NetSyncSendJob>();
         }
 
-        public abstract void SendPacket(NetSyncPacket packet);
+        public void SendPacket(NetSyncPacket packet)
+        {
+            // Get packet length and allocate buffer
+            int packetLength = (int)GetPacketLength(packet);
+            NetSyncSendJob sendJob = new NetSyncSendJob(packetLength);
+
+            // Write packet
+            WritePacket(packet, ((Span<byte>)sendJob.Buffer).Slice(0, packetLength));
+
+            // Enqueue send job
+            if (!_sendQueue.Post(sendJob))
+            {
+                throw new NetSyncException("Failed to post packet to send queue");
+            }
+        }
+
+        public async Task RunIOAsync(CancellationToken cancellationToken = default)
+        {
+            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, abortCts.Token);
+
+            Task readerTask = RunReaderAsync(cancellationToken);
+            Task writerTask = RunWriterAsync(cancellationToken);
+
+            try
+            {
+                await Task.WhenAny(readerTask, writerTask);
+            }
+            catch
+            {
+            }
+
+            abortCts.Cancel();
+            await Task.WhenAll(readerTask, writerTask);
+        }
 
         public async Task DoNetSyncHandshake()
         {
@@ -90,7 +147,39 @@ namespace Backhand.DeviceIO.NetSync
             await response2Task;
         }
 
-        protected SequencePosition ReadPackets(ReadOnlySequence<byte> buffer)
+        private async Task RunReaderAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                ReadResult readResult = await _basePipe.Input.ReadAsync(cancellationToken).ConfigureAwait(false);
+                ReadOnlySequence<byte> buffer = readResult.Buffer;
+
+                SequencePosition processedPosition = ReadPackets(buffer);
+
+                _basePipe.Input.AdvanceTo(processedPosition);
+
+                if (readResult.IsCompleted)
+                    break;
+            }
+        }
+
+        private async Task RunWriterAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                NetSyncSendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+
+                Memory<byte> pipeBuffer = _basePipe.Output.GetMemory(sendJob.Length);
+                ((Span<byte>)sendJob.Buffer).Slice(0, sendJob.Length).CopyTo(pipeBuffer.Span);
+                _basePipe.Output.Advance(sendJob.Length);
+
+                FlushResult flushResult = await _basePipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
+                if (flushResult.IsCompleted)
+                    break;
+            }
+        }
+
+        private SequencePosition ReadPackets(ReadOnlySequence<byte> buffer)
         {
             SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
             
@@ -120,12 +209,12 @@ namespace Backhand.DeviceIO.NetSync
             return bufferReader.Position;
         }
 
-        protected uint GetPacketLength(NetSyncPacket packet)
+        private uint GetPacketLength(NetSyncPacket packet)
         {
             return Convert.ToUInt32(NetSyncHeaderLength + packet.Data.Length);
         }
 
-        protected void WritePacket(NetSyncPacket packet, Span<byte> buffer)
+        private void WritePacket(NetSyncPacket packet, Span<byte> buffer)
         {
             int offset = 0;
             buffer[offset++] = 0x01; // data type

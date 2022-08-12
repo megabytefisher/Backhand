@@ -40,11 +40,11 @@ namespace Backhand.DeviceIO.Cmp
             _padp = padp;
         }
 
-        public async Task DoHandshakeAsync(uint? newBaudRate = null)
+        public async Task DoHandshakeAsync(uint? newBaudRate = null, CancellationToken cancellationToken = default)
         {
             byte[] initBuffer = ArrayPool<byte>.Shared.Rent(10);
             WriteInit(initBuffer, newBaudRate);
-            await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10));
+            await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10), cancellationToken);
             ArrayPool<byte>.Shared.Return(initBuffer);
         }
 

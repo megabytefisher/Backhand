@@ -99,6 +99,54 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             await dlp.Execute(DlpCommandDefinitions.CloseDb, requestArguments, cancellationToken);
         }
 
+        public static async Task<ReadAppBlockResponse> ReadAppBlock(this DlpConnection dlp, ReadAppBlockRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.ReadAppBlockRequest, request);
+
+            DlpArgumentCollection responseArguments = await dlp.Execute(DlpCommandDefinitions.ReadAppBlock, requestArguments, cancellationToken);
+
+            ReadAppBlockResponse? response =
+                responseArguments.GetValue(DlpArgumentDefinitions.ReadAppBlockResponse);
+
+            if (response == null)
+                throw new DlpCommandException("Missing required response argument");
+
+            return response;
+        }
+
+        public static async Task WriteAppBlock(this DlpConnection dlp, WriteAppBlockRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.WriteAppBlockRequest, request);
+
+            await dlp.Execute(DlpCommandDefinitions.WriteAppBlock, requestArguments, cancellationToken);
+        }
+
+        public static async Task<ReadSortBlockResponse> ReadSortBlock(this DlpConnection dlp, ReadSortBlockRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.ReadSortBlockRequest, request);
+
+            DlpArgumentCollection responseArguments = await dlp.Execute(DlpCommandDefinitions.ReadSortBlock, requestArguments, cancellationToken);
+
+            ReadSortBlockResponse? response =
+                responseArguments.GetValue(DlpArgumentDefinitions.ReadSortBlockResponse);
+
+            if (response == null)
+                throw new DlpCommandException("Missing required response argument");
+
+            return response;
+        }
+
+        public static async Task WriteSortBlock(this DlpConnection dlp, WriteSortBlockRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+            requestArguments.SetValue(DlpArgumentDefinitions.WriteSortBlockRequest, request);
+
+            await dlp.Execute(DlpCommandDefinitions.WriteSortBlock, requestArguments, cancellationToken);
+        }
+
         public static async Task<ReadRecordByIdResponse> ReadRecordById(this DlpConnection dlp, ReadRecordByIdRequest request, CancellationToken cancellationToken = default)
         {
             DlpArgumentCollection requestArguments = new DlpArgumentCollection();
@@ -137,6 +185,13 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0
             requestArguments.SetValue(DlpArgumentDefinitions.WriteResourceRequest, request);
 
             await dlp.Execute(DlpCommandDefinitions.WriteResource, requestArguments, cancellationToken);
+        }
+
+        public static async Task OpenConduit(this DlpConnection dlp, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentCollection requestArguments = new DlpArgumentCollection();
+
+            await dlp.Execute(DlpCommandDefinitions.OpenConduit, requestArguments, cancellationToken);
         }
 
         public static async Task EndOfSync(this DlpConnection dlp, EndOfSyncRequest request, CancellationToken cancellationToken = default)
