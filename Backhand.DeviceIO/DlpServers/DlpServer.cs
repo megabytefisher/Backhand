@@ -11,14 +11,17 @@ using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpServers
 {
-    public abstract class DlpServer
+    public abstract class DlpServer : IDlpServer
     {
+        public event EventHandler<DlpSyncStartingEventArgs>? SyncStarting;
+        public event EventHandler<DlpSyncEndedEventArgs>? SyncEnded;
+
         protected ILoggerFactory _loggerFactory;
         protected ILogger _logger;
 
-        private Func<DlpConnection, CancellationToken, Task> _syncFunc;
+        private Func<DlpContext, CancellationToken, Task> _syncFunc;
 
-        public DlpServer(Func<DlpConnection, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
+        public DlpServer(Func<DlpContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
         {
             loggerFactory ??= NullLoggerFactory.Instance;
 
@@ -30,32 +33,37 @@ namespace Backhand.DeviceIO.DlpServers
 
         public abstract Task Run(CancellationToken cancellationToken = default);
 
-        protected async Task DoSync(DlpConnection dlpConnection, CancellationToken cancellationToken)
+        protected async Task DoSync(DlpContext dlpContext, CancellationToken cancellationToken)
         {
+            SyncStarting?.Invoke(this, new DlpSyncStartingEventArgs(dlpContext));
+
+            Exception? syncException = null;
             try
             {
-                await dlpConnection.ReadUserInfoAsync(cancellationToken).ConfigureAwait(false);
-                await dlpConnection.ReadSysInfoAsync(new ReadSysInfoRequest
-                {
-                    HostDlpVersionMajor = 1,
-                    HostDlpVersionMinor = 4,
-                }, cancellationToken).ConfigureAwait(false);
-
-                await _syncFunc(dlpConnection, cancellationToken).ConfigureAwait(false);
+                await _syncFunc(dlpContext, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("DoSync failed");
-                Console.WriteLine(ex);
+                syncException = ex;
             }
 
-            await dlpConnection.EndOfSyncAsync(new EndOfSyncRequest()
+            try
             {
-                Status = EndOfSyncRequest.EndOfSyncStatus.Okay
-            }, cancellationToken);
+                await dlpContext.Connection.EndOfSyncAsync(new EndOfSyncRequest()
+                {
+                    Status = syncException == null ?
+                        EndOfSyncRequest.EndOfSyncStatus.Okay :
+                        EndOfSyncRequest.EndOfSyncStatus.UnknownError
+                }, cancellationToken);
 
-            // Give device time to read our message before tearing down the connection..
-            await Task.Delay(50, cancellationToken);
+                // Give device time to read our message before tearing down the connection..
+                await Task.Delay(100, cancellationToken);
+            }
+            catch
+            {
+            }
+
+            SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs(dlpContext, syncException));
         }
     }
 }

@@ -1,16 +1,5 @@
 ﻿using Backhand.Cli.Commands;
-using Backhand.DeviceIO.Cmp;
-using Backhand.DeviceIO.Dlp;
-using Backhand.DeviceIO.DlpCommands.v1_0;
-using Backhand.DeviceIO.DlpCommands.v1_0.Arguments;
-using Backhand.DeviceIO.DlpCommands.v1_0.Data;
-using Backhand.DeviceIO.DlpServers;
-using Backhand.DeviceIO.DlpTransports;
-using Backhand.DeviceIO.Padp;
-using Backhand.DeviceIO.Slp;
-using Backhand.Pdb;
 using Microsoft.Extensions.Logging;
-using System.Buffers;
 using System.CommandLine;
 
 namespace Backhand.Cli

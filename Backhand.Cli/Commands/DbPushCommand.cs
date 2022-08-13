@@ -2,6 +2,7 @@
 using Backhand.DeviceIO.DlpCommands.v1_0;
 using Backhand.DeviceIO.DlpCommands.v1_0.Arguments;
 using Backhand.DeviceIO.DlpCommands.v1_0.Data;
+using Backhand.DeviceIO.DlpServers;
 using Backhand.Pdb;
 using Microsoft.Extensions.Logging;
 using System;
@@ -13,20 +14,11 @@ using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands
 {
-    public class DbPushCommand : BaseCommand
+    public class DbPushCommand : BaseDeviceCommand
     {
         public DbPushCommand(ILoggerFactory loggerFactory)
             : base("push", "Uploads one or more databases (in .PRC/.PDB file format) to a connected device.", loggerFactory)
         {
-            var deviceOption = new Option<string[]>(
-                name: "--device",
-                description: "Device(s) to use for communication. Either the name of a serial port or 'USB'.")
-            {
-                IsRequired = true,
-                Arity = ArgumentArity.OneOrMore,
-            };
-            AddOption(deviceOption);
-
             var pathOption = new Option<string[]>(
                 name: "--path",
                 description: "Path to database file(s) to install. If a directory is specified, database files will be recursively pushed.")
@@ -41,31 +33,27 @@ namespace Backhand.Cli.Commands
                 description: "If a database already exists on the device, it will be deleted and rewritten.");
             AddOption(overwriteOption);
 
-            this.SetHandler(RunCommandAsync, deviceOption, pathOption, overwriteOption);
+            this.SetHandler(RunCommandAsync, _deviceOption, _serverOption, pathOption, overwriteOption);
         }
 
-        private async Task RunCommandAsync(string[] deviceNames, string[] paths, bool overwrite)
+        private async Task RunCommandAsync(string[] deviceNames, bool serverMode, string[] paths, bool overwrite)
         {
             List<string> filePaths = GetFilePaths(paths);
             _logger.LogInformation($"Will install {filePaths.Count} file(s) to device.");
 
-            Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
+            Func<DlpContext, CancellationToken, Task> syncFunc = async (context, cancellationToken) =>
             {
-                _logger.LogInformation("Beginning sync process");
-
-                await dlp.OpenConduitAsync();
+                await context.Connection.OpenConduitAsync();
 
                 foreach (string filePath in filePaths)
                 {
                     _logger.LogInformation($"Installing: {filePath}");
-                    await InstallDbAsync(dlp, filePath, overwrite, cancellationToken);
+                    await InstallDbAsync(context.Connection, filePath, overwrite, cancellationToken);
                 }
-
-                _logger.LogInformation("Sync complete");
             };
 
             _logger.LogInformation($"Running device servers...");
-            await RunDeviceServers(deviceNames, syncFunc);
+            await RunDeviceServers(deviceNames, serverMode, syncFunc);
         }
 
         private static List<string> GetFilePaths(string[] paths)

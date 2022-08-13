@@ -32,7 +32,7 @@ namespace Backhand.DeviceIO.DlpServers
 
         private List<UsbDlpClient> _activeClients;
 
-        public UsbDlpServer(Func<DlpConnection, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
+        public UsbDlpServer(Func<DlpContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
             : base(syncFunc, loggerFactory)
         {
             _activeClients = new List<UsbDlpClient>();
@@ -90,8 +90,9 @@ namespace Backhand.DeviceIO.DlpServers
 
                     using NetSyncDlpTransport transport = new NetSyncDlpTransport(netSyncDevice);
                     DlpConnection dlpConnection = new DlpConnection(transport);
+                    DlpContext dlpContext = new DlpContext(dlpConnection);
 
-                    syncTask = DoSync(dlpConnection, linkedCts.Token);
+                    syncTask = DoSync(dlpContext, linkedCts.Token);
 
                     try
                     {
@@ -137,8 +138,9 @@ namespace Backhand.DeviceIO.DlpServers
 
                     using PadpDlpTransport transport = new PadpDlpTransport(padpConnection);
                     DlpConnection dlpConnection = new DlpConnection(transport);
+                    DlpContext dlpContext = new DlpContext(dlpConnection);
 
-                    syncTask = DoSync(dlpConnection, linkedCts.Token);
+                    syncTask = DoSync(dlpContext, linkedCts.Token);
 
                     try
                     {

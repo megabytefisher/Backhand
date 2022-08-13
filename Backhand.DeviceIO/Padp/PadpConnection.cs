@@ -45,7 +45,7 @@ namespace Backhand.DeviceIO.Padp
         private const int PadpHeaderSize = 4;
         private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(3);
 
-        public PadpConnection(SlpDevice device, byte localSocketId, byte remoteSocketId, byte initialTransactionId)
+        public PadpConnection(SlpDevice device, byte localSocketId, byte remoteSocketId, byte initialTransactionId = 0xff)
         {
             _device = device;
             _localSocketId = localSocketId;

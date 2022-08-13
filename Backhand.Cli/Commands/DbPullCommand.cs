@@ -2,6 +2,7 @@
 using Backhand.DeviceIO.DlpCommands.v1_0;
 using Backhand.DeviceIO.DlpCommands.v1_0.Arguments;
 using Backhand.DeviceIO.DlpCommands.v1_0.Data;
+using Backhand.DeviceIO.DlpServers;
 using Backhand.Pdb;
 using Microsoft.Extensions.Logging;
 using System;
@@ -13,20 +14,11 @@ using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands
 {
-    public class DbPullCommand : BaseCommand
+    public class DbPullCommand : BaseDeviceCommand
     {
         public DbPullCommand(ILoggerFactory loggerFactory)
             : base("pull", "Downloads one or more databases from a connected device.", loggerFactory)
         {
-            var deviceOption = new Option<string[]>(
-                name: "--device",
-                description: "Device(s) to use for communication. Either the name of a serial port or 'USB'.")
-            {
-                IsRequired = true,
-                Arity = ArgumentArity.OneOrMore,
-            };
-            AddOption(deviceOption);
-
             var pathOption = new Option<string>(
                 name: "--path",
                 description: "Path to a directory in which to store the database files.")
@@ -53,10 +45,10 @@ namespace Backhand.Cli.Commands
                 description: "Pulls all databases that exist on the device.");
             AddOption(allOption);
 
-            this.SetHandler(RunCommandAsync, deviceOption, pathOption, databaseOption, backupOption, allOption);
+            this.SetHandler(RunCommandAsync, _deviceOption, _serverOption, pathOption, databaseOption, backupOption, allOption);
         }
 
-        private async Task RunCommandAsync(string[] deviceNames, string path, string[] databases, bool backup, bool all)
+        private async Task RunCommandAsync(string[] deviceNames, bool serverMode, string path, string[] databases, bool backup, bool all)
         {
             if (!Directory.Exists(path))
             {
@@ -64,12 +56,10 @@ namespace Backhand.Cli.Commands
                 return;
             }
 
-            Func<DlpConnection, CancellationToken, Task> syncFunc = async (dlp, cancellationToken) =>
+            Func<DlpContext, CancellationToken, Task> syncFunc = async (context, cancellationToken) =>
             {
-                _logger.LogInformation("Beginning sync process.");
-
                 ReadUserInfoResponse userInfoResponse =
-                    await dlp.ReadUserInfoAsync(cancellationToken);
+                    await context.Connection.ReadUserInfoAsync(cancellationToken);
 
                 string userPath;
                 if (userInfoResponse.Username.Length > 0)
@@ -90,10 +80,10 @@ namespace Backhand.Cli.Commands
                     Directory.CreateDirectory(userPath);
                 }
 
-                await dlp.OpenConduitAsync(cancellationToken);
+                await context.Connection.OpenConduitAsync(cancellationToken);
 
                 _logger.LogDebug("Reading database list from device...");
-                List<DlpDatabaseMetadata> metadataList = await ReadFullDbListAsync(dlp, cancellationToken).ConfigureAwait(false);
+                List<DlpDatabaseMetadata> metadataList = await ReadFullDbListAsync(context.Connection, cancellationToken).ConfigureAwait(false);
                 _logger.LogDebug($"Found {metadataList.Count} databases.");
 
                 IEnumerable<string> databaseNames = databases ?? Enumerable.Empty<string>();
@@ -124,14 +114,12 @@ namespace Backhand.Cli.Commands
                         continue;
                     }
 
-                    await PullDbAsync(dlp, metadata, userPath, cancellationToken).ConfigureAwait(false);
+                    await PullDbAsync(context.Connection, metadata, userPath, cancellationToken).ConfigureAwait(false);
                 }
-
-                _logger.LogInformation("Completed sync process.");
             };
 
             _logger.LogInformation("Running device servers...");
-            await RunDeviceServers(deviceNames, syncFunc).ConfigureAwait(false);
+            await RunDeviceServers(deviceNames, serverMode, syncFunc).ConfigureAwait(false);
         }
 
         private async Task<List<DlpDatabaseMetadata>> ReadFullDbListAsync(DlpConnection dlp, CancellationToken cancellationToken)
