@@ -13,10 +13,10 @@ using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands
 {
-    public class PullDbCommand : BaseCommand
+    public class DbPullCommand : BaseCommand
     {
-        public PullDbCommand(ILoggerFactory loggerFactory)
-            : base("pulldb", "Downloads one or more databases from a connected device.", loggerFactory)
+        public DbPullCommand(ILoggerFactory loggerFactory)
+            : base("pull", "Downloads one or more databases from a connected device.", loggerFactory)
         {
             var deviceOption = new Option<string[]>(
                 name: "--device",

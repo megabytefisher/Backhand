@@ -13,10 +13,10 @@ using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands
 {
-    public class PushDbCommand : BaseCommand
+    public class DbPushCommand : BaseCommand
     {
-        public PushDbCommand(ILoggerFactory loggerFactory)
-            : base("pushdb", "Uploads one or more databases (in .PRC/.PDB file format) to a connected device.", loggerFactory)
+        public DbPushCommand(ILoggerFactory loggerFactory)
+            : base("push", "Uploads one or more databases (in .PRC/.PDB file format) to a connected device.", loggerFactory)
         {
             var deviceOption = new Option<string[]>(
                 name: "--device",
@@ -41,10 +41,10 @@ namespace Backhand.Cli.Commands
                 description: "If a database already exists on the device, it will be deleted and rewritten.");
             AddOption(overwriteOption);
 
-            this.SetHandler(DoPushDb, deviceOption, pathOption, overwriteOption);
+            this.SetHandler(RunCommandAsync, deviceOption, pathOption, overwriteOption);
         }
 
-        private async Task DoPushDb(string[] deviceNames, string[] paths, bool overwrite)
+        private async Task RunCommandAsync(string[] deviceNames, string[] paths, bool overwrite)
         {
             List<string> filePaths = GetFilePaths(paths);
             _logger.LogInformation($"Will install {filePaths.Count} file(s) to device.");
