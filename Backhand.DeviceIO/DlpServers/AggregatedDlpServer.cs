@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpServers
 {
     public class AggregatedDlpServer : IDlpServer
     {
-        private IDlpServer[] _servers;
+        private readonly IDlpServer[] _servers;
 
         public event EventHandler<DlpSyncStartingEventArgs>? SyncStarting
         {

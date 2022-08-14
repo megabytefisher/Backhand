@@ -1,10 +1,6 @@
 ﻿using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Utility
 {
@@ -35,7 +31,7 @@ namespace Backhand.DeviceIO.Utility
 
         public static ushort ComputeChecksum(ReadOnlySequence<byte> bytes)
         {
-            SequenceReader<byte> bytesReader = new SequenceReader<byte>(bytes);
+            SequenceReader<byte> bytesReader = new(bytes);
 
             int crc = 0;
 

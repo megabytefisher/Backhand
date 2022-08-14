@@ -1,12 +1,9 @@
-﻿using Backhand.DeviceIO.DlpTransports;
-using Backhand.DeviceIO.Padp;
+﻿using System;
+using Backhand.DeviceIO.DlpTransports;
 using Backhand.Utility.Buffers;
-using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Dlp
@@ -22,18 +19,18 @@ namespace Backhand.DeviceIO.Dlp
             All         = 0b11000000,
         }
 
-        private DlpTransport _transport;
+        private readonly DlpTransport _transport;
 
-        private const int DlpRequestHeaderSize = 2;
-        private const int DlpResponseHeaderSize = 4;
+        private const int DlpRequestHeaderSize = sizeof(byte) * 2;
+        private const int DlpResponseHeaderSize = sizeof(byte) * 4;
         private const int DlpResponseIdBitmask = 0x80;
         private const int DlpArgIdBase = 0x20;
         private const int DlpArgTinyMaxSize = byte.MaxValue;
-        private const int DlpArgTinyHeaderSize = 2;
+        private const int DlpArgTinyHeaderSize = sizeof(byte) * 2;
         private const int DlpArgSmallMaxSize = ushort.MaxValue;
-        private const int DlpArgSmallHeaderSize = 4;
+        private const int DlpArgSmallHeaderSize = sizeof(byte) * 4;
 
-        private readonly TimeSpan DlpCommandResponseTimeout = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan DlpCommandResponseTimeout = TimeSpan.FromSeconds(30);
 
         public DlpConnection(DlpTransport transport)
         {
@@ -55,23 +52,60 @@ namespace Backhand.DeviceIO.Dlp
             return responseArguments;
         }
 
-        private int GetRequestSize(DlpArgumentCollection arguments)
+        private async Task<DlpArgumentCollection> WaitForResponseAsync(DlpCommandDefinition command, CancellationToken cancellationToken = default)
+        {
+            TaskCompletionSource<DlpArgumentCollection> responseTcs = new TaskCompletionSource<DlpArgumentCollection>();
+
+            Action<object?, DlpPayloadTransmittedEventArgs> responseReceiver = (_, e) =>
+            {
+                try
+                {
+                    DlpArgumentCollection? result = ReadDlpResponse(command, e.Payload.Buffer);
+
+                    if (result != null)
+                        responseTcs.TrySetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    responseTcs.TrySetException(ex);
+                }
+            };
+
+            _transport.ReceivedPayload += responseReceiver.Invoke;
+
+            await using (cancellationToken.Register(() =>
+                         {
+                             responseTcs.TrySetCanceled();
+                         }))
+            {
+                try
+                {
+                    return await responseTcs.Task;
+                }
+                finally
+                {
+                    _transport.ReceivedPayload -= responseReceiver.Invoke;
+                }
+            } 
+        }
+
+        private static int GetRequestSize(DlpArgumentCollection arguments)
         {
             int size = DlpRequestHeaderSize;
             foreach (DlpArgument argument in arguments.GetValues())
             {
                 int argumentSize = argument.GetSerializedLength();
-                if (argumentSize <= DlpArgTinyMaxSize)
-                    size += DlpArgTinyHeaderSize + argumentSize;
-                else if (argumentSize <= DlpArgSmallMaxSize)
-                    size += DlpArgSmallHeaderSize + argumentSize;
-                else
-                    throw new DlpException("Request argument too big");
+                size += argumentSize switch
+                {
+                    <= DlpArgTinyMaxSize => DlpArgTinyHeaderSize + argumentSize,
+                    <= DlpArgSmallMaxSize => DlpArgSmallHeaderSize + argumentSize,
+                    _ => throw new DlpException("Request argument too big")
+                };
             }
             return size;
         }
 
-        private void WriteDlpRequest(DlpCommandDefinition command, DlpArgumentCollection arguments, Span<byte> buffer)
+        private static void WriteDlpRequest(DlpCommandDefinition command, DlpArgumentCollection arguments, Span<byte> buffer)
         {
             int offset = 0;
             buffer[offset++] = (byte)command.Opcode;
@@ -91,20 +125,19 @@ namespace Backhand.DeviceIO.Dlp
 
                 int argumentSize = argument.GetSerializedLength();
 
-                if (argumentSize <= DlpArgTinyMaxSize)
+                switch (argumentSize)
                 {
-                    buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Tiny);
-                    buffer[offset++] = Convert.ToByte(argumentSize);
-                }
-                else if (argumentSize <= DlpArgSmallMaxSize)
-                {
-                    buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Small);
-                    BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset + 1, 2), Convert.ToUInt16(argumentSize));
-                    offset += 3;
-                }
-                else
-                {
-                    throw new DlpException("Request argument too big");
+                    case <= DlpArgTinyMaxSize:
+                        buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Tiny);
+                        buffer[offset++] = Convert.ToByte(argumentSize);
+                        break;
+                    case <= DlpArgSmallMaxSize:
+                        buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Small);
+                        BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset + 1, 2), Convert.ToUInt16(argumentSize));
+                        offset += 3;
+                        break;
+                    default:
+                        throw new DlpException("Request argument too big");
                 }
 
                 Span<byte> argumentBuffer = buffer.Slice(offset, argumentSize);
@@ -112,7 +145,7 @@ namespace Backhand.DeviceIO.Dlp
             }
         }
 
-        private DlpArgumentCollection? ReadDlpResponse(DlpCommandDefinition command, ReadOnlySequence<byte> buffer)
+        private static DlpArgumentCollection? ReadDlpResponse(DlpCommandDefinition command, ReadOnlySequence<byte> buffer)
         {
             DlpArgumentCollection result = new DlpArgumentCollection();
             SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
@@ -159,43 +192,6 @@ namespace Backhand.DeviceIO.Dlp
             }
 
             return result;
-        }
-
-        private async Task<DlpArgumentCollection> WaitForResponseAsync(DlpCommandDefinition command, CancellationToken cancellationToken = default)
-        {
-            TaskCompletionSource<DlpArgumentCollection> responseTcs = new TaskCompletionSource<DlpArgumentCollection>();
-
-            Action<object?, DlpPayloadTransmittedEventArgs> responseReceiver = (sender, e) =>
-            {
-                try
-                {
-                    DlpArgumentCollection? result = ReadDlpResponse(command, e.Payload.Buffer);
-
-                    if (result != null)
-                        responseTcs.TrySetResult(result);
-                }
-                catch (Exception ex)
-                {
-                    responseTcs.TrySetException(ex);
-                }
-            };
-
-            _transport.ReceivedPayload += responseReceiver.Invoke;
-
-            using (cancellationToken.Register(() =>
-            {
-                responseTcs.SetCanceled();
-            }))
-            {
-                try
-                {
-                    return await responseTcs.Task;
-                }
-                finally
-                {
-                    _transport.ReceivedPayload -= responseReceiver.Invoke;
-                }
-            } 
         }
     }
 }

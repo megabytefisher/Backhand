@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 
 namespace Backhand.DeviceIO.Dlp
 {
@@ -10,7 +6,7 @@ namespace Backhand.DeviceIO.Dlp
     {
         public int Count => _values.Count;
 
-        private Dictionary<DlpArgumentDefinition, DlpArgument> _values;
+        private readonly Dictionary<DlpArgumentDefinition, DlpArgument> _values;
 
         public DlpArgumentCollection()
         {
@@ -19,16 +15,12 @@ namespace Backhand.DeviceIO.Dlp
 
         public void SetValue(DlpArgumentDefinition argument, DlpArgument value)
         {
-            if (value != null)
-                _values[argument] = value;
+            _values[argument] = value;
         }
 
         public DlpArgument? GetValue(DlpArgumentDefinition argument)
         {
-            if (!_values.TryGetValue(argument, out DlpArgument? value))
-                return null;
-
-            return value;
+            return _values.TryGetValue(argument, out DlpArgument? value) ? value : null;
         }
 
         public T? GetValue<T>(DlpArgumentDefinition<T> argument)

@@ -1,12 +1,9 @@
-﻿using Backhand.DeviceIO.Dlp;
-using Backhand.DeviceIO.DlpCommands.v1_0;
+﻿using Backhand.DeviceIO.DlpCommands.v1_0;
 using Backhand.DeviceIO.DlpCommands.v1_0.Arguments;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpServers
@@ -16,17 +13,17 @@ namespace Backhand.DeviceIO.DlpServers
         public event EventHandler<DlpSyncStartingEventArgs>? SyncStarting;
         public event EventHandler<DlpSyncEndedEventArgs>? SyncEnded;
 
-        protected ILoggerFactory _loggerFactory;
-        protected ILogger _logger;
+        protected ILoggerFactory LoggerFactory { get; }
+        protected ILogger Logger { get; }
 
-        private Func<DlpContext, CancellationToken, Task> _syncFunc;
+        private readonly Func<DlpContext, CancellationToken, Task> _syncFunc;
 
-        public DlpServer(Func<DlpContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
+        protected DlpServer(Func<DlpContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
         {
             loggerFactory ??= NullLoggerFactory.Instance;
 
-            _loggerFactory = loggerFactory;
-            _logger = loggerFactory.CreateLogger(GetType());
+            LoggerFactory = loggerFactory;
+            Logger = loggerFactory.CreateLogger(GetType());
 
             _syncFunc = syncFunc;
         }
@@ -61,6 +58,7 @@ namespace Backhand.DeviceIO.DlpServers
             }
             catch
             {
+                // ignored
             }
 
             SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs(dlpContext, syncException));

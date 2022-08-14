@@ -1,13 +1,7 @@
-﻿using Backhand.DeviceIO.DlpCommands.v1_0.Data;
+﻿using Backhand.DeviceIO.Dlp;
+using Backhand.DeviceIO.DlpCommands.v1_0.Data;
 using System;
 using System.Buffers.Binary;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Backhand.DeviceIO.Dlp;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
@@ -20,16 +14,13 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
         public byte Category { get; set; }
         public byte[] Data { get; set; } = Array.Empty<byte>();
 
-        public override int GetSerializedLength()
-        {
-            return
-                sizeof(byte) +                  // DbHandle
-                sizeof(byte) +                  // Flags
-                sizeof(uint) +                  // RecordId
-                sizeof(DlpRecordAttributes) +   // Attributes
-                sizeof(byte) +                  // Category
-                (sizeof(byte) * Data.Length);   // Data
-        }
+        public override int GetSerializedLength() =>
+            sizeof(byte) +                          // DbHandle
+            sizeof(byte) +                          // Flags
+            sizeof(uint) +                          // RecordId
+            sizeof(byte) +                          // Attributes
+            sizeof(byte) +                          // Category
+            (sizeof(byte) * Data.Length);           // Data
 
         public override int Serialize(Span<byte> buffer)
         {
@@ -51,14 +42,9 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             offset += sizeof(byte);
 
             ((Span<byte>)Data).CopyTo(buffer.Slice(offset));
-            offset += Data.Length;
+            offset += sizeof(byte) * Data.Length;
 
             return offset;
-        }
-
-        public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
-        {
-            throw new NotImplementedException();
         }
     }
 }

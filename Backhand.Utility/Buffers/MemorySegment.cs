@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
 
 namespace Backhand.Utility.Buffers
 {
@@ -12,7 +13,7 @@ namespace Backhand.Utility.Buffers
 
         public MemorySegment<T> Append(ReadOnlyMemory<T> memory)
         {
-            var segment = new MemorySegment<T>(memory)
+            MemorySegment<T> segment = new MemorySegment<T>(memory)
             {
                 RunningIndex = RunningIndex + Memory.Length
             };

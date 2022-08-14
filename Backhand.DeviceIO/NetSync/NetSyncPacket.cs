@@ -1,16 +1,11 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Buffers;
 
 namespace Backhand.DeviceIO.NetSync
 {
     public class NetSyncPacket
     {
-        public byte TransactionId { get; private init; }
-        public ReadOnlySequence<byte> Data { get; private init; }
+        public byte TransactionId { get; }
+        public ReadOnlySequence<byte> Data { get; }
 
         public NetSyncPacket(byte transactionId, ReadOnlySequence<byte> data)
         {

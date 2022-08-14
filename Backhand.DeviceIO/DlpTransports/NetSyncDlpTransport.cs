@@ -1,15 +1,12 @@
 ﻿using Backhand.DeviceIO.NetSync;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpTransports
 {
-    public class NetSyncDlpTransport : DlpTransport, IDisposable
+    public sealed class NetSyncDlpTransport : DlpTransport, IDisposable
     {
-        private NetSyncDevice _device;
+        private readonly NetSyncDevice _device;
 
         private byte _transactionId = 0x04 - 1;
 
@@ -42,9 +39,7 @@ namespace Backhand.DeviceIO.DlpTransports
         private void BumpTransactionId()
         {
             _transactionId = (byte)(_transactionId + 1);
-            if (_transactionId == 0xff ||
-                _transactionId == 0x00 ||
-                _transactionId == 0x01)
+            if (_transactionId is 0xff or 0x00 or 0x01)
             {
                 _transactionId = 0x02;
             }    

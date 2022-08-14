@@ -5,19 +5,16 @@ using Backhand.DeviceIO.Padp;
 using Backhand.DeviceIO.Serial;
 using Backhand.DeviceIO.Slp;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System;
-using System.Collections.Generic;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpServers
 {
     public class SerialDlpServer : DlpServer
     {
-        private string _portName;
+        private readonly string _portName;
 
         private const int InitialBaudRate = 9600;
         private const int TargetBaudRate = 57600;
@@ -39,36 +36,37 @@ namespace Backhand.DeviceIO.DlpServers
                 }
                 catch
                 {
+                    // ignored
                 }
             }
         }
 
         private async Task DoCmpPortion(CancellationToken cancellationToken)
         {
-            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource abortCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SerialPort serialPort = new SerialPort(_portName);
+            using SerialPort serialPort = new(_portName);
             serialPort.BaudRate = InitialBaudRate;
             serialPort.Handshake = Handshake.RequestToSend;
             serialPort.Parity = Parity.None;
             serialPort.StopBits = StopBits.One;
             serialPort.Open();
 
-            SerialPortPipe serialPortPipe = new SerialPortPipe(serialPort);
-            using SlpDevice slpDevice = new SlpDevice(serialPortPipe, logger: _loggerFactory.CreateLogger<SlpDevice>());
-            using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3);
+            SerialPortPipe serialPortPipe = new(serialPort);
+            using SlpDevice slpDevice = new(serialPortPipe, logger: LoggerFactory.CreateLogger<SlpDevice>());
+            using PadpConnection padpConnection = new(slpDevice, 3, 3);
 
             // Watch for wakeup packet
-            CmpConnection cmpConnection = new CmpConnection(padpConnection);
+            CmpConnection cmpConnection = new(padpConnection);
             Task waitForWakeUpTask = cmpConnection.WaitForWakeUpAsync(linkedCts.Token);
 
             // Start device IO
-            Task ioTask = slpDevice.RunIOAsync(linkedCts.Token);
+            Task ioTask = slpDevice.RunIoAsync(linkedCts.Token);
 
             // Wait for wakeup + do handshake
             await waitForWakeUpTask;
-            Task handshakeTask = cmpConnection.DoHandshakeAsync(TargetBaudRate);
+            Task handshakeTask = cmpConnection.DoHandshakeAsync(TargetBaudRate, linkedCts.Token);
 
             try
             {
@@ -76,6 +74,7 @@ namespace Backhand.DeviceIO.DlpServers
             }
             catch
             {
+                // Ignore any exceptions for now - we want both tasks to end.
             }
 
             abortCts.Cancel();
@@ -103,27 +102,27 @@ namespace Backhand.DeviceIO.DlpServers
 
         private async Task DoDlpPortion(CancellationToken cancellationToken)
         {
-            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource abortCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
-            using SerialPort serialPort = new SerialPort(_portName);
+            using SerialPort serialPort = new(_portName);
             serialPort.BaudRate = TargetBaudRate;
             serialPort.Handshake = Handshake.RequestToSend;
             serialPort.Parity = Parity.None;
             serialPort.StopBits = StopBits.One;
             serialPort.Open();
 
-            SerialPortPipe serialPortPipe = new SerialPortPipe(serialPort);
-            using SlpDevice slpDevice = new SlpDevice(serialPortPipe, logger: _loggerFactory.CreateLogger<SlpDevice>());
-            using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3);
+            SerialPortPipe serialPortPipe = new(serialPort);
+            using SlpDevice slpDevice = new(serialPortPipe, logger: LoggerFactory.CreateLogger<SlpDevice>());
+            using PadpConnection padpConnection = new(slpDevice, 3, 3);
 
             // Start device IO
-            Task ioTask = slpDevice.RunIOAsync(linkedCts.Token);
+            Task ioTask = slpDevice.RunIoAsync(linkedCts.Token);
 
             // Create DLP connection
-            using PadpDlpTransport dlpTransport = new PadpDlpTransport(padpConnection);
-            DlpConnection dlpConnection = new DlpConnection(dlpTransport);
-            DlpContext dlpContext = new DlpContext(dlpConnection);
+            using PadpDlpTransport dlpTransport = new(padpConnection);
+            DlpConnection dlpConnection = new(dlpTransport);
+            DlpContext dlpContext = new(dlpConnection);
 
             // Do sync
             Task syncTask = DoSync(dlpContext, linkedCts.Token);
@@ -135,6 +134,7 @@ namespace Backhand.DeviceIO.DlpServers
             }
             catch
             {
+                // Ignore any exceptions for now - we want both tasks to end.
             }
 
             abortCts.Cancel();

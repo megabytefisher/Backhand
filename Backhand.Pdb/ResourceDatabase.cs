@@ -2,15 +2,15 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Backhand.Pdb
 {
     public class ResourceDatabase : Database
     {
-        public List<DatabaseResource> Resources { get; set; } = new List<DatabaseResource>();
+        public List<DatabaseResource> Resources { get; } = new();
 
         public override async Task SerializeAsync(Stream stream)
         {
@@ -23,18 +23,20 @@ namespace Backhand.Pdb
             uint resourceBlockOffset = sortInfoOffset + (uint)(SortInfo?.Length ?? 0);
 
             await SerializeHeaderAsync(stream,
-                (AppInfo != null && AppInfo.Length > 0) ? appInfoOffset : 0,
-                (SortInfo != null && SortInfo.Length > 0) ? sortInfoOffset : 0);
+                AppInfo is { Length: > 0 } ? appInfoOffset : 0,
+                SortInfo is { Length: > 0 } ? sortInfoOffset : 0);
 
             await SerializeEntryMetadataListHeaderAsync(stream, Convert.ToUInt16(Resources.Count));
 
             int blockOffset = 0;
             foreach (DatabaseResource resource in Resources)
             {
-                FileResourceMetadata metadata = new FileResourceMetadata();
-                metadata.Type = resource.Type;
-                metadata.ResourceId = resource.ResourceId;
-                metadata.LocalChunkId = (uint)(resourceBlockOffset + blockOffset);
+                FileResourceMetadata metadata = new()
+                {
+                    Type = resource.Type,
+                    ResourceId = resource.ResourceId,
+                    LocalChunkId = (uint)(resourceBlockOffset + blockOffset)
+                };
 
                 await SerializeResourceMetadataAsync(stream, metadata);
 
@@ -45,13 +47,13 @@ namespace Backhand.Pdb
             await stream.WriteAsync(new byte[HeaderPaddingLength]);
 
             // Write AppInfo
-            if (AppInfo != null && AppInfo.Length > 0)
+            if (AppInfo is { Length: > 0 })
             {
                 await stream.WriteAsync(AppInfo);
             }
 
             // Write SortInfo
-            if (SortInfo != null && SortInfo.Length > 0)
+            if (SortInfo is { Length: > 0 })
             {
                 await stream.WriteAsync(SortInfo);
             }
@@ -70,7 +72,7 @@ namespace Backhand.Pdb
             ushort entryCount = await DeserializeEntryMetadataListHeaderAsync(stream);
 
             // Read each metadata entry
-            List<FileResourceMetadata> metadataList = new List<FileResourceMetadata>();
+            List<FileResourceMetadata> metadataList = new();
             for (ushort i = 0; i < entryCount; i++)
             {
                 metadataList.Add(await DeserializeResourceMetadataAsync(stream));
@@ -117,10 +119,12 @@ namespace Backhand.Pdb
                 byte[] resourceBuffer = new byte[resourceLength];
                 await FillBuffer(stream, resourceBuffer);
 
-                DatabaseResource resource = new DatabaseResource();
-                resource.Type = metadata.Type;
-                resource.ResourceId = metadata.ResourceId;
-                resource.Data = resourceBuffer;
+                DatabaseResource resource = new()
+                {
+                    Type = metadata.Type,
+                    ResourceId = metadata.ResourceId,
+                    Data = resourceBuffer
+                };
                 Resources.Add(resource);
             }
         }
@@ -138,7 +142,7 @@ namespace Backhand.Pdb
             byte[] buffer = new byte[FileResourceMetadata.SerializedLength];
             await FillBuffer(stream, buffer);
 
-            FileResourceMetadata fileResourceMetadata = new FileResourceMetadata();
+            FileResourceMetadata fileResourceMetadata = new();
             fileResourceMetadata.Deserialize(new ReadOnlySequence<byte>(buffer));
 
             return fileResourceMetadata;

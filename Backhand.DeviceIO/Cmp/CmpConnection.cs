@@ -1,11 +1,9 @@
-﻿using Backhand.DeviceIO.Padp;
+﻿using System;
+using Backhand.DeviceIO.Padp;
 using Backhand.Utility.Buffers;
-using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Cmp
@@ -30,7 +28,7 @@ namespace Backhand.DeviceIO.Cmp
             IsLongFormPadpHeaderSupported   = 0b00010000,
         }
 
-        private PadpConnection _padp;
+        private readonly PadpConnection _padp;
 
         private const byte CmpMajorVersion = 1;
         private const byte CmpMinorVersion = 1;
@@ -43,18 +41,25 @@ namespace Backhand.DeviceIO.Cmp
         public async Task DoHandshakeAsync(uint? newBaudRate = null, CancellationToken cancellationToken = default)
         {
             byte[] initBuffer = ArrayPool<byte>.Shared.Rent(10);
-            WriteInit(initBuffer, newBaudRate);
-            await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10), cancellationToken);
-            ArrayPool<byte>.Shared.Return(initBuffer);
+
+            try
+            {
+                WriteInit(initBuffer, newBaudRate);
+                await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10), cancellationToken);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(initBuffer);
+            }
         }
 
         public async Task WaitForWakeUpAsync(CancellationToken cancellationToken = default)
         {
-            TaskCompletionSource wakeUpTcs = new TaskCompletionSource();
+            TaskCompletionSource wakeUpTcs = new();
 
-            Action<object?, PadpDataReceivedEventArgs> wakeUpReceiver = (sender, e) =>
+            Action<object?, PadpDataReceivedEventArgs> wakeUpReceiver = (_, e) =>
             {
-                SequenceReader<byte> packetReader = new SequenceReader<byte>(e.Data);
+                SequenceReader<byte> packetReader = new(e.Data);
 
                 if (packetReader.Read() != (byte)CmpPacketType.WakeUp)
                     return;
@@ -64,10 +69,10 @@ namespace Backhand.DeviceIO.Cmp
 
             _padp.ReceivedData += wakeUpReceiver.Invoke;
 
-            using (cancellationToken.Register(() =>
-            {
-                wakeUpTcs.TrySetCanceled();
-            }))
+            await using (cancellationToken.Register(() =>
+                         {
+                             wakeUpTcs.TrySetCanceled();
+                         }))
             {
                 try
                 {
@@ -80,7 +85,7 @@ namespace Backhand.DeviceIO.Cmp
             }
         }
 
-        private void WriteInit(Span<byte> buffer, uint? newBaudRate = null)
+        private static void WriteInit(Span<byte> buffer, uint? newBaudRate = null)
         {
             buffer[0] = (byte)CmpPacketType.Init;
             buffer[1] = (byte)(CmpInitPacketFlags.None | (newBaudRate != null ? CmpInitPacketFlags.ShouldChangeBaudRate : CmpInitPacketFlags.None));

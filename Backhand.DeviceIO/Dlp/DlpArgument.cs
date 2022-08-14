@@ -1,11 +1,8 @@
-﻿using Backhand.Utility.Buffers;
-using System;
+﻿using System;
+using Backhand.Utility.Buffers;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Dlp
 {
@@ -13,10 +10,24 @@ namespace Backhand.DeviceIO.Dlp
     {
         protected const int DlpDateTimeLength = 8;
 
-        public abstract int GetSerializedLength();
-        public abstract int Serialize(Span<byte> buffer);
-        public abstract SequencePosition Deserialize(ReadOnlySequence<byte> buffer);
+        /* Should be implemented by request arguments */
+        public virtual int GetSerializedLength()
+        {
+            throw new NotImplementedException();
+        }
 
+        public virtual int Serialize(Span<byte> buffer)
+        {
+            throw new NotImplementedException();
+        }
+        
+        /* Should be implemented by response arguments */
+        public virtual SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
+        {
+            throw new NotImplementedException();
+        }
+
+        /* Common serialization methods */
         protected static DateTime ReadDlpDateTime(ref SequenceReader<byte> reader)
         {
             if (reader.Remaining < 8)
@@ -30,17 +41,11 @@ namespace Backhand.DeviceIO.Dlp
             byte second = reader.Read();
             reader.Advance(1); // Padding byte
 
-            if (year == 0)
-                return DateTime.MinValue;
-
-            return new DateTime(year != 0 ? year : 1900, month, day, hour, minute, second);
+            return year == 0 ? DateTime.MinValue : new DateTime(year, month, day, hour, minute, second);
         }
 
-        protected static void WriteDlpDateTime(Span<byte> buffer, DateTime value)
+        protected static int WriteDlpDateTime(Span<byte> buffer, DateTime value)
         {
-            if (buffer.Length < 8)
-                throw new DlpException("Not enough space to write DLP date time");
-
             BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(0, 2), Convert.ToUInt16(value.Year));
             buffer[2] = Convert.ToByte(value.Month);
             buffer[3] = Convert.ToByte(value.Day);
@@ -48,6 +53,13 @@ namespace Backhand.DeviceIO.Dlp
             buffer[5] = Convert.ToByte(value.Minute);
             buffer[6] = Convert.ToByte(value.Second);
             buffer[7] = 0;
+
+            return DlpDateTimeLength;
+        }
+
+        protected static int GetNullTerminatedStringLength(string value)
+        {
+            return Encoding.ASCII.GetByteCount(value) + 1;
         }
 
         protected static string ReadNullTerminatedString(ref SequenceReader<byte> reader)

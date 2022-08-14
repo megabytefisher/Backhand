@@ -1,28 +1,17 @@
 ﻿using Backhand.DeviceIO.Dlp;
-using Backhand.DeviceIO.DlpCommands.v1_0.Data;
 using System;
-using System.Buffers.Binary;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class DeleteDbRequest : DlpArgument
     {
-        public byte CardId { get; set; }
-        public string Name { get; set; } = string.Empty;
+        public byte CardId { get; init; }
+        public string Name { get; init; } = string.Empty;
 
-        public override int GetSerializedLength()
-        {
-            return
-                sizeof(byte) +
-                sizeof(byte) +
-                Name.Length + 1;
-        }
+        public override int GetSerializedLength() =>
+            sizeof(byte) +                          // CardId
+            sizeof(byte) +                          // (Padding)
+            GetNullTerminatedStringLength(Name);    // Name
 
         public override int Serialize(Span<byte> buffer)
         {
@@ -37,11 +26,6 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             offset += WriteNullTerminatedString(buffer.Slice(offset), Name);
 
             return offset;
-        }
-
-        public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
-        {
-            throw new NotImplementedException();
         }
     }
 }

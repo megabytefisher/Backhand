@@ -3,14 +3,10 @@ using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.Pdb.Internal
 {
-    public class FileDatabaseHeader
+    internal class FileDatabaseHeader
     {
         public string Name { get; set; } = string.Empty;
         public DatabaseAttributes Attributes { get; set; }
@@ -26,8 +22,8 @@ namespace Backhand.Pdb.Internal
         public uint UniqueIdSeed { get; set; }
 
         public const uint SerializedLength =
-            32 +                                        // Name
-            sizeof(DatabaseAttributes) +                // Attributes
+            (sizeof(byte) * 32) +                       // Name
+            sizeof(ushort) +                            // Attributes
             sizeof(ushort) +                            // Version
             BufferUtilities.DatabaseTimestampLength +   // CreationDate
             BufferUtilities.DatabaseTimestampLength +   // ModificationDate
@@ -35,22 +31,22 @@ namespace Backhand.Pdb.Internal
             sizeof(uint) +                              // ModificationNumber
             sizeof(uint) +                              // AppInfoId
             sizeof(uint) +                              // SortInfoId
-            4 +                                         // Type
-            4 +                                         // Creator
+            (sizeof(byte) * 4) +                        // Type
+            (sizeof(byte) * 4) +                        // Creator
             sizeof(uint);                               // UniqueIdSeed
 
         public void Serialize(Span<byte> buffer)
         {
             int offset = 0;
 
-            BufferUtilities.WriteFixedLengthString(buffer.Slice(offset, 32), Name);
-            offset += 32;
+            BufferUtilities.WriteFixedLengthString(buffer.Slice(offset, sizeof(byte) * 32), Name);
+            offset += sizeof(byte) * 32;
 
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), (ushort)Attributes);
-            offset += 2;
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), (ushort)Attributes);
+            offset += sizeof(ushort);
 
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), Version);
-            offset += 2;
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), Version);
+            offset += sizeof(ushort);
 
             BufferUtilities.WriteDatabaseTimestamp(buffer.Slice(offset, BufferUtilities.DatabaseTimestampLength), CreationDate);
             offset += BufferUtilities.DatabaseTimestampLength;
@@ -61,35 +57,35 @@ namespace Backhand.Pdb.Internal
             BufferUtilities.WriteDatabaseTimestamp(buffer.Slice(offset, BufferUtilities.DatabaseTimestampLength), LastBackupDate);
             offset += BufferUtilities.DatabaseTimestampLength;
 
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), ModificationNumber);
-            offset += 4;
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, sizeof(uint)), ModificationNumber);
+            offset += sizeof(uint);
 
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), AppInfoId);
-            offset += 4;
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, sizeof(uint)), AppInfoId);
+            offset += sizeof(uint);
 
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), SortInfoId);
-            offset += 4;
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, sizeof(uint)), SortInfoId);
+            offset += sizeof(uint);
 
-            BufferUtilities.WriteFixedLengthString(buffer.Slice(offset, 4), Type);
-            offset += 4;
+            BufferUtilities.WriteFixedLengthString(buffer.Slice(offset, sizeof(byte) * 4), Type);
+            offset += sizeof(byte) * 4;
 
-            BufferUtilities.WriteFixedLengthString(buffer.Slice(offset, 4), Creator);
-            offset += 4;
+            BufferUtilities.WriteFixedLengthString(buffer.Slice(offset, sizeof(byte) * 4), Creator);
+            offset += sizeof(byte) * 4;
 
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), UniqueIdSeed);
-            offset += 4;
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, sizeof(uint)), UniqueIdSeed);
+            offset += sizeof(uint);
         }
 
         public SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             Deserialize(ref bufferReader);
             return bufferReader.Position;
         }
 
-        public void Deserialize(ref SequenceReader<byte> bufferReader)
+        private void Deserialize(ref SequenceReader<byte> bufferReader)
         {
-            Name = BufferUtilities.ReadFixedLengthString(ref bufferReader, 32);
+            Name = BufferUtilities.ReadFixedLengthString(ref bufferReader, sizeof(byte) * 32);
             Attributes = (DatabaseAttributes)bufferReader.ReadUInt16BigEndian();
             Version = bufferReader.ReadUInt16BigEndian();
             CreationDate = BufferUtilities.ReadDatabaseTimestamp(ref bufferReader);
@@ -98,8 +94,8 @@ namespace Backhand.Pdb.Internal
             ModificationNumber = bufferReader.ReadUInt32BigEndian();
             AppInfoId = bufferReader.ReadUInt32BigEndian();
             SortInfoId = bufferReader.ReadUInt32BigEndian();
-            Type = BufferUtilities.ReadFixedLengthString(ref bufferReader, 4);
-            Creator = BufferUtilities.ReadFixedLengthString(ref bufferReader, 4);
+            Type = BufferUtilities.ReadFixedLengthString(ref bufferReader, sizeof(byte) * 4);
+            Creator = BufferUtilities.ReadFixedLengthString(ref bufferReader, sizeof(byte) * 4);
             UniqueIdSeed = bufferReader.ReadUInt32BigEndian();
         }
     }

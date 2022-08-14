@@ -2,30 +2,16 @@
 using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class WriteRecordResponse : DlpArgument
     {
-        public uint RecordId { get; set; }
-
-        public override int GetSerializedLength()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int Serialize(Span<byte> buffer)
-        {
-            throw new NotImplementedException();
-        }
+        public uint RecordId { get; private set; }
 
         public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             Deserialize(ref bufferReader);
             return bufferReader.Position;
         }

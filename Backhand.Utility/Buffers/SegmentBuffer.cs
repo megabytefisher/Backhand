@@ -1,18 +1,15 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.Utility.Buffers
 {
-    public class SegmentBuffer : IDisposable
+    public sealed class SegmentBuffer : IDisposable
     {
         public int Length { get; private set; }
 
-        private ArrayPool<byte> _arrayPool;
-        private List<byte[]> _arrays;
+        private readonly ArrayPool<byte> _arrayPool;
+        private readonly List<byte[]> _arrays;
         private MemorySegment<byte>? _first;
         private MemorySegment<byte>? _last;
 

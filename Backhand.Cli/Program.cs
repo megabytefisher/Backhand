@@ -1,12 +1,13 @@
 ﻿using Backhand.Cli.Commands;
 using Microsoft.Extensions.Logging;
 using System.CommandLine;
+using System.Threading.Tasks;
 
 namespace Backhand.Cli
 {
-    internal class Program
+    internal static class Program
     {
-        static async Task<int> Main(string[] args)
+        private static async Task<int> Main(string[] args)
         {
             using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -16,9 +17,10 @@ namespace Backhand.Cli
                 }).AddFilter(l => true);
             });
 
-            var rootCommand = new RootCommand("Backhand CLI Utility");
-
-            rootCommand.Add(new DbCommand(loggerFactory));
+            RootCommand rootCommand = new("Backhand CLI Utility")
+            {
+                new DbCommand(loggerFactory)
+            };
 
             return await rootCommand.InvokeAsync(args);
         }

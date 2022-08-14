@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Backhand.DeviceIO.DlpTransports
+﻿namespace Backhand.DeviceIO.DlpTransports
 {
     public class DlpPayloadTransmittedEventArgs
     {
-        public DlpPayload Payload { get; private init; }
+        public DlpPayload Payload { get; }
 
         public DlpPayloadTransmittedEventArgs(DlpPayload payload)
         {

@@ -3,9 +3,7 @@ using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Padp
@@ -32,10 +30,10 @@ namespace Backhand.DeviceIO.Padp
         public event EventHandler<PadpDataReceivedEventArgs>? ReceivedData;
         public bool UseLongForm { get; set; } = false;
 
-        private SlpDevice _device;
+        private readonly SlpDevice _device;
 
-        private byte _localSocketId;
-        private byte _remoteSocketId;
+        private readonly byte _localSocketId;
+        private readonly byte _remoteSocketId;
         private byte _transactionId;
 
         private SegmentBuffer? _readBuffer;
@@ -132,21 +130,16 @@ namespace Backhand.DeviceIO.Padp
 
         private SequencePosition ReadFragmentHeader(ReadOnlySequence<byte> fragment, out PadpFragmentType type, out PadpFragmentFlags flags, out uint sizeOrOffset)
         {
-            SequenceReader<byte> fragmentReader = new SequenceReader<byte>(fragment);
+            SequenceReader<byte> fragmentReader = new(fragment);
             if (fragmentReader.Remaining < 2)
                 throw new PadpException("PADP fragment too small; could not read type/flags");
 
             type = (PadpFragmentType)fragmentReader.Read();
             flags = (PadpFragmentFlags)fragmentReader.Read();
 
-            if (flags.HasFlag(PadpFragmentFlags.IsLongForm))
-            {
-                sizeOrOffset = fragmentReader.ReadUInt32BigEndian();
-            }
-            else
-            {
-                sizeOrOffset = fragmentReader.ReadUInt16BigEndian();
-            }
+            sizeOrOffset = flags.HasFlag(PadpFragmentFlags.IsLongForm) ?
+                fragmentReader.ReadUInt32BigEndian() :
+                fragmentReader.ReadUInt16BigEndian();
 
             return fragmentReader.Position;
         }
@@ -177,7 +170,7 @@ namespace Backhand.DeviceIO.Padp
             clientData.CopyTo(((Span<byte>)padpBuffer).Slice(offset));
 
             // Build into SLP packet
-            SlpPacket slpPacket = new SlpPacket
+            SlpPacket slpPacket = new()
             {
                 DestinationSocket = _remoteSocketId,
                 SourceSocket = _localSocketId,
@@ -200,15 +193,15 @@ namespace Backhand.DeviceIO.Padp
 
         private async Task WaitForAckAsync(ushort sizeOrOffset, CancellationToken cancellationToken = default)
         {
-            TaskCompletionSource ackTcs = new TaskCompletionSource();
+            TaskCompletionSource ackTcs = new();
 
-            Action<object?, SlpPacketTransmittedArgs> ackReceiver = (sender, e) =>
+            Action<object?, SlpPacketTransmittedArgs> ackReceiver = (_, e) =>
             {
                 // Does the packet have correct destination/source socket? Is it a PADP packet?
                 if (e.Packet.PacketType != PadpSlpPacketType || e.Packet.DestinationSocket != _localSocketId || e.Packet.SourceSocket != _remoteSocketId)
                     return;
 
-                ReadFragmentHeader(e.Packet.Data, out PadpFragmentType type, out PadpFragmentFlags flags, out uint packetSizeOrOffset);
+                ReadFragmentHeader(e.Packet.Data, out PadpFragmentType type, out PadpFragmentFlags _, out uint packetSizeOrOffset);
 
                 if (type != PadpFragmentType.Ack ||
                     e.Packet.TransactionId != _transactionId ||
@@ -222,19 +215,19 @@ namespace Backhand.DeviceIO.Padp
 
             _device.ReceivedPacket += ackReceiver.Invoke;
 
-            using CancellationTokenSource timeoutCts = new CancellationTokenSource(AckTimeout);
+            using CancellationTokenSource timeoutCts = new(AckTimeout);
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            using (linkedCts.Token.Register(() =>
-            {
-                ackTcs.TrySetCanceled();
-            }))
+            await using (linkedCts.Token.Register(() =>
+                         {
+                             ackTcs.TrySetCanceled();
+                         }))
             {
                 try
                 {
                     await ackTcs.Task;
                 }
-                catch (TaskCanceledException ex)
+                catch (TaskCanceledException)
                 {
                     if (timeoutCts.IsCancellationRequested)
                     {

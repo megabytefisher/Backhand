@@ -1,15 +1,10 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Buffers;
 
 namespace Backhand.DeviceIO.DlpTransports
 {
     public class DlpPayload
     {
-        public ReadOnlySequence<byte> Buffer { get; private init; }
+        public ReadOnlySequence<byte> Buffer { get; }
 
         public DlpPayload(ReadOnlySequence<byte> buffer)
         {

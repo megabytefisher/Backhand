@@ -1,11 +1,5 @@
-﻿using Backhand.DeviceIO.Dlp;
-using System;
-using System.Buffers;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System;
+using Backhand.DeviceIO.Dlp;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
@@ -20,28 +14,28 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             Secret          = 0b00010000,
         }
 
-        public byte CardId { get; set; }
-        public OpenDbMode Mode { get; set; }
-        public string Name { get; set; } = "";
+        public byte CardId { get; init; }
+        public OpenDbMode Mode { get; init; }
+        public string Name { get; init; } = "";
 
-        public override int GetSerializedLength()
-        {
-            return 2 + Name.Length + 1;
-        }
+        public override int GetSerializedLength() =>
+            sizeof(byte) +                          // CardId
+            sizeof(byte) +                          // Mode
+            GetNullTerminatedStringLength(Name);    // Name
 
         public override int Serialize(Span<byte> buffer)
         {
             int offset = 0;
-            buffer[offset++] = CardId;
-            buffer[offset++] = (byte)Mode;
+
+            buffer[offset] = CardId;
+            offset += sizeof(byte);
+            
+            buffer[offset] = (byte)Mode;
+            offset += sizeof(byte);
+            
             offset += WriteNullTerminatedString(buffer.Slice(offset), Name);
 
             return offset;
-        }
-
-        public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
-        {
-            throw new NotImplementedException();
         }
     }
 }

@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.Utility.Buffers
 {
@@ -14,9 +11,9 @@ namespace Backhand.Utility.Buffers
             if (buffer.Length == 0)
                 return string.Empty;
 
-            StringBuilder result = new StringBuilder(Convert.ToInt32(buffer.Length) * 3 - 1);
+            StringBuilder result = new(Convert.ToInt32(buffer.Length) * 3 - 1);
 
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             while (bufferReader.Remaining > 0)
             {
                 byte value = bufferReader.Read();
@@ -36,7 +33,7 @@ namespace Backhand.Utility.Buffers
             if (buffer.Length == 0)
                 return string.Empty;
 
-            StringBuilder result = new StringBuilder(buffer.Length * 3 - 1);
+            StringBuilder result = new(buffer.Length * 3 - 1);
 
             for (int i = 0; i < buffer.Length; i++)
             {

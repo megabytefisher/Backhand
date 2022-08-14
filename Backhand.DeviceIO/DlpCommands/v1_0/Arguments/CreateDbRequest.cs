@@ -1,66 +1,53 @@
-﻿using Backhand.DeviceIO.Dlp;
+﻿using System;
+using Backhand.DeviceIO.Dlp;
 using Backhand.DeviceIO.DlpCommands.v1_0.Data;
-using System;
-using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class CreateDbRequest : DlpArgument
     {
-        public string Creator { get; set; } = "";
-        public string Type { get; set; } = "";
-        public byte CardId { get; set; }
-        public DlpDatabaseAttributes Attributes { get; set; }
-        public ushort Version { get; set; }
-        public string Name { get; set; } = "";
+        public string Creator { get; init; } = "";
+        public string Type { get; init; } = "";
+        public byte CardId { get; init; }
+        public DlpDatabaseAttributes Attributes { get; init; }
+        public ushort Version { get; init; }
+        public string Name { get; init; } = "";
 
-        public override int GetSerializedLength()
-        {
-            return
-                4 +
-                4 +
-                sizeof(byte) +
-                sizeof(byte) +
-                sizeof(DlpDatabaseAttributes) +
-                sizeof(ushort) +
-                Name.Length + 1;
-        }
+        public override int GetSerializedLength() =>
+            (sizeof(byte) * 4) +                    // Creator
+            (sizeof(byte) * 4) +                    // Type
+            sizeof(byte) +                          // CardId
+            sizeof(byte) +                          // (Padding)
+            sizeof(ushort) +                        // Attributes
+            sizeof(ushort) +                        // Version
+            GetNullTerminatedStringLength(Name);    // Name
 
         public override int Serialize(Span<byte> buffer)
         {
             int offset = 0;
 
-            WriteFixedLengthString(buffer.Slice(offset, 4), Creator);
-            offset += 4;
+            WriteFixedLengthString(buffer.Slice(offset, sizeof(byte) * 4), Creator);
+            offset += sizeof(byte) * 4;
 
-            WriteFixedLengthString(buffer.Slice(offset, 4), Type);
-            offset += 4;
+            WriteFixedLengthString(buffer.Slice(offset, sizeof(byte) * 4), Type);
+            offset += sizeof(byte) * 4;
 
             buffer[offset] = CardId;
-            offset += 1;
+            offset += sizeof(byte);
 
             buffer[offset] = 0; // Padding
-            offset += 1;
+            offset += sizeof(byte);
 
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), (ushort)Attributes);
-            offset += 2;
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), (ushort)Attributes);
+            offset += sizeof(ushort);
 
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), Version);
-            offset += 2;
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), Version);
+            offset += sizeof(ushort);
 
             offset += WriteNullTerminatedString(buffer.Slice(offset), Name);
 
             return offset;
-        }
-
-        public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
-        {
-            throw new NotImplementedException();
         }
     }
 }

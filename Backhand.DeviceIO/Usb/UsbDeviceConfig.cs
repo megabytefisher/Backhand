@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Backhand.DeviceIO.Usb
+﻿namespace Backhand.DeviceIO.Usb
 {
     public enum UsbDeviceHandshakeType
     {
@@ -20,11 +14,11 @@ namespace Backhand.DeviceIO.Usb
 
     public class UsbDeviceConfig
     {
-        public ushort VendorId { get; private init; }
-        public ushort ProductId { get; private init; }
-        public string Description { get; private init; }
-        public UsbDeviceHandshakeType HandshakeType { get; private init; }
-        public UsbProtocolType ProtocolType { get; private init; }
+        public ushort VendorId { get; }
+        public ushort ProductId { get; }
+        public string Description { get; }
+        public UsbDeviceHandshakeType HandshakeType { get; }
+        public UsbProtocolType ProtocolType { get; }
 
         public UsbDeviceConfig(ushort vendorId, ushort productId, string description, UsbDeviceHandshakeType handshakeType, UsbProtocolType protocolType = UsbProtocolType.NetSync)
         {

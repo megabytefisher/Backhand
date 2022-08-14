@@ -2,15 +2,15 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Backhand.Pdb
 {
     public class RecordDatabase : Database
     {
-        public List<DatabaseRecord> Records { get; set; } = new List<DatabaseRecord>();
+        public List<DatabaseRecord> Records { get; } = new();
 
         public override async Task SerializeAsync(Stream stream)
         {
@@ -23,20 +23,22 @@ namespace Backhand.Pdb
             uint recordBlockOffset = sortInfoOffset + (uint)(SortInfo?.Length ?? 0);
 
             await SerializeHeaderAsync(stream,
-                (AppInfo != null && AppInfo.Length > 0) ? appInfoOffset : 0,
-                (SortInfo != null && SortInfo.Length > 0) ? sortInfoOffset : 0);
+                AppInfo is { Length: > 0 } ? appInfoOffset : 0,
+                SortInfo is { Length: > 0 } ? sortInfoOffset : 0);
 
             await SerializeEntryMetadataListHeaderAsync(stream, Convert.ToUInt16(Records.Count));
 
             int blockOffset = 0;
             foreach (DatabaseRecord record in Records)
             {
-                FileRecordMetadata metadata = new FileRecordMetadata();
-                metadata.Attributes = record.Attributes;
-                metadata.Category = record.Category;
-                metadata.Archive = record.Archive;
-                metadata.UniqueId = record.UniqueId;
-                metadata.LocalChunkId = (uint)(recordBlockOffset + blockOffset);
+                FileRecordMetadata metadata = new()
+                {
+                    Attributes = record.Attributes,
+                    Category = record.Category,
+                    Archive = record.Archive,
+                    UniqueId = record.UniqueId,
+                    LocalChunkId = (uint)(recordBlockOffset + blockOffset)
+                };
 
                 await SerializeRecordMetadataAsync(stream, metadata);
 
@@ -47,13 +49,13 @@ namespace Backhand.Pdb
             await stream.WriteAsync(new byte[HeaderPaddingLength]);
 
             // Write AppInfo
-            if (AppInfo != null && AppInfo.Length > 0)
+            if (AppInfo is { Length: > 0 })
             {
                 await stream.WriteAsync(AppInfo);
             }
 
             // Write SortInfo
-            if (SortInfo != null && SortInfo.Length > 0)
+            if (SortInfo is { Length: > 0 })
             {
                 await stream.WriteAsync(SortInfo);
             }
@@ -72,7 +74,7 @@ namespace Backhand.Pdb
             ushort entryCount = await DeserializeEntryMetadataListHeaderAsync(stream);
 
             // Read each metadata entry
-            List<FileRecordMetadata> metadataList = new List<FileRecordMetadata>();
+            List<FileRecordMetadata> metadataList = new();
             for (ushort i = 0; i < entryCount; i++)
             {
                 metadataList.Add(await DeserializeRecordMetadata(stream));
@@ -119,12 +121,14 @@ namespace Backhand.Pdb
                 byte[] recordBuffer = new byte[recordLength];
                 await FillBuffer(stream, recordBuffer);
 
-                DatabaseRecord record = new DatabaseRecord();
-                record.Attributes = metadata.Attributes;
-                record.Category = metadata.Category;
-                record.Archive = metadata.Archive;
-                record.UniqueId = metadata.UniqueId;
-                record.Data = recordBuffer;
+                DatabaseRecord record = new()
+                {
+                    Attributes = metadata.Attributes,
+                    Category = metadata.Category,
+                    Archive = metadata.Archive,
+                    UniqueId = metadata.UniqueId,
+                    Data = recordBuffer
+                };
                 Records.Add(record);
             }
         }
@@ -142,7 +146,7 @@ namespace Backhand.Pdb
             byte[] buffer = new byte[FileRecordMetadata.SerializedLength];
             await FillBuffer(stream, buffer);
 
-            FileRecordMetadata fileRecordMetadata = new FileRecordMetadata();
+            FileRecordMetadata fileRecordMetadata = new();
             fileRecordMetadata.Deserialize(new ReadOnlySequence<byte>(buffer));
 
             return fileRecordMetadata;

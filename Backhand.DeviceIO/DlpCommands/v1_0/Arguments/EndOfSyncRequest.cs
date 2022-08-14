@@ -1,11 +1,6 @@
-﻿using Backhand.DeviceIO.Dlp;
-using System;
-using System.Buffers;
+﻿using System;
+using Backhand.DeviceIO.Dlp;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
@@ -19,25 +14,19 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             UnknownError = 0x03,
         }
 
-        public EndOfSyncStatus Status { get; set; }
+        public EndOfSyncStatus Status { get; init; }
 
-        public override int GetSerializedLength()
-        {
-            return 2;
-        }
+        public override int GetSerializedLength() =>
+            sizeof(ushort);                         // EndOfSyncStatus
 
         public override int Serialize(Span<byte> buffer)
         {
             int offset = 0;
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(0, 2), (ushort)Status);
-            offset += 2;
+            
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), (ushort)Status);
+            offset += sizeof(ushort);
 
             return offset;
-        }
-
-        public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
-        {
-            throw new NotImplementedException();
         }
     }
 }

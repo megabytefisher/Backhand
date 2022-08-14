@@ -1,96 +1,94 @@
-﻿using Backhand.DeviceIO.Dlp;
+﻿using Backhand.Cli.Exceptions;
 using Backhand.DeviceIO.DlpServers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Backhand.Cli.Exceptions;
 
 namespace Backhand.Cli.Commands
 {
     public class BaseDeviceCommand : Command
     {
-        protected readonly Option<string[]> _deviceOption;
-        protected readonly Option<bool> _serverOption;
+        protected Option<string[]> DeviceOption { get; }
+        protected Option<bool> ServerOption { get; }
 
-        protected readonly ILoggerFactory _loggerFactory;
-        protected readonly ILogger _logger;
+        protected ILoggerFactory LoggerFactory { get; }
+        protected ILogger Logger { get; }
 
-        public BaseDeviceCommand(string name, string? description = null, ILoggerFactory? loggerFactory = null)
+        protected BaseDeviceCommand(string name, string? description = null, ILoggerFactory? loggerFactory = null)
             : base(name, description)
         {
-            _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
-            _logger = _loggerFactory.CreateLogger(GetType());
+            LoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+            Logger = LoggerFactory.CreateLogger(GetType());
 
-            _deviceOption = new Option<string[]>(
+            DeviceOption = new Option<string[]>(
                 name: "--device",
                 description: "Device(s) to use for communication. Either the name of a serial port or 'USB'.")
             {
                 IsRequired = false,
                 Arity = ArgumentArity.OneOrMore,
             };
-            AddOption(_deviceOption);
+            AddOption(DeviceOption);
 
-            _serverOption = new Option<bool>(
+            ServerOption = new Option<bool>(
                 name: "--server",
                 description: "Operate in server mode. Multiple devices will be allowed to sync, and the program will not exit after the first sync.");
-            AddOption(_serverOption);
+            AddOption(ServerOption);
         }
 
         protected async Task RunDeviceServers(string[] deviceNames, bool serverMode, Func<DlpContext, CancellationToken, Task> syncFunc, CancellationToken cancellationToken = default)
         {
             using SemaphoreSlim? syncSemaphore = serverMode ? null : new SemaphoreSlim(1);
 
-            Func<DlpContext, CancellationToken, Task> syncWrapperFunc = async (ctx, ct) =>
+            async Task SyncWrapperFunc(DlpContext ctx, CancellationToken ct)
             {
                 if (syncSemaphore != null)
                 {
-                    if (!syncSemaphore.Wait(0))
+                    if (!await syncSemaphore.WaitAsync(0, CancellationToken.None))
                     {
                         throw new SyncAlreadyStartedException();
                     }
                 }
 
                 await syncFunc(ctx, ct);
-            };
+            }
 
-            List<DlpServer> servers = new List<DlpServer>();
+            List<DlpServer> servers = new();
             foreach (string device in deviceNames)
             {
                 if (device.ToLower() == "usb")
                 {
-                    servers.Add(new UsbDlpServer(syncWrapperFunc));
+                    servers.Add(new UsbDlpServer(SyncWrapperFunc));
                 }
                 else
                 {
-                    servers.Add(new SerialDlpServer(device, syncWrapperFunc, _loggerFactory));
+                    servers.Add(new SerialDlpServer(device, SyncWrapperFunc, LoggerFactory));
                 }
             }
 
-            TaskCompletionSource syncTcs = new TaskCompletionSource();
-            AggregatedDlpServer server = new AggregatedDlpServer(servers);
+            TaskCompletionSource syncTcs = new();
+            AggregatedDlpServer server = new(servers);
 
             server.SyncStarting += (s, e) =>
             {
-                _logger.LogInformation("Device sync starting.");
+                Logger.LogInformation("Device sync starting.");
             };
 
             server.SyncEnded += (s, e) =>
             {
                 if (e.SyncException != null)
                 {
-                    _logger.LogError("Device sync failed.");
+                    Logger.LogError("Device sync failed.");
                 }
                 else
                 {
-                    _logger.LogInformation("Device sync completed.");
+                    Logger.LogInformation("Device sync completed.");
                 }
 
-                if (!(e.SyncException is SyncAlreadyStartedException))
+                if (e.SyncException is not SyncAlreadyStartedException)
                 {
                     syncTcs.TrySetResult();
                 }
@@ -102,7 +100,7 @@ namespace Backhand.Cli.Commands
             }
             else
             {
-                using CancellationTokenSource abortCts = new CancellationTokenSource();
+                using CancellationTokenSource abortCts = new();
                 using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, abortCts.Token);
 
                 Task serverTask = server.Run(linkedCts.Token);
@@ -117,6 +115,7 @@ namespace Backhand.Cli.Commands
                 }
                 catch
                 {
+                    // ignored
                 }
             }
         }

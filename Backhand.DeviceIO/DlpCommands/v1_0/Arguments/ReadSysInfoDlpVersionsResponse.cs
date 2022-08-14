@@ -2,39 +2,25 @@
 using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class ReadSysInfoDlpVersionsResponse : DlpArgument
     {
-        public ushort ClientDlpVersionMajor { get; set; }
-        public ushort ClientDlpVersionMinor { get; set; }
-        public ushort MinimumDlpVersionMajor { get; set; }
-        public ushort MinimumDlpVersionMinor { get; set; }
-        public uint MaxRecordSize { get; set; }
-
-        public override int GetSerializedLength()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int Serialize(Span<byte> buffer)
-        {
-            throw new NotImplementedException();
-        }
+        public ushort ClientDlpVersionMajor { get; private set; }
+        public ushort ClientDlpVersionMinor { get; private set; }
+        public ushort MinimumDlpVersionMajor { get; private set; }
+        public ushort MinimumDlpVersionMinor { get; private set; }
+        public uint MaxRecordSize { get; private set; }
 
         public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             Deserialize(ref bufferReader);
             return bufferReader.Position;
         }
 
-        public void Deserialize(ref SequenceReader<byte> bufferReader)
+        private void Deserialize(ref SequenceReader<byte> bufferReader)
         {
             ClientDlpVersionMajor = bufferReader.ReadUInt16BigEndian();
             ClientDlpVersionMinor = bufferReader.ReadUInt16BigEndian();

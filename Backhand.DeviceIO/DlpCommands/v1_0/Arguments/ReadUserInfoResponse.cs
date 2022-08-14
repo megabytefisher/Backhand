@@ -2,37 +2,29 @@
 using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class ReadUserInfoResponse : DlpArgument
     {
-        public uint UserId { get; set; }
-        public uint ViewerId { get; set; }
-        public uint LastSyncPcId { get; set; }
-        public DateTime LastSuccessfulSyncDate { get; set; }
-        public DateTime LastSyncDate { get; set; }
-        public string Username { get; set; } = string.Empty;
-        public byte[] Password { get; set; } = Array.Empty<byte>();
-
-        public override int GetSerializedLength()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int Serialize(Span<byte> buffer)
-        {
-            throw new NotImplementedException();
-        }
+        public uint UserId { get; private set; }
+        public uint ViewerId { get; private set; }
+        public uint LastSyncPcId { get; private set; }
+        public DateTime LastSuccessfulSyncDate { get; private set; }
+        public DateTime LastSyncDate { get; private set; }
+        public string Username { get; private set; } = string.Empty;
+        public byte[] Password { get; private set; } = Array.Empty<byte>();
 
         public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
+            Deserialize(ref bufferReader);
+            return bufferReader.Position;
+        }
 
+        private void Deserialize(ref SequenceReader<byte> bufferReader)
+        {
             UserId = bufferReader.ReadUInt32BigEndian();
             ViewerId = bufferReader.ReadUInt32BigEndian();
             LastSyncPcId = bufferReader.ReadUInt32BigEndian();
@@ -43,7 +35,7 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 
             if (usernameLength > 0)
             {
-                Username = Encoding.ASCII.GetString(buffer.Slice(bufferReader.Position, usernameLength - 1));
+                Username = Encoding.ASCII.GetString(bufferReader.Sequence.Slice(bufferReader.Position, usernameLength - 1));
                 bufferReader.Advance(usernameLength);
             }
             else
@@ -54,11 +46,9 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             if (passwordLength > 0)
             {
                 Password = new byte[passwordLength];
-                buffer.Slice(bufferReader.Position, passwordLength).CopyTo(Password);
+                bufferReader.Sequence.Slice(bufferReader.Position, passwordLength).CopyTo(Password);
                 bufferReader.Advance(passwordLength);
             }
-
-            return bufferReader.Position;
         }
     }
 }

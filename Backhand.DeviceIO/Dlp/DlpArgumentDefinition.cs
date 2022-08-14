@@ -1,18 +1,14 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.Dlp
 {
     public abstract class DlpArgumentDefinition
     {
-        public Type Type { get; private init; }
-        public bool IsOptional { get; private init; }
+        public Type Type { get; }
+        public bool IsOptional { get; }
 
-        public DlpArgumentDefinition(Type type, bool isOptional = false)
+        protected DlpArgumentDefinition(Type type, bool isOptional = false)
         {
             Type = type;
             IsOptional = isOptional;

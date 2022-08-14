@@ -8,8 +8,9 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.IO;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands
@@ -19,7 +20,7 @@ namespace Backhand.Cli.Commands
         public DbPushCommand(ILoggerFactory loggerFactory)
             : base("push", "Uploads one or more databases (in .PRC/.PDB file format) to a connected device.", loggerFactory)
         {
-            var pathOption = new Option<string[]>(
+            Option<string[]> pathOption = new(
                 name: "--path",
                 description: "Path to database file(s) to install. If a directory is specified, database files will be recursively pushed.")
             {
@@ -28,37 +29,37 @@ namespace Backhand.Cli.Commands
             };
             AddOption(pathOption);
 
-            var overwriteOption = new Option<bool>(
+            Option<bool> overwriteOption = new(
                 name: "--overwrite",
                 description: "If a database already exists on the device, it will be deleted and rewritten.");
             AddOption(overwriteOption);
 
-            this.SetHandler(RunCommandAsync, _deviceOption, _serverOption, pathOption, overwriteOption);
+            this.SetHandler(RunCommandAsync, DeviceOption, ServerOption, pathOption, overwriteOption);
         }
 
         private async Task RunCommandAsync(string[] deviceNames, bool serverMode, string[] paths, bool overwrite)
         {
             List<string> filePaths = GetFilePaths(paths);
-            _logger.LogInformation($"Will install {filePaths.Count} file(s) to device.");
+            Logger.LogInformation($"Will install {filePaths.Count} file(s) to device.");
 
-            Func<DlpContext, CancellationToken, Task> syncFunc = async (context, cancellationToken) =>
+            async Task SyncFunc(DlpContext context, CancellationToken cancellationToken)
             {
-                await context.Connection.OpenConduitAsync();
+                await context.Connection.OpenConduitAsync(cancellationToken);
 
                 foreach (string filePath in filePaths)
                 {
-                    _logger.LogInformation($"Installing: {filePath}");
+                    Logger.LogInformation($"Installing: {filePath}");
                     await InstallDbAsync(context.Connection, filePath, overwrite, cancellationToken);
                 }
-            };
+            }
 
-            _logger.LogInformation($"Running device servers...");
-            await RunDeviceServers(deviceNames, serverMode, syncFunc);
+            Logger.LogInformation($"Running device servers...");
+            await RunDeviceServers(deviceNames, serverMode, SyncFunc);
         }
 
         private static List<string> GetFilePaths(string[] paths)
         {
-            List<string> results = new List<string>();
+            List<string> results = new();
             foreach (string path in paths)
             {
                 FillFilePaths(results, path);
@@ -95,12 +96,12 @@ namespace Backhand.Cli.Commands
                 new ResourceDatabase() :
                 new RecordDatabase();
 
-            using (FileStream inStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true))
+            await using (FileStream inStream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true))
             {
                 await database.DeserializeAsync(inStream);
             }
 
-            CreateDbRequest createDbRequest = new CreateDbRequest
+            CreateDbRequest createDbRequest = new()
             {
                 Creator = database.Creator,
                 Type = database.Type,
@@ -121,7 +122,7 @@ namespace Backhand.Cli.Commands
                 {
                     if (overwrite)
                     {
-                        _logger.LogInformation($"Database '{database.Name}' already exists on device. Deleting and rewriting...");
+                        Logger.LogInformation($"Database '{database.Name}' already exists on device. Deleting and rewriting...");
 
                         // Delete existing
                         await dlp.DeleteDbAsync(new DeleteDbRequest
@@ -135,7 +136,7 @@ namespace Backhand.Cli.Commands
                     }
                     else
                     {
-                        _logger.LogWarning($"Database '{database.Name}' already exists on device. Skipping.");
+                        Logger.LogWarning($"Database '{database.Name}' already exists on device. Skipping.");
                         return;
                     }
                 }
@@ -148,7 +149,7 @@ namespace Backhand.Cli.Commands
             byte dbHandle = createDbResponse.DbHandle;
 
             // Write AppInfo block
-            if (database.AppInfo != null && database.AppInfo.Length > 0)
+            if (database.AppInfo is { Length: > 0 })
             {
                 await dlp.WriteAppBlockAsync(new WriteAppBlockRequest
                 {
@@ -158,7 +159,7 @@ namespace Backhand.Cli.Commands
             }
 
             // Write SortInfo block
-            if (database.SortInfo != null && database.SortInfo.Length > 0)
+            if (database.SortInfo is { Length: > 0 })
             {
                 await dlp.WriteSortBlockAsync(new WriteSortBlockRequest
                 {
@@ -195,7 +196,7 @@ namespace Backhand.Cli.Commands
                     ResourceId = resource.ResourceId,
                     Size = Convert.ToUInt16(resource.Data.Length),
                     Data = resource.Data
-                });
+                }, cancellationToken);
             }
         }
 
@@ -210,7 +211,7 @@ namespace Backhand.Cli.Commands
                     Attributes = (DlpRecordAttributes)record.Attributes,
                     Category = record.Category,
                     Data = record.Data
-                });
+                }, cancellationToken);
             }
         }
     }

@@ -2,14 +2,11 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.Pdb.Utility
 {
-    public class BufferUtilities
+    public static class BufferUtilities
     {
         public enum DatabaseTimestampEpoch
         {
@@ -19,8 +16,8 @@ namespace Backhand.Pdb.Utility
 
         public const int DatabaseTimestampLength = 4;
 
-        private static readonly DateTime PalmEpoch = new DateTime(1904, 1, 1);
-        private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1);
+        private static readonly DateTime PalmEpoch = new(1904, 1, 1);
+        private static readonly DateTime UnixEpoch = new(1970, 1, 1);
 
         public static DateTime ReadDatabaseTimestamp(ref SequenceReader<byte> bufferReader)
         {
@@ -31,14 +28,9 @@ namespace Backhand.Pdb.Utility
 
             bool isPalmEpoch = (offsetSeconds & (1 << 31)) != 0;
 
-            if (isPalmEpoch)
-            {
-                return PalmEpoch.AddSeconds(offsetSeconds);
-            }
-            else
-            {
-                return UnixEpoch.AddSeconds(offsetSeconds);
-            }
+            return isPalmEpoch ?
+                PalmEpoch.AddSeconds(offsetSeconds) :
+                UnixEpoch.AddSeconds(offsetSeconds);
         }
 
         public static int WriteDatabaseTimestamp(Span<byte> buffer, DateTime value, DatabaseTimestampEpoch epochType = DatabaseTimestampEpoch.Unix)

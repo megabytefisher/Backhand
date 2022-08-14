@@ -2,36 +2,22 @@
 using Backhand.DeviceIO.DlpCommands.v1_0.Data;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class ReadResourceByIndexResponse : DlpArgument
     {
-        public DlpResourceMetadata Metadata { get; set; } = new DlpResourceMetadata();
-        public byte[] Data { get; set; } = Array.Empty<byte>();
-
-        public override int GetSerializedLength()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int Serialize(Span<byte> buffer)
-        {
-            throw new NotImplementedException();
-        }
+        public DlpResourceMetadata Metadata { get; private set; } = new();
+        public byte[] Data { get; private set; } = Array.Empty<byte>();
 
         public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             Deserialize(ref bufferReader);
             return bufferReader.Position;
         }
 
-        public void Deserialize(ref SequenceReader<byte> bufferReader)
+        private void Deserialize(ref SequenceReader<byte> bufferReader)
         {
             Metadata = new DlpResourceMetadata();
             Metadata.Deserialize(ref bufferReader);

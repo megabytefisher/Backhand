@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpServers
@@ -20,8 +20,8 @@ namespace Backhand.DeviceIO.DlpServers
     {
         private class UsbDlpClient
         {
-            public string DevicePath { get; private init; }
-            public Task HandlerTask { get; private init; }
+            public string DevicePath { get; }
+            public Task HandlerTask { get; }
 
             public UsbDlpClient(string devicePath, Task handlerTask)
             {
@@ -30,7 +30,7 @@ namespace Backhand.DeviceIO.DlpServers
             }
         }
 
-        private List<UsbDlpClient> _activeClients;
+        private readonly List<UsbDlpClient> _activeClients;
 
         public UsbDlpServer(Func<DlpContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
             : base(syncFunc, loggerFactory)
@@ -52,10 +52,10 @@ namespace Backhand.DeviceIO.DlpServers
 
                 if (newDevice.newDeviceInfo != null)
                 {
-                    _activeClients.Add(new UsbDlpClient(newDevice.newDeviceInfo.DevicePath, HandleDevice(newDevice.newDeviceInfo, newDevice.config!)));
+                    _activeClients.Add(new UsbDlpClient(newDevice.newDeviceInfo.DevicePath, HandleDevice(newDevice.newDeviceInfo, newDevice.config!, cancellationToken)));
                 }
 
-                await Task.Delay(500).ConfigureAwait(false);
+                await Task.Delay(500, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -66,9 +66,7 @@ namespace Backhand.DeviceIO.DlpServers
 
         private async Task HandleDevice(UsbRegistry info, UsbDeviceConfig config, CancellationToken cancellationToken = default)
         {
-            Task? syncTask;
-
-            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource abortCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
 
             bool openSuccess = info.Open(out UsbDevice usbDevice);
@@ -79,18 +77,19 @@ namespace Backhand.DeviceIO.DlpServers
             {
                 (ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint) = UsbHandshake.DoHardwareHandshake(usbDevice, config.HandshakeType);
 
+                Task? syncTask;
                 if (config.ProtocolType == UsbProtocolType.NetSync)
                 {
-                    UsbDevicePipe usbDevicePipe = new UsbDevicePipe(usbDevice, readEndpoint, writeEndpoint);
-                    NetSyncDevice netSyncDevice = new NetSyncDevice(usbDevicePipe);
+                    UsbDevicePipe usbDevicePipe = new(usbDevice, readEndpoint, writeEndpoint);
+                    NetSyncDevice netSyncDevice = new(usbDevicePipe);
 
-                    Task deviceIoTask = usbDevicePipe.RunIOAsync(linkedCts.Token);
-                    Task netSyncIoTask = netSyncDevice.RunIOAsync(linkedCts.Token);
+                    Task deviceIoTask = usbDevicePipe.RunIoAsync(linkedCts.Token);
+                    Task netSyncIoTask = netSyncDevice.RunIoAsync(linkedCts.Token);
                     await netSyncDevice.DoNetSyncHandshake().ConfigureAwait(false);
 
-                    using NetSyncDlpTransport transport = new NetSyncDlpTransport(netSyncDevice);
-                    DlpConnection dlpConnection = new DlpConnection(transport);
-                    DlpContext dlpContext = new DlpContext(dlpConnection);
+                    using NetSyncDlpTransport transport = new(netSyncDevice);
+                    DlpConnection dlpConnection = new(transport);
+                    DlpContext dlpContext = new(dlpConnection);
 
                     syncTask = DoSync(dlpContext, linkedCts.Token);
 
@@ -100,6 +99,7 @@ namespace Backhand.DeviceIO.DlpServers
                     }
                     catch
                     {
+                        // Ignore any exceptions for now - we want all tasks to end.
                     }
 
                     abortCts.Cancel();
@@ -122,23 +122,23 @@ namespace Backhand.DeviceIO.DlpServers
                 }
                 else if (config.ProtocolType == UsbProtocolType.Slp)
                 {
-                    UsbDevicePipe usbDevicePipe = new UsbDevicePipe(usbDevice, readEndpoint, writeEndpoint);
-                    using SlpDevice slpDevice = new SlpDevice(usbDevicePipe);
-                    using PadpConnection padpConnection = new PadpConnection(slpDevice, 3, 3, 0xff);
+                    UsbDevicePipe usbDevicePipe = new(usbDevice, readEndpoint, writeEndpoint);
+                    using SlpDevice slpDevice = new(usbDevicePipe);
+                    using PadpConnection padpConnection = new(slpDevice, 3, 3);
 
                     // Watch for wakeup packet(?)
-                    CmpConnection cmpConnection = new CmpConnection(padpConnection);
+                    CmpConnection cmpConnection = new(padpConnection);
                     Task waitForWakeupTask = cmpConnection.WaitForWakeUpAsync(cancellationToken);
 
-                    Task deviceIoPipe = usbDevicePipe.RunIOAsync(cancellationToken);
-                    Task slpIoTask = slpDevice.RunIOAsync(cancellationToken);
+                    Task deviceIoPipe = usbDevicePipe.RunIoAsync(cancellationToken);
+                    Task slpIoTask = slpDevice.RunIoAsync(cancellationToken);
                     await waitForWakeupTask.ConfigureAwait(false);
 
-                    await cmpConnection.DoHandshakeAsync().ConfigureAwait(false);
+                    await cmpConnection.DoHandshakeAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                    using PadpDlpTransport transport = new PadpDlpTransport(padpConnection);
-                    DlpConnection dlpConnection = new DlpConnection(transport);
-                    DlpContext dlpContext = new DlpContext(dlpConnection);
+                    using PadpDlpTransport transport = new(padpConnection);
+                    DlpConnection dlpConnection = new(transport);
+                    DlpContext dlpContext = new(dlpConnection);
 
                     syncTask = DoSync(dlpContext, linkedCts.Token);
 
@@ -148,6 +148,7 @@ namespace Backhand.DeviceIO.DlpServers
                     }
                     catch
                     {
+                        // Ignore any exceptions for now - we want all tasks to end.
                     }
 
                     abortCts.Cancel();

@@ -7,19 +7,18 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
 namespace Backhand.DeviceIO.Slp
 {
-    public class SlpDevice : IDisposable
+    public sealed class SlpDevice : IDisposable
     {
-        protected class SlpSendJob : IDisposable
+        private class SlpSendJob : IDisposable
         {
-            public int Length { get; private init; }
-            public byte[] Buffer { get; private init; }
+            public int Length { get; }
+            public byte[] Buffer { get; }
             
             public SlpSendJob(int length)
             {
@@ -36,20 +35,20 @@ namespace Backhand.DeviceIO.Slp
         public event EventHandler<SlpPacketTransmittedArgs>? ReceivedPacket;
         public event EventHandler<SlpPacketTransmittedArgs>? SendingPacket;
 
-        private IDuplexPipe _basePipe;
-        protected BufferBlock<SlpSendJob> _sendQueue;
+        private readonly IDuplexPipe _basePipe;
+        private readonly BufferBlock<SlpSendJob> _sendQueue;
 
-        protected ILogger _logger;
-        protected bool _logDebugEnabled;
-        protected bool _logTraceEnabled;
+        private readonly ILogger _logger;
+        private readonly bool _logDebugEnabled;
+        private readonly bool _logTraceEnabled;
 
         // Constants
-        protected const byte HeaderMagic1 = 0xBE;
-        protected const byte HeaderMagic2 = 0xEF;
-        protected const byte HeaderMagic3 = 0xED;
-        protected const int PacketHeaderSize = 10;
-        protected const int PacketFooterSize = 2;
-        protected const int MinPacketSize = PacketHeaderSize + PacketFooterSize;
+        private const byte HeaderMagic1 = 0xBE;
+        private const byte HeaderMagic2 = 0xEF;
+        private const byte HeaderMagic3 = 0xED;
+        private const int PacketHeaderSize = sizeof(byte) * 10;
+        private const int PacketFooterSize = sizeof(byte) * 2;
+        private const int MinPacketSize = PacketHeaderSize + PacketFooterSize;
 
         public SlpDevice(IDuplexPipe basePipe, ILogger? logger = null)
         {
@@ -61,9 +60,9 @@ namespace Backhand.DeviceIO.Slp
             _logTraceEnabled = _logger.IsEnabled(LogLevel.Trace);
         }
 
-        public virtual void Dispose()
+        public void Dispose()
         {
-            if (_sendQueue.TryReceiveAll(out IList<SlpSendJob>? sendJobs) && sendJobs != null)
+            if (_sendQueue.TryReceiveAll(out IList<SlpSendJob>? sendJobs))
             {
                 foreach (SlpSendJob sendJob in sendJobs)
                 {
@@ -73,9 +72,9 @@ namespace Backhand.DeviceIO.Slp
             _sendQueue.Complete();
         }
 
-        public async Task RunIOAsync(CancellationToken cancellationToken = default)
+        public async Task RunIoAsync(CancellationToken cancellationToken = default)
         {
-            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource abortCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, abortCts.Token);
 
             Task readerTask = RunReaderAsync(linkedCts.Token);
@@ -87,6 +86,7 @@ namespace Backhand.DeviceIO.Slp
             }
             catch
             {
+                // ignored
             }
 
             abortCts.Cancel();
@@ -104,7 +104,7 @@ namespace Backhand.DeviceIO.Slp
 
             // Get buffer to hold the serialized packet
             int packetLength = MinPacketSize + Convert.ToInt32(packet.Data.Length);
-            SlpSendJob sendJob = new SlpSendJob(packetLength);
+            SlpSendJob sendJob = new(packetLength);
 
             // Write packet to buffer
             WritePacket(packet, sendJob.Buffer);
@@ -149,9 +149,9 @@ namespace Backhand.DeviceIO.Slp
             }
         }
 
-        protected SequencePosition ReadPackets(ReadOnlySequence<byte> buffer, ref bool firstPacket)
+        private SequencePosition ReadPackets(ReadOnlySequence<byte> buffer, ref bool firstPacket)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
 
             // If first packet, we need to scan until we find a valid header.
             if (firstPacket)
@@ -261,7 +261,7 @@ namespace Backhand.DeviceIO.Slp
                     throw new SlpException("Received packet with invalid footer checksum");
                 }
 
-                SlpPacket packet = new SlpPacket
+                SlpPacket packet = new()
                 {
                     DestinationSocket = destinationSocket,
                     SourceSocket = sourceSocket,
@@ -281,13 +281,13 @@ namespace Backhand.DeviceIO.Slp
             return bufferReader.Position;
         }
 
-        protected SequencePosition ReadPackets(ReadOnlySequence<byte> buffer)
+        private SequencePosition ReadPackets(ReadOnlySequence<byte> buffer)
         {
             bool firstPacket = false;
             return ReadPackets(buffer, ref firstPacket);
         }
 
-        protected void WritePacket(SlpPacket packet, Span<byte> buffer)
+        private void WritePacket(SlpPacket packet, Span<byte> buffer)
         {
             // Write header
             buffer[0] = HeaderMagic1;
@@ -308,7 +308,7 @@ namespace Backhand.DeviceIO.Slp
             BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(10 + (int)packet.Data.Length, 2), crc16);
         }
 
-        protected byte ComputeHeaderChecksum(byte destinationSocket, byte sourceSocket, byte packetType, ushort dataSize, byte transactionId)
+        private byte ComputeHeaderChecksum(byte destinationSocket, byte sourceSocket, byte packetType, ushort dataSize, byte transactionId)
         {
             byte dataSize0 = (byte)dataSize;
             byte dataSize1 = (byte)(dataSize >> 8);

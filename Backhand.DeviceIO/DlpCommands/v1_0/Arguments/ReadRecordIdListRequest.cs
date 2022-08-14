@@ -1,11 +1,6 @@
 ﻿using Backhand.DeviceIO.Dlp;
 using System;
-using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
@@ -17,32 +12,34 @@ namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
             ShouldSort          = 0b10000000,
         }
 
-        public byte DbHandle { get; set; }
-        public ReadRecordIdListFlags Flags { get; set; }
-        public ushort StartIndex { get; set; }
-        public ushort MaxRecords { get; set; }
+        public byte DbHandle { get; init; }
+        public ReadRecordIdListFlags Flags { get; init; }
+        public ushort StartIndex { get; init; }
+        public ushort MaxRecords { get; init; }
 
-        public override int GetSerializedLength()
-        {
-            return 6;
-        }
+        public override int GetSerializedLength() =>
+            sizeof(byte) +                          // DbHandle
+            sizeof(byte) +                          // Flags
+            sizeof(ushort) +                        // StartIndex
+            sizeof(ushort);                         // MaxRecords
 
         public override int Serialize(Span<byte> buffer)
         {
             int offset = 0;
-            buffer[offset++] = DbHandle;
-            buffer[offset++] = (byte)Flags;
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), StartIndex);
-            offset += 2;
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), MaxRecords);
-            offset += 2;
+            
+            buffer[offset] = DbHandle;
+            offset += sizeof(byte);
+            
+            buffer[offset] = (byte)Flags;
+            offset += sizeof(byte);
+            
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), StartIndex);
+            offset += sizeof(ushort);
+            
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), MaxRecords);
+            offset += sizeof(ushort);
 
             return offset;
-        }
-
-        public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
-        {
-            throw new NotImplementedException();
         }
     }
 }

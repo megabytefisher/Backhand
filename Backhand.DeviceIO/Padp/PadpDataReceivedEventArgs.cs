@@ -1,15 +1,10 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Buffers;
 
 namespace Backhand.DeviceIO.Padp
 {
     public class PadpDataReceivedEventArgs
     {
-        public ReadOnlySequence<byte> Data { get; private init; }
+        public ReadOnlySequence<byte> Data { get; }
 
         public PadpDataReceivedEventArgs(ReadOnlySequence<byte> data)
         {

@@ -8,8 +8,9 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.IO;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands
@@ -19,7 +20,7 @@ namespace Backhand.Cli.Commands
         public DbPullCommand(ILoggerFactory loggerFactory)
             : base("pull", "Downloads one or more databases from a connected device.", loggerFactory)
         {
-            var pathOption = new Option<string>(
+            Option<string> pathOption = new(
                 name: "--path",
                 description: "Path to a directory in which to store the database files.")
             {
@@ -27,7 +28,7 @@ namespace Backhand.Cli.Commands
             };
             AddOption(pathOption);
 
-            var databaseOption = new Option<string[]>(
+            Option<string[]> databaseOption = new(
                 name: "--database",
                 description: "Name of database(s) to pull.")
             {
@@ -35,44 +36,43 @@ namespace Backhand.Cli.Commands
             };
             AddOption(databaseOption);
 
-            var backupOption = new Option<bool>(
+            Option<bool> backupOption = new(
                 name: "--backup",
                 description: "Pulls all databases the device has marked as to be backed-up.");
             AddOption(backupOption);
 
-            var allOption = new Option<bool>(
+            Option<bool> allOption = new(
                 name: "--all",
                 description: "Pulls all databases that exist on the device.");
             AddOption(allOption);
 
-            this.SetHandler(RunCommandAsync, _deviceOption, _serverOption, pathOption, databaseOption, backupOption, allOption);
+            this.SetHandler(RunCommandAsync, DeviceOption, ServerOption, pathOption, databaseOption, backupOption, allOption);
         }
 
         private async Task RunCommandAsync(string[] deviceNames, bool serverMode, string path, string[] databases, bool backup, bool all)
         {
             if (!Directory.Exists(path))
             {
-                _logger.LogError("Destination directory does not exist.");
+                Logger.LogError($"Destination directory does not exist.");
                 return;
             }
 
-            Func<DlpContext, CancellationToken, Task> syncFunc = async (context, cancellationToken) =>
+            async Task SyncFunc(DlpContext context, CancellationToken cancellationToken)
             {
-                ReadUserInfoResponse userInfoResponse =
-                    await context.Connection.ReadUserInfoAsync(cancellationToken);
+                ReadUserInfoResponse userInfoResponse = await context.Connection.ReadUserInfoAsync(cancellationToken);
 
                 string userPath;
                 if (userInfoResponse.Username.Length > 0)
                 {
                     string userDirName = $"{userInfoResponse.Username}-{userInfoResponse.UserId}";
                     userPath = Path.Combine(path, userDirName);
-                    _logger.LogInformation($"Got user info. Saving databases under: {userDirName}");
+                    Logger.LogInformation($"Got user info. Saving databases under: {userDirName}");
                 }
                 else
                 {
                     string userDirName = $"unknown-{DateTime.Now.ToFileTime()}";
                     userPath = Path.Combine(path, userDirName);
-                    _logger.LogWarning($"No user info on device. Saving databases under: {userDirName}");
+                    Logger.LogWarning($"No user info on device. Saving databases under: {userDirName}");
                 }
 
                 if (!Directory.Exists(userPath))
@@ -82,76 +82,44 @@ namespace Backhand.Cli.Commands
 
                 await context.Connection.OpenConduitAsync(cancellationToken);
 
-                _logger.LogDebug("Reading database list from device...");
+                Logger.LogDebug($"Reading database list from device...");
                 List<DlpDatabaseMetadata> metadataList = await ReadFullDbListAsync(context.Connection, cancellationToken).ConfigureAwait(false);
-                _logger.LogDebug($"Found {metadataList.Count} databases.");
+                Logger.LogDebug($"Found {metadataList.Count} databases.");
 
-                IEnumerable<string> databaseNames = databases ?? Enumerable.Empty<string>();
+                IEnumerable<string> databaseNames = databases;
                 if (all)
                 {
                     databaseNames = metadataList.Select(md => md.Name);
                 }
                 else if (backup)
                 {
-                    databaseNames = databaseNames.Concat(
-                        metadataList.Where(md => md.Attributes.HasFlag(DlpDatabaseAttributes.Backup)).Select(md => md.Name));
+                    databaseNames = databaseNames.Concat(metadataList.Where(md => md.Attributes.HasFlag(DlpDatabaseAttributes.Backup)).Select(md => md.Name));
                 }
-                databaseNames = databaseNames.Distinct();
+
+                databaseNames = databaseNames.Distinct().ToList();
 
                 if (!databaseNames.Any())
                 {
-                    _logger.LogWarning($"Found no databases to pull from device.");
+                    Logger.LogWarning($"Found no databases to pull from device.");
                 }
 
                 foreach (string databaseName in databaseNames)
                 {
-                    _logger.LogInformation($"Attempting to pull database: {databaseName}...");
+                    Logger.LogInformation($"Attempting to pull database: {databaseName}...");
 
                     DlpDatabaseMetadata? metadata = metadataList.FirstOrDefault(md => md.Name == databaseName);
                     if (metadata == null)
                     {
-                        _logger.LogError($"Database does not exist on device: {databaseName}");
+                        Logger.LogError($"Database does not exist on device: {databaseName}");
                         continue;
                     }
 
                     await PullDbAsync(context.Connection, metadata, userPath, cancellationToken).ConfigureAwait(false);
                 }
-            };
-
-            _logger.LogInformation("Running device servers...");
-            await RunDeviceServers(deviceNames, serverMode, syncFunc).ConfigureAwait(false);
-        }
-
-        private async Task<List<DlpDatabaseMetadata>> ReadFullDbListAsync(DlpConnection dlp, CancellationToken cancellationToken)
-        {
-            List<DlpDatabaseMetadata> metadataList = new List<DlpDatabaseMetadata>();
-            int index = 0;
-            while (true)
-            {
-                try
-                {
-                    ReadDbListResponse readDbListResponse =
-                        await dlp.ReadDbListAsync(new ReadDbListRequest
-                        {
-                            CardId = 0,
-                            Mode = ReadDbListRequest.ReadDbListMode.ListRam | ReadDbListRequest.ReadDbListMode.ListMultiple,
-                            StartIndex = Convert.ToUInt16(index),
-                        }, cancellationToken).ConfigureAwait(false);
-
-                    metadataList.AddRange(readDbListResponse.Metadata);
-                    index = readDbListResponse.LastIndex + 1;
-                }
-                catch (DlpCommandErrorException ex)
-                {
-                    if (ex.ErrorCode == DlpErrorCode.NotFoundError)
-                    {
-                        // End of entries
-                        break;
-                    }
-                }
             }
 
-            return metadataList;
+            Logger.LogInformation("Running device servers...");
+            await RunDeviceServers(deviceNames, serverMode, SyncFunc).ConfigureAwait(false);
         }
 
         private async Task PullDbAsync(DlpConnection dlp, DlpDatabaseMetadata metadata, string outputPath, CancellationToken cancellationToken)
@@ -193,7 +161,7 @@ namespace Backhand.Cli.Commands
                         DbHandle = dbHandle,
                         Length = ushort.MaxValue,
                         Offset = 0
-                    });
+                    }, cancellationToken);
 
                 database.AppInfo = readAppBlockResponse.Data;
             }
@@ -212,7 +180,7 @@ namespace Backhand.Cli.Commands
                         DbHandle = dbHandle,
                         Length = ushort.MaxValue,
                         Offset = 0
-                    });
+                    }, cancellationToken);
 
                 database.SortInfo = readSortBlockResponse.Data;
             }
@@ -241,15 +209,52 @@ namespace Backhand.Cli.Commands
             // Write our in-memory database to file
             string databaseFileName = Path.ChangeExtension(GetSafeFileName(metadata.Name), isResource ? "PRC" : "PDB");
             string databaseFilePath = Path.Combine(outputPath, databaseFileName);
-            using (FileStream outStream = new FileStream(databaseFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
-            {
-                await database.SerializeAsync(outStream);
-            }
+            
+            await using FileStream outStream = new(
+                databaseFilePath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                4096,
+                true);
+            await database.SerializeAsync(outStream);
         }
 
-        private async Task FillResourceDbAsync(DlpConnection dlp, byte dbHandle, ResourceDatabase database, CancellationToken cancellationToken)
+        private static async Task<List<DlpDatabaseMetadata>> ReadFullDbListAsync(DlpConnection dlp, CancellationToken cancellationToken)
         {
-            for (ushort resourceIndex = 0; true; resourceIndex++)
+            List<DlpDatabaseMetadata> metadataList = new();
+            int index = 0;
+            while (true)
+            {
+                try
+                {
+                    ReadDbListResponse readDbListResponse =
+                        await dlp.ReadDbListAsync(new ReadDbListRequest
+                        {
+                            CardId = 0,
+                            Mode = ReadDbListRequest.ReadDbListMode.ListRam | ReadDbListRequest.ReadDbListMode.ListMultiple,
+                            StartIndex = Convert.ToUInt16(index),
+                        }, cancellationToken).ConfigureAwait(false);
+
+                    metadataList.AddRange(readDbListResponse.Metadata);
+                    index = readDbListResponse.LastIndex + 1;
+                }
+                catch (DlpCommandErrorException ex)
+                {
+                    if (ex.ErrorCode == DlpErrorCode.NotFoundError)
+                    {
+                        // End of entries
+                        break;
+                    }
+                }
+            }
+
+            return metadataList;
+        }
+
+        private static async Task FillResourceDbAsync(DlpConnection dlp, byte dbHandle, ResourceDatabase database, CancellationToken cancellationToken)
+        {
+            for (ushort resourceIndex = 0; ; resourceIndex++)
             {
                 try
                 {
@@ -282,11 +287,11 @@ namespace Backhand.Cli.Commands
             }
         }
 
-        private async Task FillRecordDbAsync(DlpConnection dlp, byte dbHandle, RecordDatabase database, CancellationToken cancellationToken)
+        private static async Task FillRecordDbAsync(DlpConnection dlp, byte dbHandle, RecordDatabase database, CancellationToken cancellationToken)
         {
             // Read record IDs
-            List<uint> recordIds = new List<uint>();
-            for (ushort startIndex = 0; true; startIndex = Convert.ToUInt16(recordIds.Count))
+            List<uint> recordIds = new();
+            for (ushort startIndex = 0; ; startIndex = Convert.ToUInt16(recordIds.Count))
             {
                 try
                 {
@@ -297,7 +302,7 @@ namespace Backhand.Cli.Commands
                             Flags = 0,
                             MaxRecords = 50,
                             StartIndex = startIndex
-                        }).ConfigureAwait(false);
+                        }, cancellationToken).ConfigureAwait(false);
 
                     recordIds.AddRange(recordIdListResponse.RecordIds);
                 }
@@ -334,13 +339,10 @@ namespace Backhand.Cli.Commands
             }
         }
 
-        private string GetSafeFileName(string name)
+        private static string GetSafeFileName(string name)
         {
-            foreach (var c in Path.GetInvalidFileNameChars())
-            {
-                name = name.Replace(c, '_');
-            }
-            return name;
+            return Path.GetInvalidFileNameChars()
+                .Aggregate(name, (current, c) => current.Replace(c, '_'));
         }
     }
 }

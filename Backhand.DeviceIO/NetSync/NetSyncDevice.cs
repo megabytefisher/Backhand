@@ -2,10 +2,8 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
@@ -15,8 +13,8 @@ namespace Backhand.DeviceIO.NetSync
     {
         private class NetSyncSendJob : IDisposable
         {
-            public int Length { get; private init; }
-            public byte[] Buffer { get; private init; }
+            public int Length { get; }
+            public byte[] Buffer { get; }
 
             public NetSyncSendJob(int length)
             {
@@ -32,10 +30,10 @@ namespace Backhand.DeviceIO.NetSync
 
         public event EventHandler<NetSyncPacketTransmittedEventArgs>? ReceivedPacket;
 
-        private IDuplexPipe _basePipe;
-        private BufferBlock<NetSyncSendJob> _sendQueue;
+        private readonly IDuplexPipe _basePipe;
+        private readonly BufferBlock<NetSyncSendJob> _sendQueue;
 
-        protected const int NetSyncHeaderLength = 6;
+        private const int NetSyncHeaderLength = sizeof(byte) * 6;
 
         private static readonly byte[] NetSyncHandshakeWakeup = new byte[]
         {
@@ -82,7 +80,7 @@ namespace Backhand.DeviceIO.NetSync
         {
             // Get packet length and allocate buffer
             int packetLength = (int)GetPacketLength(packet);
-            NetSyncSendJob sendJob = new NetSyncSendJob(packetLength);
+            NetSyncSendJob sendJob = new(packetLength);
 
             // Write packet
             WritePacket(packet, ((Span<byte>)sendJob.Buffer).Slice(0, packetLength));
@@ -94,9 +92,9 @@ namespace Backhand.DeviceIO.NetSync
             }
         }
 
-        public async Task RunIOAsync(CancellationToken cancellationToken = default)
+        public async Task RunIoAsync(CancellationToken cancellationToken = default)
         {
-            using CancellationTokenSource abortCts = new CancellationTokenSource();
+            using CancellationTokenSource abortCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, abortCts.Token);
 
             Task readerTask = RunReaderAsync(cancellationToken);
@@ -108,9 +106,11 @@ namespace Backhand.DeviceIO.NetSync
             }
             catch
             {
+                // ignored
             }
 
             abortCts.Cancel();
+            
             await Task.WhenAll(readerTask, writerTask);
         }
 
@@ -123,10 +123,7 @@ namespace Backhand.DeviceIO.NetSync
             //});
 
             // Watch for first response
-            Task response1Task = WatchPackets((p) =>
-            {
-                return p.Data.Length == NetSyncHandshakeResponse1.Length;
-            });
+            Task response1Task = WatchPackets((p) => p.Data.Length == NetSyncHandshakeResponse1.Length);
 
             // Send first response
             SendPacket(new NetSyncPacket(0x02, new ReadOnlySequence<byte>(NetSyncHandshakeRequest1)));
@@ -135,10 +132,7 @@ namespace Backhand.DeviceIO.NetSync
             await response1Task;
 
             // Watch for second response
-            Task response2Task = WatchPackets((p) =>
-            {
-                return p.Data.Length == NetSyncHandshakeResponse2.Length;
-            });
+            Task response2Task = WatchPackets((p) => p.Data.Length == NetSyncHandshakeResponse2.Length);
 
             // Send second response
             SendPacket(new NetSyncPacket(0x03, new ReadOnlySequence<byte>(NetSyncHandshakeRequest2)));
@@ -181,7 +175,7 @@ namespace Backhand.DeviceIO.NetSync
 
         private SequencePosition ReadPackets(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             
             while (bufferReader.Remaining >= NetSyncHeaderLength)
             {
@@ -226,9 +220,9 @@ namespace Backhand.DeviceIO.NetSync
 
         private async Task WatchPackets(Func<NetSyncPacket, bool> handler)
         {
-            TaskCompletionSource taskCompletionSource = new TaskCompletionSource();
+            TaskCompletionSource taskCompletionSource = new();
 
-            Action<object?, NetSyncPacketTransmittedEventArgs> watcher = (s, e) =>
+            Action<object?, NetSyncPacketTransmittedEventArgs> watcher = (_, e) =>
             {
                 if (handler(e.Packet))
                     taskCompletionSource.TrySetResult();

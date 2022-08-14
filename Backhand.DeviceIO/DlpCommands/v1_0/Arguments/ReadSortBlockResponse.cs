@@ -2,36 +2,22 @@
 using Backhand.Utility.Buffers;
 using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpCommands.v1_0.Arguments
 {
     public class ReadSortBlockResponse : DlpArgument
     {
-        public ushort Size { get; set; }
-        public byte[] Data { get; set; } = Array.Empty<byte>();
-
-        public override int GetSerializedLength()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int Serialize(Span<byte> buffer)
-        {
-            throw new NotImplementedException();
-        }
+        public ushort Size { get; private set; }
+        public byte[] Data { get; private set; } = Array.Empty<byte>();
 
         public override SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             Deserialize(ref bufferReader);
             return bufferReader.Position;
         }
 
-        public void Deserialize(ref SequenceReader<byte> bufferReader)
+        private void Deserialize(ref SequenceReader<byte> bufferReader)
         {
             Size = bufferReader.ReadUInt16BigEndian();
 

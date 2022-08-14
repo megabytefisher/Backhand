@@ -2,41 +2,37 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.Pdb.Internal
 {
-    public class FileEntryMetadataListHeader
+    internal class FileEntryMetadataListHeader
     {
         public uint NextListId { get; set; }
         public ushort Length { get; set; }
 
         public const uint SerializedLength =
-            sizeof(uint) +  // NextListId
-            sizeof(ushort); // Length
+            sizeof(uint) +                      // NextListId
+            sizeof(ushort);                     // Length
 
         public void Serialize(Span<byte> buffer)
         {
             int offset = 0;
 
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), NextListId);
-            offset += 4;
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, sizeof(uint)), NextListId);
+            offset += sizeof(uint);
 
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), Length);
-            offset += 2;
+            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, sizeof(ushort)), Length);
+            offset += sizeof(ushort);
         }
 
         public SequencePosition Deserialize(ReadOnlySequence<byte> buffer)
         {
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            SequenceReader<byte> bufferReader = new(buffer);
             Deserialize(ref bufferReader);
             return bufferReader.Position;
         }
 
-        public void Deserialize(ref SequenceReader<byte> bufferReader)
+        private void Deserialize(ref SequenceReader<byte> bufferReader)
         {
             NextListId = bufferReader.ReadUInt32BigEndian();
             Length = bufferReader.ReadUInt16BigEndian();
