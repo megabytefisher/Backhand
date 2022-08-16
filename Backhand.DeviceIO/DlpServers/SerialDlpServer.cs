@@ -25,7 +25,7 @@ namespace Backhand.DeviceIO.DlpServers
             _portName = portName;
         }
 
-        public override async Task Run(CancellationToken cancellationToken = default)
+        public override async Task RunAsync(CancellationToken cancellationToken = default)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -54,8 +54,9 @@ namespace Backhand.DeviceIO.DlpServers
             serialPort.Open();
 
             SerialPortPipe serialPortPipe = new(serialPort);
+            
             using SlpDevice slpDevice = new(serialPortPipe, logger: LoggerFactory.CreateLogger<SlpDevice>());
-            using PadpConnection padpConnection = new(slpDevice, 3, 3);
+            PadpConnection padpConnection = new(slpDevice, 3, 3, logger: LoggerFactory.CreateLogger<PadpConnection>());
 
             // Watch for wakeup packet
             CmpConnection cmpConnection = new(padpConnection);
@@ -65,7 +66,7 @@ namespace Backhand.DeviceIO.DlpServers
             Task ioTask = slpDevice.RunIoAsync(linkedCts.Token);
 
             // Wait for wakeup + do handshake
-            await waitForWakeUpTask;
+            await waitForWakeUpTask.ConfigureAwait(false);
             Task handshakeTask = cmpConnection.DoHandshakeAsync(TargetBaudRate, linkedCts.Token);
 
             try
@@ -113,19 +114,20 @@ namespace Backhand.DeviceIO.DlpServers
             serialPort.Open();
 
             SerialPortPipe serialPortPipe = new(serialPort);
+            
             using SlpDevice slpDevice = new(serialPortPipe, logger: LoggerFactory.CreateLogger<SlpDevice>());
-            using PadpConnection padpConnection = new(slpDevice, 3, 3);
+            PadpConnection padpConnection = new(slpDevice, 3, 3, logger: LoggerFactory.CreateLogger<PadpConnection>());
 
             // Start device IO
             Task ioTask = slpDevice.RunIoAsync(linkedCts.Token);
 
             // Create DLP connection
-            using PadpDlpTransport dlpTransport = new(padpConnection);
+            PadpDlpTransport dlpTransport = new(padpConnection);
             DlpConnection dlpConnection = new(dlpTransport);
             DlpContext dlpContext = new(dlpConnection);
 
             // Do sync
-            Task syncTask = DoSync(dlpContext, linkedCts.Token);
+            Task syncTask = DoSyncAsync(dlpContext, linkedCts.Token);
 
             // Wait for either sync or IO task to complete/fail
             try

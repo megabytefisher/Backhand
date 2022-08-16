@@ -41,6 +41,7 @@ namespace Backhand.DeviceIO.Slp
         private readonly ILogger _logger;
         private readonly bool _logDebugEnabled;
         private readonly bool _logTraceEnabled;
+        private long _logSkipReadBytes;
 
         // Constants
         private const byte HeaderMagic1 = 0xBE;
@@ -53,9 +54,9 @@ namespace Backhand.DeviceIO.Slp
         public SlpDevice(IDuplexPipe basePipe, ILogger? logger = null)
         {
             _basePipe = basePipe;
-            _logger = logger ?? NullLogger.Instance;
             _sendQueue = new BufferBlock<SlpSendJob>();
 
+            _logger = logger ?? NullLogger.Instance;
             _logDebugEnabled = _logger.IsEnabled(LogLevel.Debug);
             _logTraceEnabled = _logger.IsEnabled(LogLevel.Trace);
         }
@@ -82,7 +83,7 @@ namespace Backhand.DeviceIO.Slp
 
             try
             {
-                await Task.WhenAny(readerTask, writerTask);
+                await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
             }
             catch
             {
@@ -90,14 +91,19 @@ namespace Backhand.DeviceIO.Slp
             }
 
             abortCts.Cancel();
-            await Task.WhenAll(readerTask, writerTask);
+            await Task.WhenAll(readerTask, writerTask).ConfigureAwait(false);
         }
 
         public void SendPacket(SlpPacket packet)
         {
             if (_logDebugEnabled)
             {
-                _logger.LogDebug($"Enqueueing packet; Dst: {packet.DestinationSocket}, Src: {packet.SourceSocket}, Type: {packet.PacketType}, TxId: {packet.TransactionId}, Body: [{HexSerialization.GetHexString(packet.Data)}]");
+                _logger.LogDebug("Enqueueing packet; Dst: {destinationSocket}, Src: {sourceSocket}, Type: {packetType}, TxId: {transactionId}, Body: [{body}]",
+                    packet.DestinationSocket,
+                    packet.SourceSocket,
+                    packet.PacketType,
+                    packet.TransactionId,
+                    HexSerialization.GetHexString(packet.Data));
             }
 
             SendingPacket?.Invoke(this, new SlpPacketTransmittedArgs(packet));
@@ -124,10 +130,22 @@ namespace Backhand.DeviceIO.Slp
                 ReadResult readResult = await _basePipe.Input.ReadAsync(cancellationToken).ConfigureAwait(false);
                 ReadOnlySequence<byte> buffer = readResult.Buffer;
 
+                if (_logTraceEnabled)
+                {
+                    _logger.LogTrace("Received bytes: [{bytes}]",
+                        HexSerialization.GetHexString(buffer.Slice(_logSkipReadBytes)));
+                }
+
                 SequencePosition processedPosition = ReadPackets(buffer, ref firstPacket);
 
                 _basePipe.Input.AdvanceTo(processedPosition, buffer.End);
 
+                if (_logTraceEnabled)
+                {
+                    ReadOnlySequence<byte> processedSequence = buffer.Slice(0, processedPosition);
+                    _logSkipReadBytes = buffer.Length - processedSequence.Length;
+                }
+                
                 if (readResult.IsCompleted)
                     break;
             }
@@ -139,6 +157,12 @@ namespace Backhand.DeviceIO.Slp
             {
                 SlpSendJob sendJob = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
 
+                if (_logTraceEnabled)
+                {
+                    _logger.LogTrace("Sending bytes: [{bytes}]]",
+                        HexSerialization.GetHexString(((Span<byte>)sendJob.Buffer).Slice(0, sendJob.Length)));
+                }
+                
                 Memory<byte> sendBuffer = _basePipe.Output.GetMemory(sendJob.Length);
                 ((Span<byte>)sendJob.Buffer).Slice(0, sendJob.Length).CopyTo(sendBuffer.Span);
                 _basePipe.Output.Advance(sendJob.Length);
@@ -198,12 +222,9 @@ namespace Backhand.DeviceIO.Slp
                         bufferReader.Rewind(PacketHeaderSize);
                         break;
                     }
-                    else
-                    {
-                        // Rewind to just after first byte of header
-                        bufferReader.Rewind(PacketHeaderSize - 1);
-                        continue;
-                    }
+
+                    // Rewind to just after first byte of header
+                    bufferReader.Rewind(PacketHeaderSize - 1);
                 }
 
                 if (!packetFound)
@@ -230,12 +251,14 @@ namespace Backhand.DeviceIO.Slp
 
                 if (magic1 != HeaderMagic1 || magic2 != HeaderMagic2 || magic3 != HeaderMagic3)
                 {
+                    _logger.LogError("Received unexpected packet magic");
                     throw new SlpException("Received unexpected packet magic");
                 }
 
                 byte computedHeaderChecksum = ComputeHeaderChecksum(destinationSocket, sourceSocket, packetType, dataSize, transactionId);
                 if (computedHeaderChecksum != headerChecksum)
                 {
+                    _logger.LogError("Received invalid packet header checksum");
                     throw new SlpException("Received invalid packet header checksum");
                 }
 
@@ -258,6 +281,7 @@ namespace Backhand.DeviceIO.Slp
 
                 if (packetCrc16 != calculatedCrc16)
                 {
+                    _logger.LogError("Received packet with invalid footer checksum");
                     throw new SlpException("Received packet with invalid footer checksum");
                 }
 
@@ -272,7 +296,12 @@ namespace Backhand.DeviceIO.Slp
 
                 if (_logDebugEnabled)
                 {
-                    _logger.LogDebug($"Received packet; Dst: {packet.DestinationSocket}, Src: {packet.SourceSocket}, Type: {packet.PacketType}, TxId: {packet.TransactionId}, Body: [{HexSerialization.GetHexString(packet.Data)}]");
+                    _logger.LogDebug("Received packet; Dst: {destinationSocket}, Src: {sourceSocket}, Type: {packetType}, TxId: {transactionId}, Body: [{body}]",
+                        packet.DestinationSocket,
+                        packet.SourceSocket,
+                        packet.PacketType,
+                        packet.TransactionId,
+                        HexSerialization.GetHexString(packet.Data));
                 }
 
                 ReceivedPacket?.Invoke(this, new SlpPacketTransmittedArgs(packet));
@@ -281,13 +310,7 @@ namespace Backhand.DeviceIO.Slp
             return bufferReader.Position;
         }
 
-        private SequencePosition ReadPackets(ReadOnlySequence<byte> buffer)
-        {
-            bool firstPacket = false;
-            return ReadPackets(buffer, ref firstPacket);
-        }
-
-        private void WritePacket(SlpPacket packet, Span<byte> buffer)
+        private static void WritePacket(SlpPacket packet, Span<byte> buffer)
         {
             // Write header
             buffer[0] = HeaderMagic1;
@@ -308,7 +331,7 @@ namespace Backhand.DeviceIO.Slp
             BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(10 + (int)packet.Data.Length, 2), crc16);
         }
 
-        private byte ComputeHeaderChecksum(byte destinationSocket, byte sourceSocket, byte packetType, ushort dataSize, byte transactionId)
+        private static byte ComputeHeaderChecksum(byte destinationSocket, byte sourceSocket, byte packetType, ushort dataSize, byte transactionId)
         {
             byte dataSize0 = (byte)dataSize;
             byte dataSize1 = (byte)(dataSize >> 8);

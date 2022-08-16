@@ -1,48 +1,29 @@
-﻿using Backhand.DeviceIO.NetSync;
-using System;
+﻿using System;
+using System.Threading;
+using Backhand.DeviceIO.NetSync;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpTransports
 {
-    public sealed class NetSyncDlpTransport : DlpTransport, IDisposable
+    public sealed class NetSyncDlpTransport : IDlpTransport
     {
-        private readonly NetSyncDevice _device;
+        private readonly NetSyncConnection _netSync;
 
-        private byte _transactionId = 0x04 - 1;
-
-        public NetSyncDlpTransport(NetSyncDevice device)
+        public NetSyncDlpTransport(NetSyncConnection netSync)
         {
-            _device = device;
-
-            _device.ReceivedPacket += device_ReceivedPacket;
+            _netSync = netSync;
         }
 
-        public void Dispose()
+        public async Task ExecuteTransactionAsync(DlpPayload requestPayload, Action<DlpPayload> handleResponseAction,
+            CancellationToken cancellationToken)
         {
-            _device.ReceivedPacket -= device_ReceivedPacket;
-        }
-
-        public override Task SendPayload(DlpPayload payload)
-        {
-            OnSendingPayload(new DlpPayloadTransmittedEventArgs(payload));
-            BumpTransactionId();
-            _device.SendPacket(new NetSyncPacket(_transactionId, payload.Buffer));
-            return Task.CompletedTask;
-        }
-
-        private void device_ReceivedPacket(object? sender, NetSyncPacketTransmittedEventArgs e)
-        {
-            if (e.Packet.TransactionId == _transactionId)
-                OnReceivedPayload(new DlpPayloadTransmittedEventArgs(new DlpPayload(e.Packet.Data)));
-        }
-
-        private void BumpTransactionId()
-        {
-            _transactionId = (byte)(_transactionId + 1);
-            if (_transactionId is 0xff or 0x00 or 0x01)
-            {
-                _transactionId = 0x02;
-            }    
+            await _netSync.ExecuteTransactionAsync(
+                new NetSyncPayload(requestPayload.Buffer),
+                (responsePayload) =>
+                {
+                    handleResponseAction(new DlpPayload(responsePayload.Buffer));
+                },
+                cancellationToken).ConfigureAwait(false);
         }
     }
 }

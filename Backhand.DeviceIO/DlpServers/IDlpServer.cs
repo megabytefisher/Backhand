@@ -9,6 +9,6 @@ namespace Backhand.DeviceIO.DlpServers
         event EventHandler<DlpSyncStartingEventArgs>? SyncStarting;
         event EventHandler<DlpSyncEndedEventArgs>? SyncEnded;
 
-        Task Run(CancellationToken cancellationToken);
+        Task RunAsync(CancellationToken cancellationToken);
     }
 }

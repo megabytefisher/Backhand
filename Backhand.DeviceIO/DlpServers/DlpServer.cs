@@ -28,9 +28,9 @@ namespace Backhand.DeviceIO.DlpServers
             _syncFunc = syncFunc;
         }
 
-        public abstract Task Run(CancellationToken cancellationToken = default);
+        public abstract Task RunAsync(CancellationToken cancellationToken = default);
 
-        protected async Task DoSync(DlpContext dlpContext, CancellationToken cancellationToken)
+        protected async Task DoSyncAsync(DlpContext dlpContext, CancellationToken cancellationToken)
         {
             SyncStarting?.Invoke(this, new DlpSyncStartingEventArgs(dlpContext));
 
@@ -46,15 +46,15 @@ namespace Backhand.DeviceIO.DlpServers
 
             try
             {
-                await dlpContext.Connection.EndOfSyncAsync(new EndOfSyncRequest()
+                await dlpContext.Connection.EndOfSyncAsync(new EndOfSyncRequest
                 {
                     Status = syncException == null ?
                         EndOfSyncRequest.EndOfSyncStatus.Okay :
                         EndOfSyncRequest.EndOfSyncStatus.UnknownError
-                }, cancellationToken);
+                }, cancellationToken).ConfigureAwait(false);
 
                 // Give device time to read our message before tearing down the connection..
-                await Task.Delay(100, cancellationToken);
+                await Task.Delay(100, cancellationToken).ConfigureAwait(false);
             }
             catch
             {

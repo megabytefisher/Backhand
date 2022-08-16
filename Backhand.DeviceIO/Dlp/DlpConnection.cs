@@ -19,7 +19,7 @@ namespace Backhand.DeviceIO.Dlp
             All         = 0b11000000,
         }
 
-        private readonly DlpTransport _transport;
+        private readonly IDlpTransport _transport;
 
         private const int DlpRequestHeaderSize = sizeof(byte) * 2;
         private const int DlpResponseHeaderSize = sizeof(byte) * 4;
@@ -30,63 +30,32 @@ namespace Backhand.DeviceIO.Dlp
         private const int DlpArgSmallMaxSize = ushort.MaxValue;
         private const int DlpArgSmallHeaderSize = sizeof(byte) * 4;
 
-        private static readonly TimeSpan DlpCommandResponseTimeout = TimeSpan.FromSeconds(30);
+        //private static readonly TimeSpan DlpCommandResponseTimeout = TimeSpan.FromSeconds(30);
 
-        public DlpConnection(DlpTransport transport)
+        public DlpConnection(IDlpTransport transport)
         {
             _transport = transport;
         }
 
         public async Task<DlpArgumentCollection> Execute(DlpCommandDefinition command, DlpArgumentCollection requestArguments, CancellationToken cancellationToken = default)
         {
-            using CancellationTokenSource timeoutCts = new CancellationTokenSource(DlpCommandResponseTimeout);
-            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-
-            Task<DlpArgumentCollection> responseWaitTask = WaitForResponseAsync(command, linkedCts.Token);
-
+            DlpArgumentCollection? responseArgs = null;
+            
             byte[] requestBuffer = new byte[GetRequestSize(requestArguments)];
             WriteDlpRequest(command, requestArguments, requestBuffer);
-            await _transport.SendPayload(new DlpPayload(new ReadOnlySequence<byte>(requestBuffer)));
 
-            DlpArgumentCollection responseArguments = await responseWaitTask.ConfigureAwait(false);
-            return responseArguments;
-        }
-
-        private async Task<DlpArgumentCollection> WaitForResponseAsync(DlpCommandDefinition command, CancellationToken cancellationToken = default)
-        {
-            TaskCompletionSource<DlpArgumentCollection> responseTcs = new TaskCompletionSource<DlpArgumentCollection>();
-
-            Action<object?, DlpPayloadTransmittedEventArgs> responseReceiver = (_, e) =>
-            {
-                try
+            await _transport.ExecuteTransactionAsync(
+                new DlpPayload(new ReadOnlySequence<byte>(requestBuffer)),
+                (responsePayload) =>
                 {
-                    DlpArgumentCollection? result = ReadDlpResponse(command, e.Payload.Buffer);
+                    responseArgs = ReadDlpResponse(command, responsePayload.Buffer);
+                },
+                cancellationToken).ConfigureAwait(false);
 
-                    if (result != null)
-                        responseTcs.TrySetResult(result);
-                }
-                catch (Exception ex)
-                {
-                    responseTcs.TrySetException(ex);
-                }
-            };
+            if (responseArgs == null)
+                throw new DlpException("Didn't get response arguments back from transport");
 
-            _transport.ReceivedPayload += responseReceiver.Invoke;
-
-            await using (cancellationToken.Register(() =>
-                         {
-                             responseTcs.TrySetCanceled();
-                         }))
-            {
-                try
-                {
-                    return await responseTcs.Task;
-                }
-                finally
-                {
-                    _transport.ReceivedPayload -= responseReceiver.Invoke;
-                }
-            } 
+            return responseArgs;
         }
 
         private static int GetRequestSize(DlpArgumentCollection arguments)
@@ -145,16 +114,16 @@ namespace Backhand.DeviceIO.Dlp
             }
         }
 
-        private static DlpArgumentCollection? ReadDlpResponse(DlpCommandDefinition command, ReadOnlySequence<byte> buffer)
+        private static DlpArgumentCollection ReadDlpResponse(DlpCommandDefinition command, ReadOnlySequence<byte> buffer)
         {
-            DlpArgumentCollection result = new DlpArgumentCollection();
-            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            DlpArgumentCollection result = new();
+            SequenceReader<byte> bufferReader = new(buffer);
 
             DlpOpcode opcode = (DlpOpcode)(bufferReader.Read() & ~DlpResponseIdBitmask);
             byte argCount = bufferReader.Read();
 
             if (opcode != command.Opcode)
-                return null;
+                throw new DlpException("Received unexpected response opcode");
 
             DlpErrorCode errorCode = (DlpErrorCode)bufferReader.ReadUInt16BigEndian();
             if (errorCode != DlpErrorCode.Okay)

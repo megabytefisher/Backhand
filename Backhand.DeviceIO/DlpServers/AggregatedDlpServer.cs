@@ -56,11 +56,11 @@ namespace Backhand.DeviceIO.DlpServers
             _servers = servers;
         }
 
-        public async Task Run(CancellationToken cancellationToken = default)
+        public async Task RunAsync(CancellationToken cancellationToken = default)
         {
-            Task[] serverTasks = _servers.Select(s => s.Run(cancellationToken)).ToArray();
+            Task[] serverTasks = _servers.Select(s => s.RunAsync(cancellationToken)).ToArray();
 
-            await Task.WhenAll(serverTasks);
+            await Task.WhenAll(serverTasks).ConfigureAwait(false);
         }
     }
 }

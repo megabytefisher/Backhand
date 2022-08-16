@@ -6,7 +6,7 @@
     },
     "dbpull-COM": {
       "commandName": "Project",
-      "commandLineArgs": "db pull --device COM3 --path C:\\Users\\kfisher\\palmout\r\n"
+      "commandLineArgs": "db pull --device COM4 --path C:\\Users\\kfisher\\palmout --all --server"
     },
     "dbpull-USB": {
       "commandName": "Project",

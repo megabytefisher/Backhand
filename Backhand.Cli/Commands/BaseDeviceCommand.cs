@@ -96,14 +96,14 @@ namespace Backhand.Cli.Commands
 
             if (serverMode)
             {
-                await server.Run(cancellationToken);
+                await server.RunAsync(cancellationToken);
             }
             else
             {
                 using CancellationTokenSource abortCts = new();
                 using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, abortCts.Token);
 
-                Task serverTask = server.Run(linkedCts.Token);
+                Task serverTask = server.RunAsync(linkedCts.Token);
 
                 await syncTcs.Task;
 

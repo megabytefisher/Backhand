@@ -14,7 +14,13 @@ namespace Backhand.Cli
                 builder.AddSimpleConsole(options =>
                 {
                     options.IncludeScopes = true;
-                }).AddFilter(l => true);
+                }).AddFilter((category, logLevel) =>
+                {
+                    if (logLevel >= LogLevel.Information)
+                        return true;
+
+                    return category.Contains("PadpConnection") && logLevel >= LogLevel.Debug;
+                });
             });
 
             RootCommand rootCommand = new("Backhand CLI Utility")

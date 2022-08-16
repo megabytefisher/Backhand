@@ -38,7 +38,7 @@ namespace Backhand.DeviceIO.DlpServers
             _activeClients = new List<UsbDlpClient>();
         }
 
-        public override async Task Run(CancellationToken cancellationToken = default)
+        public override async Task RunAsync(CancellationToken cancellationToken = default)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -82,16 +82,21 @@ namespace Backhand.DeviceIO.DlpServers
                 {
                     UsbDevicePipe usbDevicePipe = new(usbDevice, readEndpoint, writeEndpoint);
                     NetSyncDevice netSyncDevice = new(usbDevicePipe);
+                    NetSyncConnection netSyncConnection = new(netSyncDevice);
+                    
+                    // Start handshake early so it sees the wakeup packet.
+                    Task netSyncHandshakeTask = netSyncConnection.DoHandshakeAsync(cancellationToken);
 
                     Task deviceIoTask = usbDevicePipe.RunIoAsync(linkedCts.Token);
                     Task netSyncIoTask = netSyncDevice.RunIoAsync(linkedCts.Token);
-                    await netSyncDevice.DoNetSyncHandshake().ConfigureAwait(false);
 
-                    using NetSyncDlpTransport transport = new(netSyncDevice);
+                    await netSyncHandshakeTask;
+
+                    NetSyncDlpTransport transport = new(netSyncConnection);
                     DlpConnection dlpConnection = new(transport);
                     DlpContext dlpContext = new(dlpConnection);
 
-                    syncTask = DoSync(dlpContext, linkedCts.Token);
+                    syncTask = DoSyncAsync(dlpContext, linkedCts.Token);
 
                     try
                     {
@@ -124,7 +129,7 @@ namespace Backhand.DeviceIO.DlpServers
                 {
                     UsbDevicePipe usbDevicePipe = new(usbDevice, readEndpoint, writeEndpoint);
                     using SlpDevice slpDevice = new(usbDevicePipe);
-                    using PadpConnection padpConnection = new(slpDevice, 3, 3);
+                    PadpConnection padpConnection = new(slpDevice, 3, 3);
 
                     // Watch for wakeup packet(?)
                     CmpConnection cmpConnection = new(padpConnection);
@@ -136,11 +141,11 @@ namespace Backhand.DeviceIO.DlpServers
 
                     await cmpConnection.DoHandshakeAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                    using PadpDlpTransport transport = new(padpConnection);
+                    PadpDlpTransport transport = new(padpConnection);
                     DlpConnection dlpConnection = new(transport);
                     DlpContext dlpContext = new(dlpConnection);
 
-                    syncTask = DoSync(dlpContext, linkedCts.Token);
+                    syncTask = DoSyncAsync(dlpContext, linkedCts.Token);
 
                     try
                     {
@@ -176,7 +181,7 @@ namespace Backhand.DeviceIO.DlpServers
             }
 
             // Don't allow immediate reconnection
-            await Task.Delay(2000);
+            await Task.Delay(2000, cancellationToken).ConfigureAwait(false);
         }
     }
 }

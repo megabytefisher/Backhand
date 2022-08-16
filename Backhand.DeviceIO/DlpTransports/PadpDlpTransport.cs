@@ -1,35 +1,29 @@
-﻿using Backhand.DeviceIO.Padp;
-using System;
+﻿using System;
+using System.Threading;
+using Backhand.DeviceIO.Padp;
 using System.Threading.Tasks;
 
 namespace Backhand.DeviceIO.DlpTransports
 {
-    public sealed class PadpDlpTransport : DlpTransport, IDisposable
+    public sealed class PadpDlpTransport : IDlpTransport
     {
         private readonly PadpConnection _padp;
 
         public PadpDlpTransport(PadpConnection padp)
         {
             _padp = padp;
-
-            _padp.ReceivedData += padp_ReceivedData;
         }
 
-        public void Dispose()
+        public async Task ExecuteTransactionAsync(DlpPayload requestPayload, Action<DlpPayload> handleResponseAction,
+            CancellationToken cancellationToken)
         {
-            _padp.ReceivedData -= padp_ReceivedData;
-        }
-
-        public override async Task SendPayload(DlpPayload payload)
-        {
-            OnSendingPayload(new DlpPayloadTransmittedEventArgs(payload));
-            _padp.BumpTransactionId();
-            await _padp.SendData(payload.Buffer);
-        }
-
-        private void padp_ReceivedData(object? sender, PadpDataReceivedEventArgs e)
-        {
-            OnReceivedPayload(new DlpPayloadTransmittedEventArgs(new DlpPayload(e.Data)));
+            await _padp.ExecuteTransactionAsync(
+                new PadpPayload(requestPayload.Buffer),
+                (responsePayload) =>
+                {
+                    handleResponseAction(new DlpPayload(responsePayload.Buffer));
+                },
+                cancellationToken).ConfigureAwait(false);
         }
     }
 }

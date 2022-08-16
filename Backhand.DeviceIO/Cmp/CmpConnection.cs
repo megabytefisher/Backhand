@@ -45,7 +45,9 @@ namespace Backhand.DeviceIO.Cmp
             try
             {
                 WriteInit(initBuffer, newBaudRate);
-                await _padp.SendData((new ReadOnlySequence<byte>(initBuffer)).Slice(0, 10), cancellationToken);
+                await _padp.SendPayloadAsync(
+                    new PadpPayload(new ReadOnlySequence<byte>(initBuffer).Slice(0, 10)),
+                    cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -55,45 +57,41 @@ namespace Backhand.DeviceIO.Cmp
 
         public async Task WaitForWakeUpAsync(CancellationToken cancellationToken = default)
         {
-            TaskCompletionSource wakeUpTcs = new();
-
-            Action<object?, PadpDataReceivedEventArgs> wakeUpReceiver = (_, e) =>
-            {
-                SequenceReader<byte> packetReader = new(e.Data);
-
-                if (packetReader.Read() != (byte)CmpPacketType.WakeUp)
-                    return;
-
-                wakeUpTcs.TrySetResult();
-            };
-
-            _padp.ReceivedData += wakeUpReceiver.Invoke;
-
-            await using (cancellationToken.Register(() =>
-                         {
-                             wakeUpTcs.TrySetCanceled();
-                         }))
-            {
-                try
+            await _padp.ReceivePayloadAsync(
+                (padpPayload) =>
                 {
-                    await wakeUpTcs.Task;
-                }
-                finally
-                {
-                    _padp.ReceivedData -= wakeUpReceiver.Invoke;
-                }
-            }
+                    SequenceReader<byte> payloadReader = new(padpPayload.Buffer);
+
+                    if (payloadReader.Read() != (byte)CmpPacketType.WakeUp)
+                        throw new PadpException("Unexpected data received while waiting for device wake up.");
+                },
+                cancellationToken).ConfigureAwait(false);
         }
 
         private static void WriteInit(Span<byte> buffer, uint? newBaudRate = null)
         {
-            buffer[0] = (byte)CmpPacketType.Init;
-            buffer[1] = (byte)(CmpInitPacketFlags.None | (newBaudRate != null ? CmpInitPacketFlags.ShouldChangeBaudRate : CmpInitPacketFlags.None));
-            buffer[2] = CmpMajorVersion;
-            buffer[3] = CmpMinorVersion;
-            buffer[4] = 0x00;
-            buffer[5] = 0x00;
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(6), (newBaudRate ?? 0)); // Baud rate
+            int offset = 0;
+            
+            buffer[offset] = (byte)CmpPacketType.Init;
+            offset += sizeof(byte);
+            
+            buffer[offset] = (byte)(CmpInitPacketFlags.None | (newBaudRate != null ? CmpInitPacketFlags.ShouldChangeBaudRate : CmpInitPacketFlags.None));
+            offset += sizeof(byte);
+            
+            buffer[offset] = CmpMajorVersion;
+            offset += sizeof(byte);
+            
+            buffer[offset] = CmpMinorVersion;
+            offset += sizeof(byte);
+            
+            buffer[offset] = 0x00;
+            offset += sizeof(byte);
+            
+            buffer[offset] = 0x00;
+            offset += sizeof(byte);
+            
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, sizeof(uint)), (newBaudRate ?? 0)); // Baud rate
+            offset += sizeof(uint);
         }
     }
 }
