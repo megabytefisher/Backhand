@@ -102,8 +102,9 @@ namespace Backhand.DeviceIO.Dlp
                         break;
                     case <= DlpArgSmallMaxSize:
                         buffer[offset++] = (byte)((DlpArgIdBase + i) | (int)DlpArgType.Small);
-                        BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset + 1, 2), Convert.ToUInt16(argumentSize));
-                        offset += 3;
+                        buffer[offset++] = 0; // Padding
+                        BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), Convert.ToUInt16(argumentSize));
+                        offset += 2;
                         break;
                     default:
                         throw new DlpException("Request argument too big");
@@ -137,18 +138,17 @@ namespace Backhand.DeviceIO.Dlp
                 int argIndex = argId - DlpArgIdBase;
 
                 int argLength;
-                if (argType == DlpArgType.Tiny)
+                switch (argType)
                 {
-                    argLength = bufferReader.Read();
-                }
-                else if (argType == DlpArgType.Small)
-                {
-                    bufferReader.Advance(1); // Ignore padding byte
-                    argLength = bufferReader.ReadUInt16BigEndian();
-                }
-                else
-                {
-                    throw new DlpException("Response contained unsupported arg type");
+                    case DlpArgType.Tiny:
+                        argLength = bufferReader.Read();
+                        break;
+                    case DlpArgType.Small:
+                        bufferReader.Advance(1); // Ignore padding byte
+                        argLength = bufferReader.ReadUInt16BigEndian();
+                        break;
+                    default:
+                        throw new DlpException("Response contained unsupported arg type");
                 }
 
                 ReadOnlySequence<byte> argBuffer = buffer.Slice(bufferReader.Position, argLength);

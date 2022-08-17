@@ -44,15 +44,6 @@ namespace Backhand.DeviceIO.NetSync
         {
             _device = device;
         }
-        
-        public void BumpTransactionId()
-        {
-            _transactionId++;
-            if (_transactionId is 0xff or 0x00 or 0x01)
-            {
-                _transactionId = 0x02;
-            }
-        }
 
         public async Task ExecuteTransactionAsync(NetSyncPayload sendPayload,
             Action<NetSyncPayload> handleReceivePayloadAction, CancellationToken cancellationToken = default)
@@ -103,6 +94,15 @@ namespace Backhand.DeviceIO.NetSync
                     }
                 },
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        private void BumpTransactionId()
+        {
+            _transactionId++;
+            if (_transactionId is 0xff or 0x00 or 0x01)
+            {
+                _transactionId = 0x02;
+            }
         }
 
         private async Task ReceivePayloadAsync(Action<NetSyncPayload> handlePayloadAction, CancellationToken cancellationToken)

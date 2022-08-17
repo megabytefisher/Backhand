@@ -66,15 +66,6 @@ namespace Backhand.DeviceIO.Padp
             _logTraceEnabled = _logger.IsEnabled(LogLevel.Trace);
         }
 
-        public void BumpTransactionId()
-        {
-            _transactionId++;
-            if (_transactionId is 0xff or 0x00)
-            {
-                _transactionId = 0x01;
-            }
-        }
-
         public async Task ExecuteTransactionAsync(PadpPayload sendPayload, Action<PadpPayload> handleReceivePayloadFunc, CancellationToken cancellationToken = default)
         {
             BumpTransactionId();
@@ -225,6 +216,15 @@ namespace Backhand.DeviceIO.Padp
                 {
                     _device.ReceivedPacket -= SlpPacketReceived;
                 }
+            }
+        }
+
+        private void BumpTransactionId()
+        {
+            _transactionId++;
+            if (_transactionId is 0xff or 0x00)
+            {
+                _transactionId = 0x01;
             }
         }
 
