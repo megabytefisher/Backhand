@@ -149,10 +149,16 @@ namespace Backhand.DeviceIO.NetSync
         private static void WritePacket(NetSyncPacket packet, Span<byte> buffer)
         {
             int offset = 0;
-            buffer[offset++] = 0x01; // data type
-            buffer[offset++] = packet.TransactionId;
-            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), (uint)packet.Data.Length);
-            offset += 4;
+            
+            buffer[offset] = 0x01; // data type
+            offset += sizeof(byte);
+            
+            buffer[offset] = packet.TransactionId;
+            offset += sizeof(byte);
+            
+            BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, sizeof(uint)), (uint)packet.Data.Length);
+            offset += sizeof(uint);
+            
             packet.Data.CopyTo(buffer.Slice(offset));
         }
     }

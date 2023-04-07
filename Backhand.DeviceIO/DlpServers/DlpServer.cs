@@ -16,9 +16,9 @@ namespace Backhand.DeviceIO.DlpServers
         protected ILoggerFactory LoggerFactory { get; }
         protected ILogger Logger { get; }
 
-        private readonly Func<DlpContext, CancellationToken, Task> _syncFunc;
+        private readonly Func<DlpClientContext, CancellationToken, Task> _syncFunc;
 
-        protected DlpServer(Func<DlpContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
+        protected DlpServer(Func<DlpClientContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
         {
             loggerFactory ??= NullLoggerFactory.Instance;
 
@@ -30,14 +30,14 @@ namespace Backhand.DeviceIO.DlpServers
 
         public abstract Task RunAsync(CancellationToken cancellationToken = default);
 
-        protected async Task DoSyncAsync(DlpContext dlpContext, CancellationToken cancellationToken)
+        protected async Task DoSyncAsync(DlpClientContext dlpClientContext, CancellationToken cancellationToken)
         {
-            SyncStarting?.Invoke(this, new DlpSyncStartingEventArgs(dlpContext));
+            SyncStarting?.Invoke(this, new DlpSyncStartingEventArgs(dlpClientContext));
 
             Exception? syncException = null;
             try
             {
-                await _syncFunc(dlpContext, cancellationToken).ConfigureAwait(false);
+                await _syncFunc(dlpClientContext, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -46,7 +46,7 @@ namespace Backhand.DeviceIO.DlpServers
 
             try
             {
-                await dlpContext.Connection.EndOfSyncAsync(new EndOfSyncRequest
+                await dlpClientContext.Connection.EndOfSyncAsync(new EndOfSyncRequest
                 {
                     Status = syncException == null ?
                         EndOfSyncRequest.EndOfSyncStatus.Okay :
@@ -61,7 +61,7 @@ namespace Backhand.DeviceIO.DlpServers
                 // ignored
             }
 
-            SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs(dlpContext, syncException));
+            SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs(dlpClientContext, syncException));
         }
     }
 }

@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:i="clr-namespace:Projektanker.Icons.Avalonia;assembly=Projektanker.Icons.Avalonia"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="Backhand.Windows.HomeWindow"
+        Title="Backhand">
+    <TabControl>
+        <TabItem Header="Status">
+            <Grid RowDefinitions="*,*" Margin="4">
+                <TextBlock Text="test1"></TextBlock>
+                <i:Icon Grid.Row="1" Value="fa-brands fa-github"></i:Icon>
+            </Grid>
+        </TabItem>
+        <TabItem Header="Connections">
+        </TabItem>
+    </TabControl>
+</Window>

@@ -19,7 +19,7 @@ namespace Backhand.DeviceIO.DlpServers
         private const int InitialBaudRate = 9600;
         private const int TargetBaudRate = 57600;
 
-        public SerialDlpServer(string portName, Func<DlpContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
+        public SerialDlpServer(string portName, Func<DlpClientContext, CancellationToken, Task> syncFunc, ILoggerFactory? loggerFactory = null)
             : base(syncFunc, loggerFactory)
         {
             _portName = portName;
@@ -31,8 +31,8 @@ namespace Backhand.DeviceIO.DlpServers
             {
                 try
                 {
-                    await DoCmpPortion(cancellationToken).ConfigureAwait(false);
-                    await DoDlpPortion(cancellationToken).ConfigureAwait(false);
+                    await DoCmpPortionAsync(cancellationToken).ConfigureAwait(false);
+                    await DoDlpPortionAsync(cancellationToken).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -41,10 +41,11 @@ namespace Backhand.DeviceIO.DlpServers
             }
         }
 
-        private async Task DoCmpPortion(CancellationToken cancellationToken)
+        private async Task DoCmpPortionAsync(CancellationToken cancellationToken)
         {
             using CancellationTokenSource abortCts = new();
-            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                abortCts.Token, cancellationToken);
 
             using SerialPort serialPort = new(_portName);
             serialPort.BaudRate = InitialBaudRate;
@@ -72,6 +73,9 @@ namespace Backhand.DeviceIO.DlpServers
             try
             {
                 await Task.WhenAny(handshakeTask, ioTask).ConfigureAwait(false);
+
+                if (!handshakeTask.IsCompleted)
+                    throw new DlpServerException("IO task ended before handshake completed");
             }
             catch
             {
@@ -88,7 +92,7 @@ namespace Backhand.DeviceIO.DlpServers
             {
                 if (handshakeTask.IsCompletedSuccessfully)
                 {
-                    // Swallow
+                    // All is fine - swallow exception
                 }
                 else
                 {
@@ -101,7 +105,7 @@ namespace Backhand.DeviceIO.DlpServers
             }
         }
 
-        private async Task DoDlpPortion(CancellationToken cancellationToken)
+        private async Task DoDlpPortionAsync(CancellationToken cancellationToken)
         {
             using CancellationTokenSource abortCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(abortCts.Token, cancellationToken);
@@ -124,10 +128,10 @@ namespace Backhand.DeviceIO.DlpServers
             // Create DLP connection
             PadpDlpTransport dlpTransport = new(padpConnection);
             DlpConnection dlpConnection = new(dlpTransport);
-            DlpContext dlpContext = new(dlpConnection);
+            DlpClientContext dlpClientContext = new(dlpConnection);
 
             // Do sync
-            Task syncTask = DoSyncAsync(dlpContext, linkedCts.Token);
+            Task syncTask = DoSyncAsync(dlpClientContext, linkedCts.Token);
 
             // Wait for either sync or IO task to complete/fail
             try
@@ -149,7 +153,7 @@ namespace Backhand.DeviceIO.DlpServers
             {
                 if (syncTask.IsCompletedSuccessfully)
                 {
-                    // Swallow
+                    // All is fine - swallow exception
                 }
                 else
                 {

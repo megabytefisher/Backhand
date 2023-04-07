@@ -4,12 +4,12 @@ namespace Backhand.DeviceIO.DlpServers
 {
     public class DlpSyncEndedEventArgs
     {
-        public DlpContext Context { get; }
+        public DlpClientContext ClientContext { get; }
         public Exception? SyncException { get; }
 
-        public DlpSyncEndedEventArgs(DlpContext context, Exception? syncException)
+        public DlpSyncEndedEventArgs(DlpClientContext clientContext, Exception? syncException)
         {
-            Context = context;
+            ClientContext = clientContext;
             SyncException = syncException;
         }
     }

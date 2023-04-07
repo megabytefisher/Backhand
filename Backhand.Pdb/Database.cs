@@ -38,7 +38,7 @@ namespace Backhand.Pdb
 
         protected async Task SerializeHeaderAsync(Stream stream, uint appInfoId, uint sortInfoId)
         {
-            FileDatabaseHeader fileHeader = new FileDatabaseHeader
+            FileDatabaseHeader fileHeader = new()
             {
                 Name = Name,
                 Attributes = Attributes,
@@ -65,7 +65,7 @@ namespace Backhand.Pdb
             byte[] buffer = new byte[FileDatabaseHeader.SerializedLength];
             await FillBuffer(stream, buffer);
 
-            FileDatabaseHeader fileHeader = new FileDatabaseHeader();
+            FileDatabaseHeader fileHeader = new();
             fileHeader.Deserialize(new ReadOnlySequence<byte>(buffer));
 
             Name = fileHeader.Name;
@@ -84,7 +84,7 @@ namespace Backhand.Pdb
 
         protected async Task SerializeEntryMetadataListHeaderAsync(Stream stream, ushort entryCount)
         {
-            FileEntryMetadataListHeader fileEntryMetadataListHeader = new FileEntryMetadataListHeader
+            FileEntryMetadataListHeader fileEntryMetadataListHeader = new()
             {
                 NextListId = 0,
                 Length = entryCount
@@ -101,7 +101,7 @@ namespace Backhand.Pdb
             byte[] buffer = new byte[FileEntryMetadataListHeader.SerializedLength];
             await FillBuffer(stream, buffer);
 
-            FileEntryMetadataListHeader fileEntryMetadataListHeader = new FileEntryMetadataListHeader();
+            FileEntryMetadataListHeader fileEntryMetadataListHeader = new();
             fileEntryMetadataListHeader.Deserialize(new ReadOnlySequence<byte>(buffer));
 
             if (fileEntryMetadataListHeader.NextListId != 0)

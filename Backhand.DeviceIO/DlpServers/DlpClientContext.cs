@@ -2,11 +2,11 @@
 
 namespace Backhand.DeviceIO.DlpServers
 {
-    public class DlpContext
+    public class DlpClientContext
     {
         public DlpConnection Connection { get; }
 
-        public DlpContext(DlpConnection connection)
+        public DlpClientContext(DlpConnection connection)
         {
             Connection = connection;
         }

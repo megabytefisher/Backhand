@@ -42,7 +42,7 @@ namespace Backhand.Cli.Commands
             List<string> filePaths = GetFilePaths(paths);
             Logger.LogInformation($"Will install {filePaths.Count} file(s) to device.");
 
-            async Task SyncFunc(DlpContext context, CancellationToken cancellationToken)
+            async Task SyncFunc(DlpClientContext context, CancellationToken cancellationToken)
             {
                 await context.Connection.OpenConduitAsync(cancellationToken);
 

@@ -57,7 +57,7 @@ namespace Backhand.Cli.Commands
                 return;
             }
 
-            async Task SyncFunc(DlpContext context, CancellationToken cancellationToken)
+            async Task SyncFunc(DlpClientContext context, CancellationToken cancellationToken)
             {
                 ReadUserInfoResponse userInfoResponse = await context.Connection.ReadUserInfoAsync(cancellationToken);
 

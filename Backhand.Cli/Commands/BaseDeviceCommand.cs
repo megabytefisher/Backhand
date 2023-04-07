@@ -39,11 +39,11 @@ namespace Backhand.Cli.Commands
             AddOption(ServerOption);
         }
 
-        protected async Task RunDeviceServers(string[] deviceNames, bool serverMode, Func<DlpContext, CancellationToken, Task> syncFunc, CancellationToken cancellationToken = default)
+        protected async Task RunDeviceServers(string[] deviceNames, bool serverMode, Func<DlpClientContext, CancellationToken, Task> syncFunc, CancellationToken cancellationToken = default)
         {
             using SemaphoreSlim? syncSemaphore = serverMode ? null : new SemaphoreSlim(1);
 
-            async Task SyncWrapperFunc(DlpContext ctx, CancellationToken ct)
+            async Task SyncWrapperFunc(DlpClientContext ctx, CancellationToken ct)
             {
                 if (syncSemaphore != null)
                 {

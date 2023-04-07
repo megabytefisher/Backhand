@@ -206,7 +206,7 @@ namespace Backhand.DeviceIO.Padp
             }
 
             _device.ReceivedPacket += SlpPacketReceived;
-            await using (cancellationToken.Register(() => { receiveTcs.TrySetCanceled(); }))
+            await using (cancellationToken.Register(receiveTcs.TrySetCanceled))
             {
                 try
                 {

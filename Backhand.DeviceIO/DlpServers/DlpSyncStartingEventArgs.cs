@@ -4,11 +4,11 @@ namespace Backhand.DeviceIO.DlpServers
 {
     public class DlpSyncStartingEventArgs : EventArgs
     {
-        public DlpContext Context { get; }
+        public DlpClientContext ClientContext { get; }
 
-        public DlpSyncStartingEventArgs(DlpContext context)
+        public DlpSyncStartingEventArgs(DlpClientContext clientContext)
         {
-            Context = context;
+            ClientContext = clientContext;
         }
     }
 }
