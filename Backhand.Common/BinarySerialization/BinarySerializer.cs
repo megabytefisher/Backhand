@@ -3,7 +3,6 @@ using Backhand.Common.Buffers;
 using System.Buffers;
 using System.Linq.Expressions;
 using System.Reflection;
-using SequenceReaderExtensions = Backhand.Common.Buffers.SequenceReaderExtensions;
 
 namespace Backhand.Common.BinarySerialization
 {
@@ -232,21 +231,21 @@ namespace Backhand.Common.BinarySerialization
 
         private static Expression GetReadExpression(Type readType, ParameterExpression bufferReader, SerializerOptions options, Expression value)
         {
-            MethodInfo? primitiveReadMethod = Type.GetTypeCode(readType) switch
+            Expression? primitiveRead = Type.GetTypeCode(readType) switch
             {
-                TypeCode.Byte => Read,
-                TypeCode.UInt16 => options.Endian == Endian.Little ? ReadUInt16LittleEndian : ReadUInt16BigEndian,
-                TypeCode.Int16 => options.Endian == Endian.Little ? ReadInt16LittleEndian : ReadInt16BigEndian,
-                TypeCode.UInt32 => options.Endian == Endian.Little ? ReadUInt32LittleEndian : ReadUInt32BigEndian,
-                TypeCode.Int32 => options.Endian == Endian.Little ? ReadInt32LittleEndian : ReadInt32BigEndian,
-                TypeCode.UInt64 => options.Endian == Endian.Little ? ReadUInt64LittleEndian : ReadUInt64BigEndian,
-                TypeCode.Int64 => options.Endian == Endian.Little ? ReadInt64LittleEndian : ReadInt64BigEndian,
+                TypeCode.Byte => ReaderMethods.GetReadExpression(bufferReader),
+                TypeCode.UInt16 => options.Endian == Endian.Little ? ReaderMethods.GetReadUInt16LittleEndianExpression(bufferReader) : ReaderMethods.GetReadUInt16BigEndianExpression(bufferReader),
+                TypeCode.Int16 => options.Endian == Endian.Little ? ReaderMethods.GetReadInt16LittleEndianExpression(bufferReader) : ReaderMethods.GetReadInt16BigEndianExpression(bufferReader),
+                TypeCode.UInt32 => options.Endian == Endian.Little ? ReaderMethods.GetReadUInt32LittleEndianExpression(bufferReader) : ReaderMethods.GetReadUInt32BigEndianExpression(bufferReader),
+                TypeCode.Int32 => options.Endian == Endian.Little ? ReaderMethods.GetReadInt32LittleEndianExpression(bufferReader) : ReaderMethods.GetReadInt32BigEndianExpression(bufferReader),
+                TypeCode.UInt64 => options.Endian == Endian.Little ? ReaderMethods.GetReadUInt64LittleEndianExpression(bufferReader) : ReaderMethods.GetReadUInt64BigEndianExpression(bufferReader),
+                TypeCode.Int64 => options.Endian == Endian.Little ? ReaderMethods.GetReadInt64LittleEndianExpression(bufferReader) : ReaderMethods.GetReadInt64BigEndianExpression(bufferReader),
                 _ => null
             };
 
-            if (primitiveReadMethod != null)
+            if (primitiveRead != null)
             {
-                return Expression.Assign(value, Expression.Call(primitiveReadMethod, bufferReader));
+                return Expression.Assign(value, primitiveRead);
             }
             else if (readType.IsArray)
             {
@@ -262,6 +261,7 @@ namespace Backhand.Common.BinarySerialization
                         Expression.IfThenElse(
                             Expression.LessThan(i, Expression.ArrayLength(value)),
                             Expression.Block(
+                                Expression.Call(typeof(Console), nameof(Console.WriteLine), null, Expression.ArrayLength(value)),
                                 GetReadExpression(elementType, bufferReader, options, Expression.ArrayAccess(value, i)),
                                 Expression.PostIncrementAssign(i)
                             ),
@@ -287,14 +287,14 @@ namespace Backhand.Common.BinarySerialization
         {
             public Endian Endian { get; private init; }
             public StringEncoding StringEncoding { get; private init; }
-            public string LengthPropertyName { get; private init; }
+            public string LengthName { get; private init; }
             public bool NullTerminated { get; private init; }
 
             public SerializerOptions()
             {
                 Endian = Endian.Big;
                 StringEncoding = StringEncoding.ASCII;
-                LengthPropertyName = string.Empty;
+                LengthName = string.Empty;
                 NullTerminated = false;
             }
 
@@ -302,10 +302,10 @@ namespace Backhand.Common.BinarySerialization
             {
                 return new()
                 {
-                    Endian = attribute.Endian ?? Endian,
-                    StringEncoding = attribute.StringEncoding ?? StringEncoding,
-                    LengthPropertyName = attribute.LengthPropertyName ?? LengthPropertyName,
-                    NullTerminated = attribute.NullTerminated ?? NullTerminated
+                    Endian = attribute.EndianSpecified ? attribute.Endian : Endian,
+                    StringEncoding = attribute.StringEncodingSpecified ? attribute.StringEncoding : StringEncoding,
+                    LengthName = attribute.LengthNameSpecified ? attribute.LengthName : LengthName,
+                    NullTerminated = attribute.NullTerminatedSpecified ? attribute.NullTerminated : NullTerminated
                 };
             }
         }

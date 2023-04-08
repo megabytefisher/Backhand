@@ -1,11 +1,6 @@
 ﻿using Backhand.Common.Buffers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.Common.BinarySerialization.Internal
 {
@@ -27,7 +22,18 @@ namespace Backhand.Common.BinarySerialization.Internal
         private static readonly MethodInfo Advance = typeof(System.Buffers.SequenceReader<byte>).GetMethod(nameof(System.Buffers.SequenceReader<byte>.Advance)) ?? throw new Exception("Couldn't find Advance");
 
         public static Expression GetReadExpression(Expression bufferReader) => Expression.Call(Read, bufferReader);
-        public static Expression GetReadUInt16LittleEndianExpression(Expression bufferReader) => Expression.Call(ReadUInt16BigEndian, bufferReader);
-
+        public static Expression GetReadUInt16LittleEndianExpression(Expression bufferReader) => Expression.Call(ReadUInt16LittleEndian, bufferReader);
+        public static Expression GetReadInt16LittleEndianExpression(Expression bufferReader) => Expression.Call(ReadInt16LittleEndian, bufferReader);
+        public static Expression GetReadUInt16BigEndianExpression(Expression bufferReader) => Expression.Call(ReadUInt16BigEndian, bufferReader);
+        public static Expression GetReadInt16BigEndianExpression(Expression bufferReader) => Expression.Call(ReadInt16BigEndian, bufferReader);
+        public static Expression GetReadUInt32LittleEndianExpression(Expression bufferReader) => Expression.Call(ReadUInt32LittleEndian, bufferReader);
+        public static Expression GetReadInt32LittleEndianExpression(Expression bufferReader) => Expression.Call(ReadInt32LittleEndian, bufferReader);
+        public static Expression GetReadUInt32BigEndianExpression(Expression bufferReader) => Expression.Call(ReadUInt32BigEndian, bufferReader);
+        public static Expression GetReadInt32BigEndianExpression(Expression bufferReader) => Expression.Call(ReadInt32BigEndian, bufferReader);
+        public static Expression GetReadUInt64LittleEndianExpression(Expression bufferReader) => Expression.Call(ReadUInt64LittleEndian, bufferReader);
+        public static Expression GetReadInt64LittleEndianExpression(Expression bufferReader) => Expression.Call(ReadInt64LittleEndian, bufferReader);
+        public static Expression GetReadUInt64BigEndianExpression(Expression bufferReader) => Expression.Call(ReadUInt64BigEndian, bufferReader);
+        public static Expression GetReadInt64BigEndianExpression(Expression bufferReader) => Expression.Call(ReadInt64BigEndian, bufferReader);
+        public static Expression GetAdvanceExpression(Expression bufferReader, Expression count) => Expression.Call(bufferReader, Advance, count);
     }
 }

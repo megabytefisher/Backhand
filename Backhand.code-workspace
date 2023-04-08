@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "Backhand.Common"
+		},
+		{
+			"path": "Backhand.DeviceIO"
+		},
+		{
+			"path": "Backhand.Sandbox"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/bin": true,
+			"**/obj": true
+		}
+	}
+}

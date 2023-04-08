@@ -28,7 +28,7 @@ BinarySerializer<Test>.Deserialize(ref myArrayReader, myNewTest);
 
 Console.WriteLine(BitConverter.ToString(myArray));
 
-[BinarySerialized]
+[BinarySerialized(Endian = Endian.Little)]
 class Test
 {
     [BinarySerialized]
@@ -44,7 +44,7 @@ class Test
     [BinarySerialized]
     public TestInner TestInner { get; set; } = new();
 
-    [BinarySerialized]
+    [BinarySerialized(Endian = Endian.Big)]
     public ushort TestValue { get; set; }
 }
 
