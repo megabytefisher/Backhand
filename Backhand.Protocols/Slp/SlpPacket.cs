@@ -1,6 +1,6 @@
 ﻿using System.Buffers;
 
-namespace Backhand.DeviceIO.Slp
+namespace Backhand.Protocols.Slp
 {
     public class SlpPacket
     {

@@ -1,11 +1,11 @@
 ﻿using Backhand.Common.Buffers;
-using Backhand.DeviceIO.Slp;
+using Backhand.Protocols.Slp;
 using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Padp
+namespace Backhand.Protocols.Padp
 {
     public class PadpConnection : IDlpTransport
     {
@@ -46,6 +46,7 @@ namespace Backhand.DeviceIO.Padp
             _slpConnection = slpConnection;
             _localSocketId = localSocketId;
             _remoteSocketId = remoteSocketId;
+            _currentTransactionId = initialTransactionId;
             _arrayPool = arrayPool ?? ArrayPool<byte>.Shared;
         }
 
@@ -55,6 +56,7 @@ namespace Backhand.DeviceIO.Padp
             Task receivePayloadTask = ReceivePayloadAsync(handleReceivePayloadFunc, cancellationToken);
             await SendPayloadAsync(sendPayload, cancellationToken).ConfigureAwait(false);
             await receivePayloadTask.ConfigureAwait(false);
+
         }
 
         private void BumpTransactionId()
@@ -83,7 +85,7 @@ namespace Backhand.DeviceIO.Padp
 
                 Task ackWaitTask = WaitForAckAsync(sizeOrOffset, cancellationToken);
                 EnqueueFragment(PadpFragmentType.Data, flags, sizeOrOffset, buffer.Slice(offset, txSize));
-                await ackWaitTask;
+                await ackWaitTask.ConfigureAwait(false);
             }
         }
 
@@ -152,6 +154,7 @@ namespace Backhand.DeviceIO.Padp
                 await using (cancellationToken.Register(() => { receiveTcs.TrySetCanceled(); }))
                 {
                     await receiveTcs.Task.ConfigureAwait(false);
+                    handlePayloadFunc(payloadBuffer.AsReadOnlySequence());
                 }
             }
             finally

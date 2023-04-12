@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Backhand.Common.Buffers;
 using Backhand.Common.Checksums;
 
-namespace Backhand.DeviceIO.Slp
+namespace Backhand.Protocols.Slp
 {
     public class SlpConnection : IDisposable
     {
@@ -210,7 +210,7 @@ namespace Backhand.DeviceIO.Slp
 
                     // Calculate the expected header checksum
                     byte calculatedChecksum = 0;
-                    for (int i = 0; i < PacketHeaderSize; i++)
+                    for (int i = 0; i < PacketHeaderSize - 1; i++)
                     {
                         calculatedChecksum += bufferReader.Read();
                     }
@@ -264,6 +264,12 @@ namespace Backhand.DeviceIO.Slp
                 if (computedHeaderChecksum != headerChecksum)
                 {
                     throw new SlpException("Packet header checksum mismatch");
+                }
+
+                if (bufferReader.Remaining < dataSize + PacketFooterSize)
+                {
+                    // Not enough data - try parsing this packet again when we have more data.
+                    return packetStart;
                 }
 
                 // Slice out packet body

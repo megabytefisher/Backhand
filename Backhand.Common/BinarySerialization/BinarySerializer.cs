@@ -3,6 +3,7 @@ using Backhand.Common.Buffers;
 using System.Buffers;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text;
 
 namespace Backhand.Common.BinarySerialization
 {
@@ -41,7 +42,19 @@ namespace Backhand.Common.BinarySerialization
 
                 SerializerOptions propertyOptions = defaultOptions.UpdateFrom(serializedAttribute);
 
-                result = Expression.Add(result, GetSizeExpression(propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo)));
+                if (!string.IsNullOrEmpty(propertyOptions.ConditionName))
+                {
+                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionName) ?? throw new Exception($"Condition property {propertyOptions.ConditionName} not found");
+
+                    result = Expression.IfThenElse(
+                        Expression.IsTrue(Expression.Property(value, conditionProperty)),
+                        Expression.Add(result, GetSizeExpression(propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo))),
+                        result);
+                }
+                else
+                {
+                    result = Expression.Add(result, GetSizeExpression(propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo)));
+                }
             }
 
             return Expression.Lambda<GetSizeImplementation>(result, value).Compile();
@@ -73,7 +86,18 @@ namespace Backhand.Common.BinarySerialization
 
                 SerializerOptions propertyOptions = defaultOptions.UpdateFrom(serializedAttribute);
 
-                bodyItems.Add(GetWriteExpression(propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo)));
+                if (!string.IsNullOrEmpty(propertyOptions.ConditionName))
+                {
+                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionName) ?? throw new Exception($"Condition property {propertyOptions.ConditionName} not found");
+
+                    bodyItems.Add(Expression.IfThen(
+                        Expression.IsTrue(Expression.Property(value, conditionProperty)),
+                        GetWriteExpression(propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo))));
+                }
+                else
+                {
+                    bodyItems.Add(GetWriteExpression(propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo)));
+                }
             }
 
             BlockExpression body = Expression.Block(new[] { loopIterator }, bodyItems);
@@ -104,31 +128,47 @@ namespace Backhand.Common.BinarySerialization
 
                 SerializerOptions propertyOptions = defaultOptions.UpdateFrom(serializedAttribute);
 
-                bodyItems.Add(GetReadExpression(propertyInfo.PropertyType, bufferReader, propertyOptions, Expression.Property(value, propertyInfo)));
+                if (!string.IsNullOrEmpty(propertyOptions.ConditionName))
+                {
+                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionName) ?? throw new Exception($"Condition property {propertyOptions.ConditionName} not found");
+
+                    bodyItems.Add(Expression.IfThen(
+                        Expression.IsTrue(Expression.Property(value, conditionProperty)),
+                        GetReadExpression(value, Expression.Property(value, propertyInfo), propertyInfo.PropertyType, bufferReader, propertyOptions)));
+                }
+                else
+                {
+                    bodyItems.Add(GetReadExpression(value, Expression.Property(value, propertyInfo), propertyInfo.PropertyType, bufferReader, propertyOptions));
+                }
             }
 
             BlockExpression body = Expression.Block(bodyItems);
+
+            Expression myExp = Expression.Lambda<DeserializeImplementation>(body, bufferReader, value);
 
             return Expression.Lambda<DeserializeImplementation>(body, bufferReader, value).Compile();
         }
 
         private static Expression GetSizeExpression(Type type, SerializerOptions options, Expression value)
         {
-            int? primitiveSize = Type.GetTypeCode(type) switch
-            {
-                TypeCode.Byte => sizeof(byte),
-                TypeCode.UInt16 => sizeof(ushort),
-                TypeCode.Int16 => sizeof(short),
-                TypeCode.UInt32 => sizeof(uint),
-                TypeCode.Int32 => sizeof(int),
-                TypeCode.UInt64 => sizeof(ulong),
-                TypeCode.Int64 => sizeof(long),
-                _ => null
-            };
+            Expression? primitiveSize = GetPrimitiveSizeExpression(type);
 
-            if (primitiveSize.HasValue)
+            if (primitiveSize != null)
             {
-                return Expression.Constant(primitiveSize.Value);
+                return primitiveSize;
+            }
+            else if (type == typeof(string))
+            {
+                Encoding encoding = GetEncoding(options.StringEncoding);
+
+                Expression stringLength = EncodingExpressions.GetGetByteCountExpression(Expression.Constant(encoding), value);
+
+                if (options.NullTerminated)
+                {
+                    stringLength = Expression.Add(stringLength, Expression.Constant(encoding.GetByteCount("\0")));
+                }
+
+                return stringLength;
             }
             else if (type.IsArray)
             {
@@ -168,21 +208,41 @@ namespace Backhand.Common.BinarySerialization
 
         private static Expression GetWriteExpression(Type writeType, ParameterExpression bufferWriter, SerializerOptions options, Expression value)
         {
-            Expression? primitiveWrite = Type.GetTypeCode(writeType) switch
-            {
-                TypeCode.Byte => WriterMethods.GetWriteExpression(bufferWriter, value),
-                TypeCode.UInt16 => options.Endian == Endian.Little ? WriterMethods.GetWriteUInt16LittleEndianExpression(bufferWriter, value) : WriterMethods.GetWriteUInt16BigEndianExpression(bufferWriter, value),
-                TypeCode.Int16 => options.Endian == Endian.Little ? WriterMethods.GetWriteInt16LittleEndianExpression(bufferWriter, value) : WriterMethods.GetWriteInt16BigEndianExpression(bufferWriter, value),
-                TypeCode.UInt32 => options.Endian == Endian.Little ? WriterMethods.GetWriteUInt32LittleEndianExpression(bufferWriter, value) : WriterMethods.GetWriteUInt32BigEndianExpression(bufferWriter, value),
-                TypeCode.Int32 => options.Endian == Endian.Little ? WriterMethods.GetWriteInt32LittleEndianExpression(bufferWriter, value) : WriterMethods.GetWriteInt32BigEndianExpression(bufferWriter, value),
-                TypeCode.UInt64 => options.Endian == Endian.Little ? WriterMethods.GetWriteUInt64LittleEndianExpression(bufferWriter, value) : WriterMethods.GetWriteUInt64BigEndianExpression(bufferWriter, value),
-                TypeCode.Int64 => options.Endian == Endian.Little ? WriterMethods.GetWriteInt64LittleEndianExpression(bufferWriter, value) : WriterMethods.GetWriteInt64BigEndianExpression(bufferWriter, value),
-                _ => null
-            };
+            Expression? primitiveWrite = GetPrimitiveWriteExpression(writeType, value, bufferWriter, options);
 
             if (primitiveWrite != null)
             {
                 return primitiveWrite;
+            }
+            else if (writeType == typeof(string))
+            {
+                Encoding encoding = GetEncoding(options.StringEncoding);
+
+                List<Expression> bodyItems = new List<Expression>
+                {
+                    SpanWriterExpressions<byte>.GetAdvanceExpression(
+                        bufferWriter,
+                        EncodingExpressions.GetGetBytesExpression(
+                            encoding: Expression.Constant(encoding),
+                            charSequence: ReadOnlySequenceExpressions<char>.GetFromReadOnlyMemoryExpression(StringExpressions.GetAsMemoryExpression(value)),
+                            byteSpan: Expression.Property(bufferWriter, nameof(SpanWriter<byte>.RemainingSpan))
+                        )
+                    )
+                };
+
+                if (options.NullTerminated)
+                {
+                    byte[] nullBytes = encoding.GetBytes("\0");
+
+                    foreach (byte nullByte in nullBytes)
+                    {
+                        bodyItems.Add(SpanWriterExpressions<byte>.GetWriteExpression(bufferWriter, Expression.Constant(nullByte)));
+                    }
+                }
+
+                return Expression.Block(
+                    bodyItems
+                );
             }
             else if (writeType.IsArray)
             {
@@ -192,13 +252,13 @@ namespace Backhand.Common.BinarySerialization
                 if (elementType == typeof(byte))
                 {
                     return Expression.Block(
-                        ArrayMethods.GetCopyToSpanExpression(value, Expression.Property(bufferWriter, nameof(SpanWriter<byte>.RemainingSpan))),
-                        WriterMethods.GetAdvanceExpression(bufferWriter, arrayLength)
+                        ArrayExpressions.GetCopyToSpanExpression(value, Expression.Property(bufferWriter, nameof(SpanWriter<byte>.RemainingSpan))),
+                        SpanWriterExpressions<byte>.GetAdvanceExpression(bufferWriter, arrayLength)
                     );
                 }
 
                 LabelTarget loopEnd = Expression.Label("loopEnd");
-                ParameterExpression i = Expression.Parameter(typeof(int), "i");
+                ParameterExpression i = Expression.Variable(typeof(int), "i");
 
                 return Expression.Block(
                     new[] { i },
@@ -229,23 +289,92 @@ namespace Backhand.Common.BinarySerialization
             }
         }
 
-        private static Expression GetReadExpression(Type readType, ParameterExpression bufferReader, SerializerOptions options, Expression value)
+        private static Expression GetReadExpression(Expression containerObject, Expression value, Type readType, ParameterExpression bufferReader, SerializerOptions options)
         {
-            Expression? primitiveRead = Type.GetTypeCode(readType) switch
-            {
-                TypeCode.Byte => ReaderMethods.GetReadExpression(bufferReader),
-                TypeCode.UInt16 => options.Endian == Endian.Little ? ReaderMethods.GetReadUInt16LittleEndianExpression(bufferReader) : ReaderMethods.GetReadUInt16BigEndianExpression(bufferReader),
-                TypeCode.Int16 => options.Endian == Endian.Little ? ReaderMethods.GetReadInt16LittleEndianExpression(bufferReader) : ReaderMethods.GetReadInt16BigEndianExpression(bufferReader),
-                TypeCode.UInt32 => options.Endian == Endian.Little ? ReaderMethods.GetReadUInt32LittleEndianExpression(bufferReader) : ReaderMethods.GetReadUInt32BigEndianExpression(bufferReader),
-                TypeCode.Int32 => options.Endian == Endian.Little ? ReaderMethods.GetReadInt32LittleEndianExpression(bufferReader) : ReaderMethods.GetReadInt32BigEndianExpression(bufferReader),
-                TypeCode.UInt64 => options.Endian == Endian.Little ? ReaderMethods.GetReadUInt64LittleEndianExpression(bufferReader) : ReaderMethods.GetReadUInt64BigEndianExpression(bufferReader),
-                TypeCode.Int64 => options.Endian == Endian.Little ? ReaderMethods.GetReadInt64LittleEndianExpression(bufferReader) : ReaderMethods.GetReadInt64BigEndianExpression(bufferReader),
-                _ => null
-            };
+            Expression? primitiveRead = GetPrimitiveReadExpression(readType, bufferReader, options);
 
             if (primitiveRead != null)
             {
                 return Expression.Assign(value, primitiveRead);
+            }
+            else if (readType == typeof(string))
+            {
+                Encoding encoding = GetEncoding(options.StringEncoding);
+
+                if (options.NullTerminated)
+                {
+                    byte[] nullBytes = encoding.GetBytes("\0");
+
+                    LabelTarget loopEnd = Expression.Label("loopEnd");
+                    ParameterExpression start = Expression.Variable(typeof(SequencePosition), "start");
+                    ParameterExpression end = Expression.Variable(typeof(SequencePosition), "end");
+
+                    Expression peekChecks = Expression.Constant(true);
+
+                    for (int i = 1; i < nullBytes.Length - 1; i++)
+                    {
+                        peekChecks = Expression.AndAlso(
+                            peekChecks,
+                            Expression.Equal(
+                                SequenceReaderExpressions<byte>.GetPeekExpression(bufferReader, Expression.Constant(i)),
+                                Expression.Constant(nullBytes[i])
+                            )
+                        );
+                    }
+
+                    return Expression.Block(
+                        new[] { start, end },
+                        Expression.Assign(start, SequenceReaderExpressions<byte>.GetPositionExpression(bufferReader)),
+                        Expression.Loop(
+                            Expression.Block(
+                                Expression.IfThen(
+                                    Expression.Not(Expression.Equal(SequenceReaderExpressions<byte>.GetPeekExpression(bufferReader), Expression.Constant(nullBytes[0]))),
+                                    SequenceReaderExpressions<byte>.GetAdvanceToExpression(bufferReader, Expression.Constant(nullBytes[0]), Expression.Constant(false))
+                                ),
+                                Expression.IfThenElse(
+                                    peekChecks,
+                                    Expression.Block(
+                                        Expression.Assign(
+                                            end,
+                                            SequenceReaderExpressions<byte>.GetPositionExpression(bufferReader)
+                                        ),
+                                        SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Constant((long)nullBytes.Length)),
+                                        Expression.Assign(
+                                            value,
+                                            EncodingExpressions.GetGetStringExpression(
+                                                Expression.Constant(encoding),
+                                                ReadOnlySequenceExpressions<byte>.GetSliceFromPositionsExpression(
+                                                    SequenceReaderExpressions<byte>.GetSequenceExpression(bufferReader),
+                                                    start,
+                                                    end
+                                                )
+                                            )
+                                        ),
+                                        Expression.Break(loopEnd)
+                                    ),
+                                    SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Constant(1L))
+                                )
+                            ),
+                            loopEnd
+                        )
+                    );
+                }
+                else if (!string.IsNullOrEmpty(options.LengthName))
+                {
+                    PropertyInfo lengthProperty = typeof(T).GetProperty(options.LengthName) ?? throw new Exception("Couldn't get property specified by LengthName");
+                    Expression length = Expression.Property(containerObject, lengthProperty);
+
+                    return Expression.Block(
+                        Expression.Assign(
+                            value,
+                            EncodingExpressions.GetGetStringExpression(
+                                Expression.Constant(encoding),
+                                ReadOnlySequenceExpressions<byte>.GetSliceFromIntsExpression(Expression.Property(bufferReader, nameof(SequenceReader<byte>.UnreadSequence)), Expression.Constant(0), length))),
+                        SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Convert(length, typeof(long)))
+                    );
+                }
+
+                throw new Exception("Unhandled string");
             }
             else if (readType.IsArray)
             {
@@ -261,8 +390,7 @@ namespace Backhand.Common.BinarySerialization
                         Expression.IfThenElse(
                             Expression.LessThan(i, Expression.ArrayLength(value)),
                             Expression.Block(
-                                Expression.Call(typeof(Console), nameof(Console.WriteLine), null, Expression.ArrayLength(value)),
-                                GetReadExpression(elementType, bufferReader, options, Expression.ArrayAccess(value, i)),
+                                GetReadExpression(containerObject, Expression.ArrayAccess(value, i), elementType, bufferReader, options),
                                 Expression.PostIncrementAssign(i)
                             ),
                             Expression.Break(loopEnd)
@@ -283,11 +411,88 @@ namespace Backhand.Common.BinarySerialization
             }
         }
 
+        private static Expression? GetPrimitiveSizeExpression(Type type) => Type.GetTypeCode(type) switch
+        {
+            TypeCode.Byte => Expression.Constant(sizeof(byte)),
+            TypeCode.UInt16 => Expression.Constant(sizeof(ushort)),
+            TypeCode.Int16 => Expression.Constant(sizeof(short)),
+            TypeCode.UInt32 => Expression.Constant(sizeof(uint)),
+            TypeCode.Int32 => Expression.Constant(sizeof(int)),
+            TypeCode.UInt64 => Expression.Constant(sizeof(ulong)),
+            TypeCode.Int64 => Expression.Constant(sizeof(long)),
+            _ => null
+        };
+
+        private static Expression? GetPrimitiveWriteExpression(Type writeType, Expression value, Expression bufferWriter, SerializerOptions options) => Type.GetTypeCode(writeType) switch
+        {
+            TypeCode.Byte => SpanWriterExpressions<byte>.GetWriteExpression(bufferWriter, Expression.Convert(value, typeof(byte))),
+            TypeCode.UInt16 => options.Endian == Endian.Little ?
+                ByteSpanWriterExpressions.GetWriteUInt16LittleEndianExpression(bufferWriter, Expression.Convert(value, typeof(ushort))) :
+                ByteSpanWriterExpressions.GetWriteUInt16BigEndianExpression(bufferWriter, Expression.Convert(value, typeof(ushort))),
+            TypeCode.Int16 => options.Endian == Endian.Little ?
+                ByteSpanWriterExpressions.GetWriteInt16LittleEndianExpression(bufferWriter, Expression.Convert(value, typeof(short))) :
+                ByteSpanWriterExpressions.GetWriteInt16BigEndianExpression(bufferWriter, Expression.Convert(value, typeof(ushort))),
+            TypeCode.UInt32 => options.Endian == Endian.Little ?
+                ByteSpanWriterExpressions.GetWriteUInt32LittleEndianExpression(bufferWriter, Expression.Convert(value, typeof(uint))) :
+                ByteSpanWriterExpressions.GetWriteUInt32BigEndianExpression(bufferWriter, Expression.Convert(value, typeof(uint))),
+            TypeCode.Int32 => options.Endian == Endian.Little ?
+                ByteSpanWriterExpressions.GetWriteInt32LittleEndianExpression(bufferWriter, Expression.Convert(value, typeof(int))) :
+                ByteSpanWriterExpressions.GetWriteInt32BigEndianExpression(bufferWriter, Expression.Convert(value, typeof(int))),
+            TypeCode.UInt64 => options.Endian == Endian.Little ?
+                ByteSpanWriterExpressions.GetWriteUInt64LittleEndianExpression(bufferWriter, Expression.Convert(value, typeof(ulong))) :
+                ByteSpanWriterExpressions.GetWriteUInt64BigEndianExpression(bufferWriter, Expression.Convert(value, typeof(ulong))),
+            TypeCode.Int64 => options.Endian == Endian.Little ?
+                ByteSpanWriterExpressions.GetWriteInt64LittleEndianExpression(bufferWriter, Expression.Convert(value, typeof(long))) :
+                ByteSpanWriterExpressions.GetWriteInt64BigEndianExpression(bufferWriter, Expression.Convert(value, typeof(long))),
+            _ => null
+        };
+
+        private static Expression? GetPrimitiveReadExpression(Type readType, Expression bufferReader, SerializerOptions options)
+        {
+            Expression? readExpression = Type.GetTypeCode(readType) switch
+            {
+                TypeCode.Byte => SequenceReaderExpressions<byte>.GetReadExpression(bufferReader),
+                TypeCode.UInt16 => options.Endian == Endian.Little ?
+                    ByteSequenceReaderExpressions.GetReadUInt16LittleEndianExpression(bufferReader) :
+                    ByteSequenceReaderExpressions.GetReadUInt16BigEndianExpression(bufferReader),
+                TypeCode.Int16 => options.Endian == Endian.Little ?
+                    ByteSequenceReaderExpressions.GetReadInt16LittleEndianExpression(bufferReader) :
+                    ByteSequenceReaderExpressions.GetReadInt16BigEndianExpression(bufferReader),
+                TypeCode.UInt32 => options.Endian == Endian.Little ?
+                    ByteSequenceReaderExpressions.GetReadUInt32LittleEndianExpression(bufferReader) :
+                    ByteSequenceReaderExpressions.GetReadUInt32BigEndianExpression(bufferReader),
+                TypeCode.Int32 => options.Endian == Endian.Little ?
+                    ByteSequenceReaderExpressions.GetReadInt32LittleEndianExpression(bufferReader) :
+                    ByteSequenceReaderExpressions.GetReadInt32BigEndianExpression(bufferReader),
+                TypeCode.UInt64 => options.Endian == Endian.Little ?
+                    ByteSequenceReaderExpressions.GetReadUInt64LittleEndianExpression(bufferReader) :
+                    ByteSequenceReaderExpressions.GetReadUInt64BigEndianExpression(bufferReader),
+                TypeCode.Int64 => options.Endian == Endian.Little ?
+                    ByteSequenceReaderExpressions.GetReadInt64LittleEndianExpression(bufferReader) :
+                    ByteSequenceReaderExpressions.GetReadInt64BigEndianExpression(bufferReader),
+                _ => null
+            };
+
+            if (readExpression == null)
+            {
+                return null;
+            }
+
+            return Expression.Convert(readExpression, readType);
+        }
+
+        private static Encoding GetEncoding(StringEncoding encoding) => encoding switch
+        {
+            StringEncoding.ASCII => Encoding.ASCII,
+            _ => throw new Exception("Unknown string encoding")
+        };
+
         private ref struct SerializerOptions
         {
             public Endian Endian { get; private init; }
             public StringEncoding StringEncoding { get; private init; }
             public string LengthName { get; private init; }
+            public string ConditionName { get; private init; }
             public bool NullTerminated { get; private init; }
 
             public SerializerOptions()
@@ -295,6 +500,7 @@ namespace Backhand.Common.BinarySerialization
                 Endian = Endian.Big;
                 StringEncoding = StringEncoding.ASCII;
                 LengthName = string.Empty;
+                ConditionName = string.Empty;
                 NullTerminated = false;
             }
 
@@ -305,6 +511,7 @@ namespace Backhand.Common.BinarySerialization
                     Endian = attribute.EndianSpecified ? attribute.Endian : Endian,
                     StringEncoding = attribute.StringEncodingSpecified ? attribute.StringEncoding : StringEncoding,
                     LengthName = attribute.LengthNameSpecified ? attribute.LengthName : LengthName,
+                    ConditionName = attribute.ConditionNameSpecified ? attribute.ConditionName : ConditionName,
                     NullTerminated = attribute.NullTerminatedSpecified ? attribute.NullTerminated : NullTerminated
                 };
             }

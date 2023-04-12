@@ -1,11 +1,11 @@
 ﻿using Backhand.Common.Buffers;
-using Backhand.DeviceIO.Padp;
+using Backhand.Protocols.Padp;
 using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Cmp
+namespace Backhand.Protocols.Cmp
 {
     public static class CmpConnection
     {
@@ -32,7 +32,7 @@ namespace Backhand.DeviceIO.Cmp
             IsLongFormPadpHeaderSupported = 0b00010000,
         }
 
-        public static async Task WaitForWakeUpAsync(PadpConnection padpConnection, CancellationToken cancellationToken)
+        public static async Task WaitForWakeUpAsync(PadpConnection padpConnection, CancellationToken cancellationToken = default)
         {
             await padpConnection.ReceivePayloadAsync((payload) =>
             {
@@ -51,7 +51,7 @@ namespace Backhand.DeviceIO.Cmp
             try
             {
                 WriteInitPacket(initPacketBuffer.AsSpan().Slice(0, InitPacketSize));
-                await padpConnection.SendPayloadAsync(new ReadOnlySequence<byte>(initPacketBuffer, 0, InitPacketSize), cancellationToken);
+                await padpConnection.SendPayloadAsync(new ReadOnlySequence<byte>(initPacketBuffer, 0, InitPacketSize), cancellationToken).ConfigureAwait(false);
             }
             finally
             {

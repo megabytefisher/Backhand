@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO
+namespace Backhand.Protocols
 {
     public interface IDlpTransport
     {

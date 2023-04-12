@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Backhand.DeviceIO.Cmp
+namespace Backhand.Protocols.Cmp
 {
     public class CmpException : Exception
     {

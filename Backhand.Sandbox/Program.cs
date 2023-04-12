@@ -1,56 +1,64 @@
-﻿using Backhand.Common.BinarySerialization;
-using Backhand.Common.Buffers;
-using System.Buffers;
+﻿using Backhand.Common.Pipelines;
+using Backhand.Protocols.Cmp;
+using Backhand.Protocols.Dlp;
+using Backhand.Protocols.Padp;
+using Backhand.Protocols.Slp;
+using Backhand.Dlp.Commands.v1_0;
+using Backhand.Dlp.Commands.v1_0.Arguments;
+using Microsoft.Extensions.Logging;
+using System.IO.Ports;
 
-Test myTest = new Test
+using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
 {
-    TestValue = 5,
-    BytesLength = 4
-};
-
-myTest.Bytes[0] = 1;
-myTest.Bytes[1] = 2;
-myTest.Bytes[2] = 3;
-myTest.Bytes[3] = 4;
-
-myTest.TestInner.TestValue = 0xAABBCCDD;
-
-byte[] myArray = new byte[BinarySerializer<Test>.GetSize(myTest)];
-SpanWriter<byte> myArrayWriter = new(myArray);
-
-BinarySerializer<Test>.Serialize(myTest, ref myArrayWriter);
-
-Test myNewTest = new Test();
-
-SequenceReader<byte> myArrayReader = new(new ReadOnlySequence<byte>(myArray));
-BinarySerializer<Test>.Deserialize(ref myArrayReader, myNewTest);
-
-
-Console.WriteLine(BitConverter.ToString(myArray));
-
-[BinarySerialized(Endian = Endian.Little)]
-class Test
-{
-    [BinarySerialized]
-    public int BytesLength
+    builder.AddSimpleConsole(options =>
     {
-        get => Bytes.Length;
-        set => Bytes = new byte[value];
-    }
+        options.IncludeScopes = true;
+    }).AddFilter((category, logLevel) =>
+    {
+        return true;
+    });
+});
 
-    [BinarySerialized]
-    public byte[] Bytes { get; private set; } = Array.Empty<byte>();
+var logger = loggerFactory.CreateLogger("test");
 
-    [BinarySerialized]
-    public TestInner TestInner { get; set; } = new();
+const string portName = "COM4";
+const int initialBaud = 9600;
 
-    [BinarySerialized(Endian = Endian.Big)]
-    public ushort TestValue { get; set; }
-}
-
-[BinarySerialized]
-public class TestInner
+using SerialPort serialPort = new(portName)
 {
-    [BinarySerialized]
-    public uint TestValue { get; set; }
-}
+    BaudRate = initialBaud,
+    Handshake = Handshake.RequestToSend,
+    Parity = Parity.None,
+    StopBits = StopBits.One
+};
+serialPort.Open();
+
+SerialPortPipe serialPipe = new(serialPort);
+
+using SlpConnection slpConnection = new(serialPipe, logger: logger);
+PadpConnection padpConnection = new PadpConnection(slpConnection, 3, 3);
+
+// Start SLP IO
+_ = slpConnection.RunIOAsync();
+
+// Wait for wakeup packet
+await CmpConnection.WaitForWakeUpAsync(padpConnection);
+
+Console.WriteLine("Got wakeup");
+
+// Do Handshake
+await CmpConnection.DoHandshakeAsync(padpConnection);
+
+Console.WriteLine("Handshake done");
+
+DlpConnection dlpConnection = new DlpConnection(padpConnection);
+
+ReadUserInfoResponse userInfo = await dlpConnection.ReadUserInfoAsync();
+
+await dlpConnection.EndOfSyncAsync(new EndOfSyncRequest
+{
+    Status = EndOfSyncRequest.EndOfSyncStatus.Okay
+});
+
+
+Console.WriteLine(userInfo);

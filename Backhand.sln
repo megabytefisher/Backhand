@@ -3,11 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.DeviceIO", "Backhand.DeviceIO\Backhand.DeviceIO.csproj", "{4E2D403F-C0DA-4AFB-953B-33C91B5C6A40}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Common", "Backhand.Common\Backhand.Common.csproj", "{7A190FA1-E490-4F52-819F-7268A71F1F7E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.Sandbox", "Backhand.Sandbox\Backhand.Sandbox.csproj", "{C5091C82-1898-4C83-B2AF-52D440C2BB75}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Sandbox", "Backhand.Sandbox\Backhand.Sandbox.csproj", "{C5091C82-1898-4C83-B2AF-52D440C2BB75}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Dlp", "Backhand.Dlp\Backhand.Dlp.csproj", "{E47DF019-D7FB-4442-9A9C-4D0B5D0A71F6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Protocols", "Backhand.Protocols\Backhand.Protocols.csproj", "{11225A05-AFC0-4154-8EC7-AFFFAD7E1F73}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.Pdb", "Backhand.Pdb\Backhand.Pdb.csproj", "{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,10 +19,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{4E2D403F-C0DA-4AFB-953B-33C91B5C6A40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4E2D403F-C0DA-4AFB-953B-33C91B5C6A40}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4E2D403F-C0DA-4AFB-953B-33C91B5C6A40}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4E2D403F-C0DA-4AFB-953B-33C91B5C6A40}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7A190FA1-E490-4F52-819F-7268A71F1F7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7A190FA1-E490-4F52-819F-7268A71F1F7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7A190FA1-E490-4F52-819F-7268A71F1F7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -27,6 +27,18 @@ Global
 		{C5091C82-1898-4C83-B2AF-52D440C2BB75}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C5091C82-1898-4C83-B2AF-52D440C2BB75}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C5091C82-1898-4C83-B2AF-52D440C2BB75}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E47DF019-D7FB-4442-9A9C-4D0B5D0A71F6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E47DF019-D7FB-4442-9A9C-4D0B5D0A71F6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E47DF019-D7FB-4442-9A9C-4D0B5D0A71F6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E47DF019-D7FB-4442-9A9C-4D0B5D0A71F6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11225A05-AFC0-4154-8EC7-AFFFAD7E1F73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11225A05-AFC0-4154-8EC7-AFFFAD7E1F73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11225A05-AFC0-4154-8EC7-AFFFAD7E1F73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11225A05-AFC0-4154-8EC7-AFFFAD7E1F73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

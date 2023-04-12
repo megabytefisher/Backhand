@@ -8,16 +8,19 @@ namespace Backhand.Common.BinarySerialization
         public Endian Endian { get => _endian ?? default; set => _endian = value; }
         public StringEncoding StringEncoding { get => _stringEncoding ?? default; set => _stringEncoding = value; }
         public string LengthName { get => _lengthName ?? string.Empty; set => _lengthName = value; }
+        public string ConditionName { get => _conditionName ?? string.Empty; set => _conditionName = value; }
         public bool NullTerminated { get => _nullTerminated ?? default; set => _nullTerminated = value; }
 
         public bool EndianSpecified => _endian.HasValue;
         public bool StringEncodingSpecified => _stringEncoding.HasValue;
         public bool LengthNameSpecified => !string.IsNullOrEmpty(_lengthName);
+        public bool ConditionNameSpecified => !string.IsNullOrEmpty(_conditionName);
         public bool NullTerminatedSpecified => _nullTerminated.HasValue;
 
         private Endian? _endian;
         private StringEncoding? _stringEncoding;
         private string? _lengthName;
+        private string? _conditionName;
         private bool? _nullTerminated;
     }
 }

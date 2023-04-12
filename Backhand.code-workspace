@@ -4,7 +4,7 @@
 			"path": "Backhand.Common"
 		},
 		{
-			"path": "Backhand.DeviceIO"
+			"path": "Backhand.Protocols"
 		},
 		{
 			"path": "Backhand.Sandbox"

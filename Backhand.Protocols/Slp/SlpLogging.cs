@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using System;
 
-namespace Backhand.DeviceIO.Slp
+namespace Backhand.Protocols.Slp
 {
     internal static class SlpLogging
     {

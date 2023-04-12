@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Backhand.DeviceIO.Slp
+namespace Backhand.Protocols.Slp
 {
     public class SlpException : Exception
     {

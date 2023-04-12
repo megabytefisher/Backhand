@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace Backhand.Common.BinarySerialization.Internal
 {
-    internal static class ArrayMethods
+    internal static class ArrayExpressions
     {
         // Find the generic CopyTo method on MemoryExtensions which accepts a T[] and Span<T>
         private static readonly MethodInfo CopyTo = typeof(MemoryExtensions).GetMethods(BindingFlags.Public | BindingFlags.Static)

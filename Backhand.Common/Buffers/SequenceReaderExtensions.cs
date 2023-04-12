@@ -22,6 +22,23 @@ namespace Backhand.Common.Buffers
             return value;
         }
 
+        public static ReadOnlySequence<T> ReadTo<T>(this ref SequenceReader<T> reader, T delimiter, bool advancePastDelimiter = true) where T : unmanaged, IEquatable<T>
+        {
+            if (!reader.TryReadTo(out ReadOnlySequence<T> sequence, delimiter, advancePastDelimiter))
+            {
+                throw new BufferReadException();
+            }
+            return sequence;
+        }
+
+        public static void AdvanceTo<T>(this ref SequenceReader<T> reader, T delimiter, bool advancePastDelimiter = true) where T : unmanaged, IEquatable<T>
+        {
+            if (!reader.TryAdvanceTo(delimiter, advancePastDelimiter))
+            {
+                throw new BufferReadException();
+            }
+        }
+
         public static bool TryReadBigEndian(this ref SequenceReader<byte> reader, out ushort value)
         {
             bool success = reader.TryReadBigEndian(out short valueSigned);

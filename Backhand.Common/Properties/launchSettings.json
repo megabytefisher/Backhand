@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Backhand.Common": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
