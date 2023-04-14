@@ -2,7 +2,7 @@
   "profiles": {
     "Backhand.Cli": {
       "commandName": "Project",
-      "commandLineArgs": "db list -p COM4"
+      "commandLineArgs": "db list -p COM4 --read-modes ListRam ListMultiple -s"
     }
   }
 }

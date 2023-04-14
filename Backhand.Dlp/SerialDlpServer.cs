@@ -19,7 +19,7 @@ namespace Backhand.Dlp
         private const int InitialBaudRate = 9600;
         private const int TargetBaudRate = 9600;
 
-        public SerialDlpServer(DlpSyncFunc syncFunc, string portName, bool singleSync = false) : base(syncFunc)
+        public SerialDlpServer(DlpSyncFunc syncFunc, string portName, bool singleSync = false, CancellationToken cancellationToken = default) : base(syncFunc)
         {
             _portName = portName;
             _singleSync = singleSync;
@@ -90,6 +90,7 @@ namespace Backhand.Dlp
             finally
             {
                 internalCts.Cancel();
+                serialPort.Close();
                 try
                 {
                     await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -98,7 +99,7 @@ namespace Backhand.Dlp
                 {
                     // Swallow
                 }
-                serialPort.Close();
+                serialPort.Dispose();
             }
         }
 

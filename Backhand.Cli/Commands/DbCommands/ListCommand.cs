@@ -1,52 +1,132 @@
 ﻿using Backhand.Cli.Internal;
+using Backhand.Dlp;
+using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Backhand.Dlp.Commands.v1_0;
-using Backhand.Dlp;
-using System;
-using System.Linq;
 using DatabaseMetadata = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListResponse.DatabaseMetadata;
+using ReadDbListMode = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListRequest.ReadDbListMode;
 
 namespace Backhand.Cli.Commands.DbCommands
 {
     public class ListCommand : Command
     {
+        private static readonly IReadOnlyCollection<ConsoleTableColumn<DatabaseMetadata>> MetadataColumns = new[]
+        {
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "MiscFlags",
+                GetText = (metadata) => metadata.MiscFlags.ToString()
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "Attributes",
+                GetText = (metadata) => metadata.Attributes.ToString()
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "Type",
+                GetText = (metadata) => metadata.Type
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "Creator",
+                GetText = (metadata) => metadata.Creator
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "Version",
+                GetText = (metadata) => metadata.Version.ToString()
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "ModificationNumber",
+                GetText = (metadata) => metadata.ModificationNumber.ToString()
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "CreationDate",
+                GetText = (metadata) => metadata.CreationDate.ToString("g")
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "ModificationDate",
+                GetText = (metadata) => metadata.CreationDate.ToString("g")
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "LastBackupDate",
+                GetText = (metadata) => metadata.CreationDate.ToString("g")
+            },
+            new ConsoleTableColumn<DatabaseMetadata>
+            {
+                Header = "Name",
+                GetText = (metadata) => metadata.Name
+            }
+        };
+
         public static readonly Option<string> SerialPortNameOption = new(new[] { "--port", "-p" })
         {
-            IsRequired = true,
-            Arity = ArgumentArity.ExactlyOne
+            IsRequired = true
         };
+
+        public static readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption = new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListRam | ReadDbListMode.ListMultiple })
+        {
+            AllowMultipleArgumentsPerToken = true
+        };
+
+        public static readonly Option<bool> ServerMode = new(new[] { "--server-mode", "-s" }, () => false);
+
+        public static readonly Option<IEnumerable<string>> ColumnsOption = new Option<IEnumerable<string>>(new[] { "--columns", "-c" }, () => new[] { "Name", "Attributes", "Type", "Creator" })
+        {
+            AllowMultipleArgumentsPerToken = true
+        }.FromAmong(MetadataColumns.Select(c => c.Header).ToArray());
 
         public ListCommand() : base("list", "Lists databases on a device")
         {
             this.Add(SerialPortNameOption);
+            this.Add(ReadModesOption);
+            this.Add(ColumnsOption);
+            this.Add(ServerMode);
 
-            this.SetHandler(
-                RunCommandAsync,
-                SerialPortNameOption,
-                Bind.FromServiceProvider<ILogger>(),
-                Bind.FromServiceProvider<IConsole>());
+            this.SetHandler(async (context) =>
+            {
+                string serialPortName = context.ParseResult.GetValueForOption(SerialPortNameOption)!;
+                IEnumerable<ReadDbListMode> readModes = context.ParseResult.GetValueForOption(ReadModesOption)!;
+                IEnumerable<string> columns = context.ParseResult.GetValueForOption(ColumnsOption)!;
+                bool serverMode = context.ParseResult.GetValueForOption(ServerMode)!;
+                IConsole console = context.Console;
+                ILogger logger = context.BindingContext.GetRequiredService<ILogger>();
+
+                CancellationToken cancellationToken = context.GetCancellationToken();
+
+                await RunCommandAsync(serialPortName, readModes, columns, serverMode, console, logger, cancellationToken).ConfigureAwait(false);
+            });
         }
 
-        private async Task RunCommandAsync(string serialPortName, ILogger logger, IConsole console)
+        private async Task RunCommandAsync(string serialPortName, IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, bool serverMode, IConsole console, ILogger logger, CancellationToken cancellationToken)
         {
+            ReadDbListMode readMode = readModes.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
             List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
 
-            async Task SyncFunc(DlpConnection connection, CancellationToken cancellationToken = default)
+            async Task SyncFunc(DlpConnection connection, CancellationToken cancellationToken)
             {
                 await connection.OpenConduitAsync(cancellationToken);
-                ushort startIndex = 0;
 
+                ushort startIndex = 0;
                 while (true)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     ReadDbListResponse dbListResponse = await connection.ReadDbListAsync(new()
                     {
-                        Mode = ReadDbListRequest.ReadDbListMode.ListRam | ReadDbListRequest.ReadDbListMode.ListMultiple,
+                        Mode = readMode,
                         CardId = 0,
                         StartIndex = startIndex
                     }, cancellationToken);
@@ -59,29 +139,17 @@ namespace Backhand.Cli.Commands.DbCommands
                         break;
                     }
                 }
+
+                PrintResults(console, columns, metadataList);
             }
 
-            SerialDlpServer dlpServer = new SerialDlpServer(SyncFunc, serialPortName, singleSync: true);
-            await dlpServer.RunAsync();
-
-            PrintResults(console, metadataList);
+            SerialDlpServer dlpServer = new SerialDlpServer(SyncFunc, serialPortName, singleSync: !serverMode);
+            await dlpServer.RunAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        private void PrintResults(IConsole console, ICollection<DatabaseMetadata> metadataList)
+        private void PrintResults(IConsole console, IEnumerable<string> columnNames, ICollection<DatabaseMetadata> metadataList)
         {
-            ConsoleTableColumn<DatabaseMetadata> nameColumn = new()
-            {
-                Header = "Name",
-                GetText = (value) => value.Name
-            };
-
-            ConsoleTableColumn<DatabaseMetadata> attributesColumn = new()
-            {
-                Header = "Attributes",
-                GetText = (value) => value.Attributes.ToString()
-            };
-
-            console.WriteTable(new[] { nameColumn, attributesColumn }, metadataList);
+            console.WriteTable(columnNames.Select(n => MetadataColumns.Single(c => c.Header == n)).ToList(), metadataList);
         }
     }
 }
