@@ -7,12 +7,13 @@ using System.Threading.Tasks;
 
 namespace Backhand.Pdb.FileSerialization
 {
-    public class DatabaseFileEntryListHeader
+    [BinarySerializable]
+    public class PdbEntryListHeader
     {
-        [BinarySerialized]
+        [BinarySerialize]
         public uint NextListId { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public ushort Length { get; set; }
     }
 }

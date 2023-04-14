@@ -3,8 +3,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerialized]
-    public class EndOfSyncRequest : DlpArgument
+    [BinarySerializable]
+    public class EndSyncRequest : DlpArgument
     {
         public enum EndOfSyncStatus : ushort
         {
@@ -14,7 +14,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             UnknownError = 0x03,
         }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public EndOfSyncStatus Status { get; set; }
     }
 }

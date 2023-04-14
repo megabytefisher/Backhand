@@ -23,7 +23,7 @@ namespace Backhand.Protocols.Dlp
 
         private const int DlpRequestHeaderSize = sizeof(byte) * 2;
         private const int DlpResponseHeaderSize = sizeof(byte) * 4;
-        private const int DlpResponseIdMask = 0x80;
+        private const byte DlpResponseIdMask = 0x80;
         private const int DlpArgIdBase = 0x20;
         private const int DlpTinyArgMaxSize = byte.MaxValue;
         private const int DlpTinyArgHeaderSize = sizeof(byte) * 2;
@@ -55,7 +55,7 @@ namespace Backhand.Protocols.Dlp
 
             if (responseArguments == null)
             {
-                throw new Exception("Didn't get response arguments back from transport");
+                throw new DlpException("Didn't get response arguments back from transport");
             }
 
             return responseArguments;
@@ -75,16 +75,16 @@ namespace Backhand.Protocols.Dlp
                     }
                     else
                     {
-                        throw new Exception("Non-optional DLP argument is missing");
+                        throw new DlpException("Non-optional DLP argument is missing");
                     }
                 }
 
                 int argumentSize = argumentDefinition.GetSerializedSize(argument);
                 size += argumentSize switch
                 {
-                    <= DlpTinyArgMaxSize => DlpTinyArgHeaderSize + argumentSize,
-                    <= DlpSmallArgMaxSize => DlpSmallArgHeaderSize + argumentSize,
-                    _ => throw new Exception("Request argument too big")
+                    <= DlpTinyArgMaxSize => DlpTinyArgHeaderSize,
+                    <= DlpSmallArgMaxSize => DlpSmallArgHeaderSize,
+                    _ => throw new DlpException("Request argument too big")
                 };
                 size += argumentSize;
             }
@@ -111,7 +111,7 @@ namespace Backhand.Protocols.Dlp
                     }
                     else
                     {
-                        throw new Exception("Non-optional DLP argument is missing");
+                        throw new DlpException("Non-optional DLP argument is missing");
                     }
                 }
 
@@ -129,7 +129,7 @@ namespace Backhand.Protocols.Dlp
                         bufferWriter.WriteUInt16BigEndian(Convert.ToUInt16(argumentSize));
                         break;
                     default:
-                        throw new Exception($"Unexpected argument size: {argumentSize}");
+                        throw new DlpException($"Unexpected argument size: {argumentSize}");
                 }
 
                 argumentDefinition.Serialize(ref bufferWriter, argument);
@@ -142,16 +142,20 @@ namespace Backhand.Protocols.Dlp
 
             DlpArgumentMap results = new();
 
-            DlpOpcode opcode = (DlpOpcode)(bufferReader.Read() & ~DlpResponseIdMask);
+            byte opcode = (byte)(bufferReader.Read() & ~DlpResponseIdMask);
             byte argumentCount = bufferReader.Read();
 
             if (opcode != commandDefinition.Opcode)
             {
-                throw new Exception("Received unexpected response opcode");
+                throw new DlpException("Received unexpected response opcode");
             }
 
             // Error code
-            bufferReader.ReadUInt16BigEndian();
+            DlpErrorCode errorCode = (DlpErrorCode)bufferReader.ReadUInt16BigEndian();
+            if (errorCode != DlpErrorCode.Success)
+            {
+                throw new DlpCommandErrorException(errorCode);
+            }
 
             for (int i = 0; i < argumentCount; i++)
             {
@@ -171,7 +175,7 @@ namespace Backhand.Protocols.Dlp
                         argumentLength = bufferReader.ReadUInt16BigEndian();
                         break;
                     default:
-                        throw new Exception("Response contained unsupported argument type");
+                        throw new DlpException("Response contained unsupported argument type");
                 }
 
                 DlpArgumentDefinition argumentDefinition = commandDefinition.ResponseArguments[argumentIndex];

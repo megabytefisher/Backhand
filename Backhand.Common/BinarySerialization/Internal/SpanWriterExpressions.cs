@@ -1,4 +1,5 @@
 ﻿using Backhand.Common.Buffers;
+using System;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -6,11 +7,17 @@ namespace Backhand.Common.BinarySerialization.Internal
 {
     internal static class SpanWriterExpressions<T> where T : unmanaged, IEquatable<T>
     {
+        private static readonly ConstructorInfo FromSpan = typeof(SpanWriter<T>).GetConstructor(new[] { typeof(Span<T>) }) ?? throw new Exception("Couldn't find constructor Span<T>");
         private static readonly MethodInfo Write = typeof(SpanWriterExtensions).GetMethod(nameof(SpanWriterExtensions.Write))?.MakeGenericMethod(typeof(T)) ?? throw new Exception("Couldn't find Write");
         private static readonly MethodInfo Advance = typeof(SpanWriter<T>).GetMethod(nameof(SpanWriter<T>.Advance)) ?? throw new Exception("Couldn't find Advance");
+        private static readonly PropertyInfo Span = typeof(SpanWriter<T>).GetProperty(nameof(SpanWriter<T>.Span)) ?? throw new Exception("Couldn't find Span");
+        private static readonly PropertyInfo Index = typeof(SpanWriter<T>).GetProperty(nameof(SpanWriter<T>.Index)) ?? throw new Exception("Couldn't find Index");
 
+        public static Expression GetFromSpanExpression(Expression span) => Expression.New(FromSpan, span);
         public static Expression GetWriteExpression(Expression bufferWriter, Expression value) => Expression.Call(Write, bufferWriter, value);
         public static Expression GetAdvanceExpression(Expression bufferWriter, Expression value) => Expression.Call(bufferWriter, Advance, value);
+        public static Expression GetSpanExpression(Expression bufferWriter) => Expression.Property(bufferWriter, Span);
+        public static Expression GetIndexExpression(Expression bufferWriter) => Expression.Property(bufferWriter, Index);
     }
 
     internal static class ByteSpanWriterExpressions

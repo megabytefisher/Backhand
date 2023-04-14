@@ -1,21 +1,17 @@
 ﻿using Backhand.Common.BinarySerialization;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Backhand.Pdb.FileSerialization
 {
-    internal class DatabaseFileResourceMetadata
+    [BinarySerializable]
+    internal class PdbResourceMetadata
     {
-        [BinarySerialized]
+        [BinarySerialize(Length = 4)]
         public string Type { get; set; } = string.Empty;
 
-        [BinarySerialized]
+        [BinarySerialize]
         public ushort ResourceId { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint LocalChunkId { get; set; }
     }
 }

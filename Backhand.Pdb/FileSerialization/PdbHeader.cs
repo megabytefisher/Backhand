@@ -1,61 +1,63 @@
 ﻿using Backhand.Common.BinarySerialization;
+using System;
 
 namespace Backhand.Pdb.FileSerialization
 {
-    internal class DatabaseFileHeader
+    [BinarySerializable]
+    internal class PdbHeader
     {
-        [BinarySerialized]
+        [BinarySerialize(Length = 32, NullTerminated = true)]
         public string Name { get; set; } = string.Empty;
 
-        [BinarySerialized]
+        [BinarySerialize]
         public DatabaseAttributes Attributes { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public ushort Version { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint CreationDateUInt32 { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint ModificationDateUInt32 { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint LastBackupDateUInt32 { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint ModificationNumber { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint AppInfoId { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint SortInfoId { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize(Length = 4)]
         public string Type { get; set; } = string.Empty;
 
-        [BinarySerialized]
+        [BinarySerialize(Length = 4)]
         public string Creator { get; set; } = string.Empty;
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint UniqueIdSeed { get; set; }
 
         public DateTime CreationDate
         {
-            get => PdbSerialization.FromPdbDateTime(CreationDateUInt32);
-            set => CreationDateUInt32 = PdbSerialization.ToPdbDateTime(value);
+            get => PdbPrimitives.FromPdbDateTime(CreationDateUInt32);
+            set => CreationDateUInt32 = PdbPrimitives.ToPdbDateTime(value);
         }
 
         public DateTime ModificationDate
         {
-            get => PdbSerialization.FromPdbDateTime(ModificationDateUInt32);
-            set => ModificationDateUInt32 = PdbSerialization.ToPdbDateTime(value);
+            get => PdbPrimitives.FromPdbDateTime(ModificationDateUInt32);
+            set => ModificationDateUInt32 = PdbPrimitives.ToPdbDateTime(value);
         }
 
         public DateTime LastBackupDate
         {
-            get => PdbSerialization.FromPdbDateTime(LastBackupDateUInt32);
-            set => LastBackupDateUInt32 = PdbSerialization.ToPdbDateTime(value);
+            get => PdbPrimitives.FromPdbDateTime(LastBackupDateUInt32);
+            set => LastBackupDateUInt32 = PdbPrimitives.ToPdbDateTime(value);
         }
     }
 }

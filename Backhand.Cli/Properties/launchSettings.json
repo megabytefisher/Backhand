@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Backhand.Cli": {
+      "commandName": "Project",
+      "commandLineArgs": "db list -p COM4"
+    }
+  }
+}

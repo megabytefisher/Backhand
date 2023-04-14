@@ -1,6 +1,8 @@
 ﻿using Backhand.Common.BinarySerialization.Internal;
 using Backhand.Common.Buffers;
+using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
@@ -21,9 +23,21 @@ namespace Backhand.Common.BinarySerialization
         public static void Serialize(T value, ref SpanWriter<byte> buffer) => _serialize.Value(value, ref buffer);
         public static void Deserialize(ref SequenceReader<byte> buffer, T value) => _deserialize.Value(ref buffer, value);
 
+        public static void Serialize(T value, Span<byte> buffer)
+        {
+            SpanWriter<byte> bufferWriter = new(buffer);
+            Serialize(value, ref bufferWriter);
+        }
+
+        public static void Deserialize(ReadOnlySequence<byte> buffer, T value)
+        {
+            SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
+            Deserialize(ref bufferReader, value);
+        }
+
         private static GetSizeImplementation BuildGetSize()
         {
-            BinarySerializedAttribute objectSerializedAttribute = typeof(T).GetCustomAttribute<BinarySerializedAttribute>() ?? throw new Exception("Type must have BinarySerializedAttribute");
+            BinarySerializableAttribute objectSerializedAttribute = typeof(T).GetCustomAttribute<BinarySerializableAttribute>() ?? throw new Exception("Type must have BinarySerializedAttribute");
             SerializerOptions defaultOptions = new SerializerOptions().UpdateFrom(objectSerializedAttribute);
 
             // The only parameter is a T (value)
@@ -34,35 +48,49 @@ namespace Backhand.Common.BinarySerialization
 
             foreach (PropertyInfo propertyInfo in typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
-                BinarySerializedAttribute? serializedAttribute;
-                if ((serializedAttribute = propertyInfo.GetCustomAttribute<BinarySerializedAttribute>()) == null)
+                BinarySerializeAttribute? serializedAttribute;
+                if ((serializedAttribute = propertyInfo.GetCustomAttribute<BinarySerializeAttribute>()) == null)
                 {
                     continue;
                 }
 
                 SerializerOptions propertyOptions = defaultOptions.UpdateFrom(serializedAttribute);
 
-                if (!string.IsNullOrEmpty(propertyOptions.ConditionName))
+                if (!string.IsNullOrEmpty(propertyOptions.ConditionProperty))
                 {
-                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionName) ?? throw new Exception($"Condition property {propertyOptions.ConditionName} not found");
+                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionProperty) ?? throw new Exception($"Condition property {propertyOptions.ConditionProperty} not found");
 
                     result = Expression.IfThenElse(
                         Expression.IsTrue(Expression.Property(value, conditionProperty)),
-                        Expression.Add(result, GetSizeExpression(propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo))),
+                        Expression.Add(result, GetSizeExpression(value, propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo))),
                         result);
                 }
                 else
                 {
-                    result = Expression.Add(result, GetSizeExpression(propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo)));
+                    result = Expression.Add(result, GetSizeExpression(value, propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo)));
                 }
             }
+
+            if (!string.IsNullOrEmpty(defaultOptions.LengthProperty))
+            {
+                PropertyInfo lengthProperty = typeof(T).GetProperty(defaultOptions.LengthProperty) ?? throw new Exception($"Length property {defaultOptions.LengthProperty} not found on type {typeof(T).FullName}");
+                Expression minimumLength = Expression.Property(value, lengthProperty);
+
+                result = Expression.IfThenElse(
+                    Expression.GreaterThan(minimumLength, result),
+                    minimumLength,
+                    result
+                );
+            }
+
+            Expression myExp = Expression.Lambda<GetSizeImplementation>(result, value);
 
             return Expression.Lambda<GetSizeImplementation>(result, value).Compile();
         }
 
         private static SerializeImplementation BuildSerialize()
         {
-            BinarySerializedAttribute objectSerializedAttribute = typeof(T).GetCustomAttribute<BinarySerializedAttribute>() ?? throw new Exception("Type must have BinarySerializedAttribute");
+            BinarySerializableAttribute objectSerializedAttribute = typeof(T).GetCustomAttribute<BinarySerializableAttribute>() ?? throw new Exception("Type must have BinarySerializedAttribute");
             SerializerOptions defaultOptions = new SerializerOptions().UpdateFrom(objectSerializedAttribute);
 
             // The two parameters are a T (value) and a reference to a SpanWriter<byte> (bufferWriter)
@@ -70,44 +98,74 @@ namespace Backhand.Common.BinarySerialization
             ParameterExpression bufferWriter = Expression.Parameter(typeof(SpanWriter<byte>).MakeByRefType(), nameof(bufferWriter));
 
             // Local variables
-            ParameterExpression loopIterator = Expression.Variable(typeof(int), "loopIterator");
+            ParameterExpression startIndex = Expression.Variable(typeof(int), nameof(startIndex));
 
             // List of body expressions
             List<Expression> bodyItems = new List<Expression>();
 
+            bodyItems.Add(
+                Expression.Assign(
+                    startIndex,
+                    SpanWriterExpressions<byte>.GetIndexExpression(bufferWriter)
+                )
+            );
+
             // We need to add code to serialize each BinarySerialized property
             foreach (PropertyInfo propertyInfo in typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
-                BinarySerializedAttribute? serializedAttribute;
-                if ((serializedAttribute = propertyInfo.GetCustomAttribute<BinarySerializedAttribute>()) == null)
+                BinarySerializeAttribute? serializedAttribute;
+                if ((serializedAttribute = propertyInfo.GetCustomAttribute<BinarySerializeAttribute>()) == null)
                 {
                     continue;
                 }
 
                 SerializerOptions propertyOptions = defaultOptions.UpdateFrom(serializedAttribute);
 
-                if (!string.IsNullOrEmpty(propertyOptions.ConditionName))
+                if (!string.IsNullOrEmpty(propertyOptions.ConditionProperty))
                 {
-                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionName) ?? throw new Exception($"Condition property {propertyOptions.ConditionName} not found");
+                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionProperty) ?? throw new Exception($"Condition property {propertyOptions.ConditionProperty} not found");
 
                     bodyItems.Add(Expression.IfThen(
                         Expression.IsTrue(Expression.Property(value, conditionProperty)),
-                        GetWriteExpression(propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo))));
+                        GetWriteExpression(value, propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo))));
                 }
                 else
                 {
-                    bodyItems.Add(GetWriteExpression(propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo)));
+                    bodyItems.Add(GetWriteExpression(value, propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo)));
                 }
             }
 
-            BlockExpression body = Expression.Block(new[] { loopIterator }, bodyItems);
+            if (!string.IsNullOrEmpty(defaultOptions.MinimumLengthProperty))
+            {
+                PropertyInfo minimumLengthProperty = typeof(T).GetProperty(defaultOptions.MinimumLengthProperty) ?? throw new Exception($"Length property {defaultOptions.LengthProperty} not found on type {typeof(T).FullName}");
+                Expression minimumLength = Expression.Property(value, minimumLengthProperty);
+
+                Expression writtenLength = Expression.Subtract(SpanWriterExpressions<byte>.GetIndexExpression(bufferWriter), startIndex);
+
+                LabelTarget loopEnd = Expression.Label(nameof(loopEnd));
+
+                bodyItems.Add(
+                    Expression.Loop(
+                        Expression.IfThenElse(
+                            Expression.LessThan(writtenLength, Expression.Convert(minimumLength, typeof(int))),
+                            SpanWriterExpressions<byte>.GetWriteExpression(bufferWriter, Expression.Constant(0)),
+                            Expression.Break(loopEnd)
+                        ),
+                        loopEnd
+                    )
+                );
+            }
+
+            BlockExpression body = Expression.Block(new[] { startIndex }, bodyItems);
+
+            Expression myExp = Expression.Lambda<SerializeImplementation>(body, value, bufferWriter);
 
             return Expression.Lambda<SerializeImplementation>(body, value, bufferWriter).Compile();
         }
 
         private static DeserializeImplementation BuildDeserialize()
         {
-            BinarySerializedAttribute objectSerializedAttribute = typeof(T).GetCustomAttribute<BinarySerializedAttribute>() ?? throw new Exception("Type must have BinarySerializedAttribute");
+            BinarySerializableAttribute objectSerializedAttribute = typeof(T).GetCustomAttribute<BinarySerializableAttribute>() ?? throw new Exception("Type must have BinarySerializedAttribute");
             SerializerOptions defaultOptions = new SerializerOptions().UpdateFrom(objectSerializedAttribute);
 
             // The two parameters are a SequenceReader<byte> (reader) and a reference to a T (value)
@@ -117,20 +175,33 @@ namespace Backhand.Common.BinarySerialization
             // List of body expressions
             List<Expression> bodyItems = new List<Expression>();
 
+            // Local variables
+            ParameterExpression startOffset = Expression.Variable(typeof(long), nameof(startOffset));
+
+            bodyItems.Add(
+                Expression.Assign(
+                    startOffset,
+                    ReadOnlySequenceExpressions<byte>.GetGetOffsetExpression(
+                        SequenceReaderExpressions<byte>.GetSequenceExpression(bufferReader),
+                        SequenceReaderExpressions<byte>.GetPositionExpression(bufferReader)
+                    )
+                )
+            );
+
             // We need to add code to deserialize each BinarySerialized property
             foreach (PropertyInfo propertyInfo in typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
-                BinarySerializedAttribute? serializedAttribute;
-                if ((serializedAttribute = propertyInfo.GetCustomAttribute<BinarySerializedAttribute>()) == null)
+                BinarySerializeAttribute? serializedAttribute;
+                if ((serializedAttribute = propertyInfo.GetCustomAttribute<BinarySerializeAttribute>()) == null)
                 {
                     continue;
                 }
 
                 SerializerOptions propertyOptions = defaultOptions.UpdateFrom(serializedAttribute);
 
-                if (!string.IsNullOrEmpty(propertyOptions.ConditionName))
+                if (!string.IsNullOrEmpty(propertyOptions.ConditionProperty))
                 {
-                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionName) ?? throw new Exception($"Condition property {propertyOptions.ConditionName} not found");
+                    PropertyInfo conditionProperty = typeof(T).GetProperty(propertyOptions.ConditionProperty) ?? throw new Exception($"Condition property {propertyOptions.ConditionProperty} not found");
 
                     bodyItems.Add(Expression.IfThen(
                         Expression.IsTrue(Expression.Property(value, conditionProperty)),
@@ -142,14 +213,44 @@ namespace Backhand.Common.BinarySerialization
                 }
             }
 
-            BlockExpression body = Expression.Block(bodyItems);
+            if (!string.IsNullOrEmpty(defaultOptions.MinimumLengthProperty))
+            {
+                PropertyInfo minimumLengthProperty = typeof(T).GetProperty(defaultOptions.MinimumLengthProperty) ?? throw new Exception($"Length property {defaultOptions.LengthProperty} not found on type {typeof(T).FullName}");
+                Expression minimumLength = Expression.Property(value, minimumLengthProperty);
+
+                Expression readLength = Expression.Subtract(
+                    ReadOnlySequenceExpressions<byte>.GetGetOffsetExpression(
+                        SequenceReaderExpressions<byte>.GetSequenceExpression(bufferReader),
+                        SequenceReaderExpressions<byte>.GetPositionExpression(bufferReader)
+                    ),
+                    startOffset
+                );
+
+                LabelTarget loopEnd = Expression.Label(nameof(loopEnd));
+
+                bodyItems.Add(
+                    Expression.Loop(
+                        Expression.IfThenElse(
+                            Expression.LessThan(readLength, Expression.Convert(minimumLength, typeof(long))),
+                            SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Constant(1L)),
+                            Expression.Break(loopEnd)
+                        ),
+                        loopEnd
+                    )
+                );
+            }
+
+            BlockExpression body = Expression.Block(
+                new[] { startOffset },
+                bodyItems
+            );
 
             Expression myExp = Expression.Lambda<DeserializeImplementation>(body, bufferReader, value);
 
             return Expression.Lambda<DeserializeImplementation>(body, bufferReader, value).Compile();
         }
 
-        private static Expression GetSizeExpression(Type type, SerializerOptions options, Expression value)
+        private static Expression GetSizeExpression(Expression containerObject, Type type, SerializerOptions options, Expression value)
         {
             Expression? primitiveSize = GetPrimitiveSizeExpression(type);
 
@@ -159,9 +260,21 @@ namespace Backhand.Common.BinarySerialization
             }
             else if (type == typeof(string))
             {
+                if (options.Length != 0)
+                {
+                    return Expression.Constant(options.Length);
+                }
+                else if (!string.IsNullOrEmpty(options.LengthProperty))
+                {
+                    PropertyInfo lengthProperty = typeof(T).GetProperty(options.LengthProperty) ?? throw new Exception("Couldn't get property specified by LengthName");
+                    Expression length = Expression.Property(containerObject, lengthProperty);
+
+                    return length;
+                }
+
                 Encoding encoding = GetEncoding(options.StringEncoding);
 
-                Expression stringLength = EncodingExpressions.GetGetByteCountExpression(Expression.Constant(encoding), value);
+                Expression? stringLength = EncodingExpressions.GetGetByteCountExpression(Expression.Constant(encoding), value);
 
                 if (options.NullTerminated)
                 {
@@ -185,7 +298,7 @@ namespace Backhand.Common.BinarySerialization
                         Expression.IfThenElse(
                             Expression.LessThan(i, Expression.ArrayLength(value)),
                             Expression.Block(
-                                Expression.AddAssign(result, GetSizeExpression(elementType, options, Expression.ArrayAccess(value, i))),
+                                Expression.AddAssign(result, GetSizeExpression(containerObject, elementType, options, Expression.ArrayAccess(value, i))),
                                 Expression.PostIncrementAssign(i)
                             ),
                             Expression.Break(loopEnd, result)
@@ -194,7 +307,7 @@ namespace Backhand.Common.BinarySerialization
                     )
                 );
             }
-            else if (type.GetCustomAttribute<BinarySerializedAttribute>() != null)
+            else if (type.GetCustomAttribute<BinarySerializeAttribute>() != null)
             {
                 Type propertySerializerType = typeof(BinarySerializer<>).MakeGenericType(type);
                 MethodInfo propertySizeMethod = propertySerializerType.GetMethod(nameof(GetSize)) ?? throw new Exception("Couldn't get GetSize method for property type");
@@ -206,7 +319,7 @@ namespace Backhand.Common.BinarySerialization
             }
         }
 
-        private static Expression GetWriteExpression(Type writeType, ParameterExpression bufferWriter, SerializerOptions options, Expression value)
+        private static Expression GetWriteExpression(Expression containerObject, Type writeType, ParameterExpression bufferWriter, SerializerOptions options, Expression value)
         {
             Expression? primitiveWrite = GetPrimitiveWriteExpression(writeType, value, bufferWriter, options);
 
@@ -218,15 +331,21 @@ namespace Backhand.Common.BinarySerialization
             {
                 Encoding encoding = GetEncoding(options.StringEncoding);
 
+                ParameterExpression writeLength = Expression.Variable(typeof(int), "writeLength");
+
                 List<Expression> bodyItems = new List<Expression>
                 {
-                    SpanWriterExpressions<byte>.GetAdvanceExpression(
-                        bufferWriter,
+                    Expression.Assign(
+                        writeLength,
                         EncodingExpressions.GetGetBytesExpression(
                             encoding: Expression.Constant(encoding),
                             charSequence: ReadOnlySequenceExpressions<char>.GetFromReadOnlyMemoryExpression(StringExpressions.GetAsMemoryExpression(value)),
                             byteSpan: Expression.Property(bufferWriter, nameof(SpanWriter<byte>.RemainingSpan))
                         )
+                    ),
+                    SpanWriterExpressions<byte>.GetAdvanceExpression(
+                        bufferWriter,
+                        writeLength
                     )
                 };
 
@@ -238,9 +357,42 @@ namespace Backhand.Common.BinarySerialization
                     {
                         bodyItems.Add(SpanWriterExpressions<byte>.GetWriteExpression(bufferWriter, Expression.Constant(nullByte)));
                     }
+
+                    bodyItems.Add(Expression.AddAssign(writeLength, Expression.Constant(nullBytes.Length)));
+                }
+
+                Expression? length = null;
+                if (options.Length != 0)
+                {
+                    length = Expression.Constant(options.Length);
+                }
+                else if (!string.IsNullOrEmpty(options.LengthProperty))
+                {
+                    PropertyInfo lengthProperty = typeof(T).GetProperty(options.LengthProperty) ?? throw new Exception("Couldn't get property specified by LengthName");
+                    length = Expression.Property(containerObject, lengthProperty);
+                }
+
+                if (length != null)
+                {
+                    LabelTarget loopEnd = Expression.Label("loopEnd");
+
+                    bodyItems.Add(
+                        Expression.Loop(
+                            Expression.IfThenElse(
+                                Expression.LessThan(writeLength, length),
+                                Expression.Block(
+                                    SpanWriterExpressions<byte>.GetWriteExpression(bufferWriter, Expression.Constant(options.PaddingValue)),
+                                    Expression.PostIncrementAssign(writeLength)
+                                ),
+                                Expression.Break(loopEnd)
+                            ),
+                            loopEnd
+                        )
+                    );
                 }
 
                 return Expression.Block(
+                    new[] { writeLength },
                     bodyItems
                 );
             }
@@ -267,7 +419,7 @@ namespace Backhand.Common.BinarySerialization
                         Expression.IfThenElse(
                             Expression.LessThan(i, arrayLength),
                             Expression.Block(
-                                GetWriteExpression(elementType, bufferWriter, options, Expression.ArrayAccess(value, i)),
+                                GetWriteExpression(containerObject, elementType, bufferWriter, options, Expression.ArrayAccess(value, i)),
                                 Expression.PostIncrementAssign(i)
                             ),
                             Expression.Break(loopEnd)
@@ -276,10 +428,10 @@ namespace Backhand.Common.BinarySerialization
                     )
                 );
             }
-            else if (writeType.GetCustomAttribute<BinarySerializedAttribute>() != null)
+            else if (writeType.GetCustomAttribute<BinarySerializableAttribute>() != null)
             {
                 Type propertySerializerType = typeof(BinarySerializer<>).MakeGenericType(writeType);
-                MethodInfo propertySerializeMethod = propertySerializerType.GetMethod(nameof(Serialize)) ?? throw new Exception("Couldn't get Serialize method for property type");
+                MethodInfo propertySerializeMethod = propertySerializerType.GetMethod(nameof(Serialize), new[] { typeof(SpanWriter<byte>).MakeByRefType(), writeType }) ?? throw new Exception("Couldn't get Serialize method for property type");
 
                 return Expression.Call(null, propertySerializeMethod, value, bufferWriter);
             }
@@ -305,12 +457,23 @@ namespace Backhand.Common.BinarySerialization
                 {
                     byte[] nullBytes = encoding.GetBytes("\0");
 
+                    Expression? length = null;
+                    if (options.Length != 0)
+                    {
+                        length = Expression.Constant(options.Length);
+                    }
+                    else if (!string.IsNullOrEmpty(options.LengthProperty))
+                    {
+                        PropertyInfo lengthProperty = typeof(T).GetProperty(options.LengthProperty) ?? throw new Exception("Couldn't get property specified by LengthName");
+                        length = Expression.Property(containerObject, lengthProperty);
+                    }
+
                     LabelTarget loopEnd = Expression.Label("loopEnd");
                     ParameterExpression start = Expression.Variable(typeof(SequencePosition), "start");
                     ParameterExpression end = Expression.Variable(typeof(SequencePosition), "end");
+                    ParameterExpression stringBytesSequence = Expression.Variable(typeof(ReadOnlySequence<byte>), "stringBytesSequence");
 
                     Expression peekChecks = Expression.Constant(true);
-
                     for (int i = 1; i < nullBytes.Length - 1; i++)
                     {
                         peekChecks = Expression.AndAlso(
@@ -323,7 +486,7 @@ namespace Backhand.Common.BinarySerialization
                     }
 
                     return Expression.Block(
-                        new[] { start, end },
+                        new[] { start, end, stringBytesSequence },
                         Expression.Assign(start, SequenceReaderExpressions<byte>.GetPositionExpression(bufferReader)),
                         Expression.Loop(
                             Expression.Block(
@@ -338,18 +501,33 @@ namespace Backhand.Common.BinarySerialization
                                             end,
                                             SequenceReaderExpressions<byte>.GetPositionExpression(bufferReader)
                                         ),
-                                        SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Constant((long)nullBytes.Length)),
+                                        Expression.Assign(
+                                            stringBytesSequence,
+                                            ReadOnlySequenceExpressions<byte>.GetSliceFromPositionsExpression(
+                                                    SequenceReaderExpressions<byte>.GetSequenceExpression(bufferReader),
+                                                    start,
+                                                    end
+                                            )
+                                        ),
                                         Expression.Assign(
                                             value,
                                             EncodingExpressions.GetGetStringExpression(
                                                 Expression.Constant(encoding),
-                                                ReadOnlySequenceExpressions<byte>.GetSliceFromPositionsExpression(
-                                                    SequenceReaderExpressions<byte>.GetSequenceExpression(bufferReader),
-                                                    start,
-                                                    end
-                                                )
+                                                stringBytesSequence
                                             )
                                         ),
+                                        length != null ?
+                                            SequenceReaderExpressions<byte>.GetAdvanceExpression(
+                                                bufferReader,
+                                                Expression.Subtract(
+                                                    Expression.Convert(length, typeof(long)),
+                                                    ReadOnlySequenceExpressions<byte>.GetLengthExpression(stringBytesSequence)
+                                                )
+                                            ) :
+                                            SequenceReaderExpressions<byte>.GetAdvanceExpression(
+                                                bufferReader,
+                                                Expression.Constant((long)nullBytes.Length)
+                                            ),
                                         Expression.Break(loopEnd)
                                     ),
                                     SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Constant(1L))
@@ -359,19 +537,30 @@ namespace Backhand.Common.BinarySerialization
                         )
                     );
                 }
-                else if (!string.IsNullOrEmpty(options.LengthName))
+                else
                 {
-                    PropertyInfo lengthProperty = typeof(T).GetProperty(options.LengthName) ?? throw new Exception("Couldn't get property specified by LengthName");
-                    Expression length = Expression.Property(containerObject, lengthProperty);
+                    Expression? length = null;
+                    if (options.Length != 0)
+                    {
+                        length = Expression.Constant(options.Length);
+                    }
+                    else if (!string.IsNullOrEmpty(options.LengthProperty))
+                    {
+                        PropertyInfo lengthProperty = typeof(T).GetProperty(options.LengthProperty) ?? throw new Exception("Couldn't get property specified by LengthName");
+                        length = Expression.Property(containerObject, lengthProperty);
+                    }
 
-                    return Expression.Block(
-                        Expression.Assign(
-                            value,
-                            EncodingExpressions.GetGetStringExpression(
-                                Expression.Constant(encoding),
-                                ReadOnlySequenceExpressions<byte>.GetSliceFromIntsExpression(Expression.Property(bufferReader, nameof(SequenceReader<byte>.UnreadSequence)), Expression.Constant(0), length))),
-                        SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Convert(length, typeof(long)))
-                    );
+                    if (length != null)
+                    {
+                        return Expression.Block(
+                            Expression.Assign(
+                                value,
+                                EncodingExpressions.GetGetStringExpression(
+                                    Expression.Constant(encoding),
+                                    ReadOnlySequenceExpressions<byte>.GetSliceFromIntsExpression(Expression.Property(bufferReader, nameof(SequenceReader<byte>.UnreadSequence)), Expression.Constant(0), length))),
+                            SequenceReaderExpressions<byte>.GetAdvanceExpression(bufferReader, Expression.Convert(length, typeof(long)))
+                        );
+                    }
                 }
 
                 throw new Exception("Unhandled string");
@@ -399,10 +588,10 @@ namespace Backhand.Common.BinarySerialization
                     )
                 );
             }
-            else if (readType.GetCustomAttribute<BinarySerializedAttribute>() != null)
+            else if (readType.GetCustomAttribute<BinarySerializableAttribute>() != null)
             {
                 Type propertySerializerType = typeof(BinarySerializer<>).MakeGenericType(readType);
-                MethodInfo propertyDeserializeMethod = propertySerializerType.GetMethod(nameof(Deserialize)) ?? throw new Exception("Couldn't get Deserialize method for property type");
+                MethodInfo propertyDeserializeMethod = propertySerializerType.GetMethod(nameof(Deserialize), new[] { typeof(SequenceReader<byte>).MakeByRefType(), readType }) ?? throw new Exception("Couldn't get Deserialize method for property type");
                 return Expression.Call(null, propertyDeserializeMethod, bufferReader, value);
             }
             else
@@ -489,31 +678,53 @@ namespace Backhand.Common.BinarySerialization
 
         private ref struct SerializerOptions
         {
-            public Endian Endian { get; private init; }
-            public StringEncoding StringEncoding { get; private init; }
-            public string LengthName { get; private init; }
-            public string ConditionName { get; private init; }
-            public bool NullTerminated { get; private init; }
+            public Endian Endian { get; private set; }
+            public StringEncoding StringEncoding { get; private set; }
+            public string LengthProperty { get; private set; }
+            public string MinimumLengthProperty { get; private set; }
+            public int Length { get; private set; }
+            public byte PaddingValue { get; private set; }
+            public string ConditionProperty { get; private set; }
+            public bool NullTerminated { get; private set; }
 
             public SerializerOptions()
             {
                 Endian = Endian.Big;
                 StringEncoding = StringEncoding.ASCII;
-                LengthName = string.Empty;
-                ConditionName = string.Empty;
+                LengthProperty = string.Empty;
+                MinimumLengthProperty = string.Empty;
+                Length = 0;
+                PaddingValue = 0;
+                ConditionProperty = string.Empty;
                 NullTerminated = false;
             }
 
-            public SerializerOptions UpdateFrom(BinarySerializedAttribute attribute)
+            public SerializerOptions UpdateFrom(BinarySerializableAttribute attribute)
             {
-                return new()
-                {
-                    Endian = attribute.EndianSpecified ? attribute.Endian : Endian,
-                    StringEncoding = attribute.StringEncodingSpecified ? attribute.StringEncoding : StringEncoding,
-                    LengthName = attribute.LengthNameSpecified ? attribute.LengthName : LengthName,
-                    ConditionName = attribute.ConditionNameSpecified ? attribute.ConditionName : ConditionName,
-                    NullTerminated = attribute.NullTerminatedSpecified ? attribute.NullTerminated : NullTerminated
-                };
+                SerializerOptions newOptions = this;
+
+                newOptions.Endian = attribute.EndianSpecified ? attribute.Endian : Endian;
+                newOptions.StringEncoding = attribute.StringEncodingSpecified ? attribute.StringEncoding : StringEncoding;
+                newOptions.LengthProperty = string.Empty;
+                newOptions.MinimumLengthProperty = attribute.MinimumLengthPropertySpecified ? attribute.MinimumLengthProperty : string.Empty;
+
+                return newOptions;
+            }
+
+            public SerializerOptions UpdateFrom(BinarySerializeAttribute attribute)
+            {
+                SerializerOptions newOptions = this;
+
+                newOptions.Endian = attribute.EndianSpecified ? attribute.Endian : Endian;
+                newOptions.StringEncoding = attribute.StringEncodingSpecified ? attribute.StringEncoding : StringEncoding;
+                newOptions.LengthProperty = attribute.LengthPropertySpecified ? attribute.LengthProperty : string.Empty;
+                newOptions.Length = attribute.LengthSpecified ? attribute.Length : Length;
+                newOptions.MinimumLengthProperty = string.Empty;
+                newOptions.PaddingValue = attribute.PaddingValueSpecified ? attribute.PaddingValue : PaddingValue;
+                newOptions.ConditionProperty = attribute.ConditionPropertySpecified ? attribute.ConditonProperty : string.Empty;
+                newOptions.NullTerminated = attribute.NullTerminatedSpecified ? attribute.NullTerminated : NullTerminated;
+
+                return newOptions;
             }
         }
     }

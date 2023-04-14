@@ -1,64 +1,68 @@
-﻿using Backhand.Common.Pipelines;
-using Backhand.Protocols.Cmp;
-using Backhand.Protocols.Dlp;
-using Backhand.Protocols.Padp;
-using Backhand.Protocols.Slp;
+﻿using Backhand.Protocols.Dlp;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
-using Microsoft.Extensions.Logging;
-using System.IO.Ports;
+using Backhand.Pdb;
+using Backhand.Dlp.Commands;
+using Backhand.Dlp;
 
-using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+FileStream prcStream = File.OpenRead("Sea_War.prc");
+
+ResourceDatabase database = new();
+await database.DeserializeAsync(prcStream);
+
+async Task DoSync(DlpConnection connection, CancellationToken cancellationToken = default)
 {
-    builder.AddSimpleConsole(options =>
+    ReadUserInfoResponse userInfo = await connection.ReadUserInfoAsync(cancellationToken);
+
+    await connection.OpenConduitAsync(cancellationToken);
+
+    List<ReadDbListResponse.DatabaseMetadata> metadataList = new();
+    ushort startIndex = 0;
+    
+    while (true)
     {
-        options.IncludeScopes = true;
-    }).AddFilter((category, logLevel) =>
+        try
+        {
+            ReadDbListResponse dbListResponse = await connection.ReadDbListAsync(new ReadDbListRequest()
+            {
+                Mode = ReadDbListRequest.ReadDbListMode.ListRam | ReadDbListRequest.ReadDbListMode.ListMultiple,
+                CardId = 0,
+                StartIndex = startIndex
+            }, cancellationToken);
+
+            metadataList.AddRange(dbListResponse.Results);
+            startIndex = (ushort)(dbListResponse.LastIndex + 1);
+        }
+        catch (DlpCommandErrorException ex)
+        {
+            if (ex.ErrorCode == DlpErrorCode.NotFoundError)
+            {
+                break;
+            }
+
+            throw;
+        }
+    }
+
+    Console.WriteLine("OK");
+
+    /*CreateDbResponse createDbResponse = await connection.CreateDbAsync(new()
     {
-        return true;
-    });
-});
+        Creator = database.Creator,
+        Type = database.Type,
+        CardId = 0,
+        Attributes = (DlpDatabaseAttributes)database.Attributes,
+        Version = database.Version,
+        Name = database.Name
+    }, cancellationToken);
 
-var logger = loggerFactory.CreateLogger("test");
+    byte dbHandle = createDbResponse.DbHandle;
 
-const string portName = "COM4";
-const int initialBaud = 9600;
+    await connection.CloseDbAsync(new CloseDbRequest()
+    {
+        DbHandle = dbHandle
+    }, cancellationToken);*/
+}
 
-using SerialPort serialPort = new(portName)
-{
-    BaudRate = initialBaud,
-    Handshake = Handshake.RequestToSend,
-    Parity = Parity.None,
-    StopBits = StopBits.One
-};
-serialPort.Open();
-
-SerialPortPipe serialPipe = new(serialPort);
-
-using SlpConnection slpConnection = new(serialPipe, logger: logger);
-PadpConnection padpConnection = new PadpConnection(slpConnection, 3, 3);
-
-// Start SLP IO
-_ = slpConnection.RunIOAsync();
-
-// Wait for wakeup packet
-await CmpConnection.WaitForWakeUpAsync(padpConnection);
-
-Console.WriteLine("Got wakeup");
-
-// Do Handshake
-await CmpConnection.DoHandshakeAsync(padpConnection);
-
-Console.WriteLine("Handshake done");
-
-DlpConnection dlpConnection = new DlpConnection(padpConnection);
-
-ReadUserInfoResponse userInfo = await dlpConnection.ReadUserInfoAsync();
-
-await dlpConnection.EndOfSyncAsync(new EndOfSyncRequest
-{
-    Status = EndOfSyncRequest.EndOfSyncStatus.Okay
-});
-
-
-Console.WriteLine(userInfo);
+SerialDlpServer dlpServer = new SerialDlpServer(DoSync, "COM4");
+await dlpServer.RunAsync();

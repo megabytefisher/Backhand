@@ -50,7 +50,7 @@ namespace Backhand.Protocols.Cmp
 
             try
             {
-                WriteInitPacket(initPacketBuffer.AsSpan().Slice(0, InitPacketSize));
+                WriteInitPacket(initPacketBuffer.AsSpan().Slice(0, InitPacketSize), newBaudRate);
                 await padpConnection.SendPayloadAsync(new ReadOnlySequence<byte>(initPacketBuffer, 0, InitPacketSize), cancellationToken).ConfigureAwait(false);
             }
             finally

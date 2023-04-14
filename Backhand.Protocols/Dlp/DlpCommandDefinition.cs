@@ -2,11 +2,11 @@
 {
     public class DlpCommandDefinition
     {
-        public DlpOpcode Opcode { get; }
+        public byte Opcode { get; }
         public DlpArgumentDefinition[] RequestArguments { get; }
         public DlpArgumentDefinition[] ResponseArguments { get; }
 
-        public DlpCommandDefinition(DlpOpcode opcode, DlpArgumentDefinition[] requestArguments, DlpArgumentDefinition[] responseArguments)
+        public DlpCommandDefinition(byte opcode, DlpArgumentDefinition[] requestArguments, DlpArgumentDefinition[] responseArguments)
         {
             Opcode = opcode;
             RequestArguments = requestArguments;

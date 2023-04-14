@@ -1,40 +1,41 @@
 ﻿using Backhand.Common.BinarySerialization;
 using Backhand.Protocols.Dlp;
+using System;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerialized(Endian = Endian.Big)]
+    [BinarySerializable]
     public class ReadUserInfoResponse : DlpArgument
     {
-        [BinarySerialized]
+        [BinarySerialize]
         public uint UserId { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint ViewerId { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public uint LastSyncPcId { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public byte[] LastSuccessfulSyncDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
 
-        [BinarySerialized]
+        [BinarySerialize]
         public byte[] LastSyncDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
 
-        [BinarySerialized]
+        [BinarySerialize]
         public byte UsernameByteLength { get; set; }
 
-        [BinarySerialized]
+        [BinarySerialize]
         public byte PasswordByteLength
         {
             get => Convert.ToByte(Password.Length);
             set => Password = new byte[value];
         }
 
-        [BinarySerialized(ConditionName = nameof(ShouldSerializeUsername), LengthName = nameof(UsernameByteLength), NullTerminated = true)]
+        [BinarySerialize(ConditonProperty = nameof(ShouldSerializeUsername), LengthProperty = nameof(UsernameByteLength), NullTerminated = true)]
         public string Username { get; set; } = string.Empty;
 
-        [BinarySerialized(ConditionName = nameof(ShouldSerializePassword))]
+        [BinarySerialize(ConditonProperty = nameof(ShouldSerializePassword))]
         public byte[] Password { get; private set; } = Array.Empty<byte>();
 
         public bool ShouldSerializeUsername => UsernameByteLength > 0;

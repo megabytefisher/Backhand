@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Backhand.Common\Backhand.Common.csproj" />
+    <ProjectReference Include="..\Backhand.Pdb\Backhand.Pdb.csproj" />
     <ProjectReference Include="..\Backhand.Protocols\Backhand.Protocols.csproj" />
     <ProjectReference Include="..\Backhand.Dlp\Backhand.Dlp.csproj" />
   </ItemGroup>

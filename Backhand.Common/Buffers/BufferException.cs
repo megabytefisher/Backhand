@@ -1,4 +1,6 @@
-﻿namespace Backhand.Common.Buffers
+﻿using System;
+
+namespace Backhand.Common.Buffers
 {
     public class BufferException : Exception
     {

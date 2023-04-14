@@ -11,7 +11,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Dlp", "Backhand.Dl
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Protocols", "Backhand.Protocols\Backhand.Protocols.csproj", "{11225A05-AFC0-4154-8EC7-AFFFAD7E1F73}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.Pdb", "Backhand.Pdb\Backhand.Pdb.csproj", "{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Pdb", "Backhand.Pdb\Backhand.Pdb.csproj", "{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.Cli", "Backhand.Cli\Backhand.Cli.csproj", "{3C8576FD-3E97-4D4B-B3D8-79C5F2A4BD45}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +41,10 @@ Global
 		{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C8576FD-3E97-4D4B-B3D8-79C5F2A4BD45}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C8576FD-3E97-4D4B-B3D8-79C5F2A4BD45}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C8576FD-3E97-4D4B-B3D8-79C5F2A4BD45}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C8576FD-3E97-4D4B-B3D8-79C5F2A4BD45}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

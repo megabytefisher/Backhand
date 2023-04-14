@@ -1,37 +1,80 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using Backhand.Common.BinarySerialization;
+using System;
+using System.Buffers;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Backhand.Pdb.FileSerialization
 {
     internal static class PdbSerialization
     {
-        public enum EpochType
+        private static readonly PdbHeader BlankHeader = new();
+        private static readonly PdbEntryListHeader BlankEntryListHeader = new();
+        private static readonly PdbResourceMetadata BlankResourceMetadata = new();
+
+        public static readonly int HeaderSize = BinarySerializer<PdbHeader>.GetSize(BlankHeader);
+        public static readonly int HeaderPaddingSize = sizeof(byte) * 2;
+        public static readonly int EntryListHeaderSize = BinarySerializer<PdbEntryListHeader>.GetSize(BlankEntryListHeader);
+        public static readonly int ResourceMetadataSize = BinarySerializer<PdbResourceMetadata>.GetSize(BlankResourceMetadata);
+
+        public static async Task FillBuffer(Stream stream, Memory<byte> buffer)
         {
-            Palm,
-            Unix
+            int bytesRead = 0;
+            while (bytesRead < buffer.Length)
+            {
+                int read = await stream.ReadAsync(buffer.Slice(bytesRead)).ConfigureAwait(false);
+                if (read == 0)
+                    throw new EndOfStreamException();
+                bytesRead += read;
+            }
         }
 
-        private static readonly DateTime PalmEpoch = new(1904, 1, 1);
-        private static readonly DateTime UnixEpoch = new(1970, 1, 1);
-
-        public static DateTime FromPdbDateTime(uint value)
+        public static async Task WriteHeaderAsync(Stream stream, PdbHeader header)
         {
-            bool isPalmEpoch = (value & (1 << 31)) != 0;
-            DateTime epoch = isPalmEpoch ? PalmEpoch : UnixEpoch;
-            return epoch.AddSeconds(value);
+            byte[] buffer = new byte[HeaderSize];
+            BinarySerializer<PdbHeader>.Serialize(header, buffer);
+            await stream.WriteAsync(buffer).ConfigureAwait(false);
         }
 
-        public static uint ToPdbDateTime(DateTime value, EpochType epochType = EpochType.Unix)
+        public static async Task<PdbHeader> ReadHeaderAsync(Stream stream)
         {
-            DateTime epoch = epochType == EpochType.Unix ? UnixEpoch : PalmEpoch;
+            PdbHeader header = new();
+            byte[] buffer = new byte[HeaderSize];
+            await FillBuffer(stream, buffer).ConfigureAwait(false);
+            BinarySerializer<PdbHeader>.Deserialize(new ReadOnlySequence<byte>(buffer), header);
+            return header;
+        }
 
-            if (value == DateTime.MinValue)
-                value = epoch;
+        public static async Task WriteEntryListHeaderAsync(Stream stream, PdbEntryListHeader header)
+        {
+            byte[] buffer = new byte[EntryListHeaderSize];
+            BinarySerializer<PdbEntryListHeader>.Serialize(header, buffer);
+            await stream.WriteAsync(buffer).ConfigureAwait(false);
+        }
 
-            return Convert.ToUInt32(value.Subtract(epoch).TotalSeconds);
+        public static async Task<PdbEntryListHeader> ReaderEntryListHeaderAsync(Stream stream)
+        {
+            PdbEntryListHeader header = new();
+            byte[] buffer = new byte[EntryListHeaderSize];
+            await FillBuffer(stream, buffer).ConfigureAwait(false);
+            BinarySerializer<PdbEntryListHeader>.Deserialize(new ReadOnlySequence<byte>(buffer), header);
+            return header;
+        }
+
+        public static async Task WriteResourceMetadataAsync(Stream stream, PdbResourceMetadata metadata)
+        {
+            byte[] buffer = new byte[ResourceMetadataSize];
+            BinarySerializer<PdbResourceMetadata>.Serialize(metadata, buffer);
+            await stream.WriteAsync(buffer).ConfigureAwait(false);
+        }
+
+        public static async Task<PdbResourceMetadata> ReadResourceMetadataAsync(Stream stream)
+        {
+            PdbResourceMetadata metadata = new();
+            byte[] buffer = new byte[ResourceMetadataSize];
+            await FillBuffer(stream, buffer).ConfigureAwait(false);
+            BinarySerializer<PdbResourceMetadata>.Deserialize(new ReadOnlySequence<byte>(buffer), metadata);
+            return metadata;
         }
     }
 }

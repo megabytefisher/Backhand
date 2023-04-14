@@ -1,4 +1,6 @@
-﻿namespace Backhand.Pdb
+﻿using System;
+
+namespace Backhand.Pdb
 {
     [Flags]
     public enum DatabaseAttributes : ushort
