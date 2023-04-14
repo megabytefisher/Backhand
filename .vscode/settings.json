@@ -1,8 +1,0 @@
-{
-    "files.exclude": {
-        ".gitignore": true,
-        "**/bin": true,
-        "**/obj": true,
-        "Backhand.sln": true
-    }
-}

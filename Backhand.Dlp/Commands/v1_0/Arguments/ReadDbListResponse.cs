@@ -30,8 +30,6 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             [BinarySerialize]
             public byte Length { get; set; }
 
-            //public byte ReadLength => (byte)(Length + 1);
-
             [BinarySerialize]
             public byte MiscFlags { get; set; }
 

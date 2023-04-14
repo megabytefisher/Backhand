@@ -5,6 +5,7 @@ using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.Linq;
@@ -15,7 +16,7 @@ using ReadDbListMode = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListRequest.Re
 
 namespace Backhand.Cli.Commands.DbCommands
 {
-    public class ListCommand : Command
+    public class ListCommand : SyncFuncCommand
     {
         private static readonly IReadOnlyCollection<ConsoleTableColumn<DatabaseMetadata>> MetadataColumns = new[]
         {
@@ -71,11 +72,6 @@ namespace Backhand.Cli.Commands.DbCommands
             }
         };
 
-        public static readonly Option<string> SerialPortNameOption = new(new[] { "--port", "-p" })
-        {
-            IsRequired = true
-        };
-
         public static readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption = new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListRam | ReadDbListMode.ListMultiple })
         {
             AllowMultipleArgumentsPerToken = true
@@ -90,35 +86,34 @@ namespace Backhand.Cli.Commands.DbCommands
 
         public ListCommand() : base("list", "Lists databases on a device")
         {
-            this.Add(SerialPortNameOption);
             this.Add(ReadModesOption);
             this.Add(ColumnsOption);
             this.Add(ServerMode);
 
             this.SetHandler(async (context) =>
             {
-                string serialPortName = context.ParseResult.GetValueForOption(SerialPortNameOption)!;
                 IEnumerable<ReadDbListMode> readModes = context.ParseResult.GetValueForOption(ReadModesOption)!;
                 IEnumerable<string> columns = context.ParseResult.GetValueForOption(ColumnsOption)!;
                 bool serverMode = context.ParseResult.GetValueForOption(ServerMode)!;
+                string serialPortName = context.ParseResult.GetValueForOption(SerialPortNameOption)!;
+
                 IConsole console = context.Console;
                 ILogger logger = context.BindingContext.GetRequiredService<ILogger>();
-
                 CancellationToken cancellationToken = context.GetCancellationToken();
 
-                await RunCommandAsync(serialPortName, readModes, columns, serverMode, console, logger, cancellationToken).ConfigureAwait(false);
+                await RunCommandAsync(readModes, columns, serverMode, serialPortName, console, logger, cancellationToken).ConfigureAwait(false);
             });
         }
 
-        private async Task RunCommandAsync(string serialPortName, IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, bool serverMode, IConsole console, ILogger logger, CancellationToken cancellationToken)
+        private async Task RunCommandAsync(IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, bool serverMode, string serialPortName, IConsole console, ILogger logger, CancellationToken cancellationToken)
         {
             ReadDbListMode readMode = readModes.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
-            List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
 
             async Task SyncFunc(DlpConnection connection, CancellationToken cancellationToken)
             {
                 await connection.OpenConduitAsync(cancellationToken);
 
+                List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
                 ushort startIndex = 0;
                 while (true)
                 {

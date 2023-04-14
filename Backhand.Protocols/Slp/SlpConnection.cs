@@ -51,15 +51,15 @@ namespace Backhand.Protocols.Slp
 
         public void Dispose()
         {
+            _sendQueue.Complete();
+
             if (_sendQueue.TryReceiveAll(out IList<SendJob>? sendJobs))
             {
                 foreach (SendJob sendJob in sendJobs)
                 {
-                    sendJob.CompletionSource.TrySetException(new OperationCanceledException("SendJob was cancelled due to SlpDevice being disposed"));
+                    sendJob.Dispose();
                 }
             }
-
-            _sendQueue.Complete();
         }
 
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
@@ -84,49 +84,13 @@ namespace Backhand.Protocols.Slp
             _sendQueue.Post(CreateSendJob(packet));
         }
 
-        public async Task SendPacketAsync(SlpPacket packet)
-        {
-            _logger.EnqueueingPacket(packet);
-
-            // Create a SendJob.
-            SendJob sendJob = CreateSendJob(packet);
-
-            // Enqueue the job.
-            _sendQueue.Post(sendJob);
-
-            // Await completion.
-            await sendJob.CompletionSource.Task.ConfigureAwait(false);
-        }
-
         private SendJob CreateSendJob(SlpPacket packet)
         {
-            // Get buffer to hold the serialized packet
-            int packetLength = PacketMinimumSize + Convert.ToInt32(packet.Data.Length);
-            byte[] packetBuffer = _arrayPool.Rent(packetLength);
-
-            // TODO : we should return the array to the pool if something goes wrong outside of the async call
-
-            // Write packet to buffer
-            WritePacket(packet, packetBuffer);
+            int packetLength = Convert.ToInt32(PacketHeaderSize + packet.Data.Length + PacketFooterSize);
 
             // Create a SendJob
-            SendJob sendJob = new SendJob(packetBuffer.AsMemory(0, packetLength));
-
-            // Make sure to return rented buffer on job completion
-            async Task ReturnBufferAsync(SendJob sendJob, ArrayPool<byte> arrayPool)
-            {
-                try
-                {
-                    await sendJob.CompletionSource.Task;
-                }
-                catch
-                {
-                    // Swallow. We don't care whether the job failed- we still need to return the buffer.
-                }
-
-                arrayPool.Return(packetBuffer);
-            }
-            _ = ReturnBufferAsync(sendJob, _arrayPool);
+            SendJob sendJob = new SendJob(_arrayPool, packetLength);
+            WritePacket(packet, sendJob.Buffer);
 
             return sendJob;
         }
@@ -156,23 +120,13 @@ namespace Backhand.Protocols.Slp
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                SendJob job = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-                Memory<byte> sendBuffer = _basePipe.Output.GetMemory(job.Buffer.Length);
-                job.Buffer.CopyTo(sendBuffer);
+                using SendJob job = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+                job.Buffer.CopyTo(_basePipe.Output.GetSpan(job.Buffer.Length));
                 _basePipe.Output.Advance(job.Buffer.Length);
+                FlushResult flushResult = await _basePipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
 
-                try
-                {
-                    FlushResult flushResult = await _basePipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
-                    job.CompletionSource.SetResult();
-
-                    if (flushResult.IsCompleted)
-                        break;
-                }
-                catch (Exception ex)
-                {
-                    job.CompletionSource.SetException(ex);
-                }
+                if (flushResult.IsCompleted)
+                    break;
             }
         }
 
@@ -331,15 +285,24 @@ namespace Backhand.Protocols.Slp
             return (byte)(HeaderMagic1 + HeaderMagic2 + HeaderMagic3 + destinationSocket + sourceSocket + packetType + dataSize0 + dataSize1 + transactionId);
         }
 
-        private class SendJob
+        private class SendJob : IDisposable
         {
-            public Memory<byte> Buffer { get; }
-            public TaskCompletionSource CompletionSource { get; }
+            public Span<byte> Buffer => new(_array, 0, _length);
 
-            public SendJob(Memory<byte> buffer)
+            private readonly ArrayPool<byte> _arrayPool;
+            private readonly int _length;
+            private readonly byte[] _array;
+
+            public SendJob(ArrayPool<byte> arrayPool, int length)
             {
-                Buffer = buffer;
-                CompletionSource = new TaskCompletionSource();
+                _arrayPool = arrayPool;
+                _length = length;
+                _array = arrayPool.Rent(length);
+            }
+
+            public void Dispose()
+            {
+                _arrayPool.Return(_array);
             }
         }
     }
