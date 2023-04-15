@@ -62,8 +62,8 @@ namespace Backhand.Dlp
 
             SerialPortPipe serialPipe = new(serialPort);
 
-            using SlpInterface slp = new SlpInterface(serialPipe);
-            PadpConnection padp = new(slp, 3, 3);
+            using SlpInterface slpInterface = new SlpInterface(serialPipe);
+            PadpConnection padpConnection = new(slpInterface, 3, 3);
 
             Task? waitForWakeUpTask = null;
             Task? ioTask = null;
@@ -72,11 +72,11 @@ namespace Backhand.Dlp
             try
             {
                 // Watch for wakeup
-                waitForWakeUpTask = CmpConnection.WaitForWakeUpAsync(padp, linkedCts.Token);
+                waitForWakeUpTask = CmpConnection.WaitForWakeUpAsync(padpConnection, linkedCts.Token);
                 tasks.Add(waitForWakeUpTask);
 
                 // Run SLP IO
-                ioTask = slp.RunIOAsync(linkedCts.Token);
+                ioTask = slpInterface.RunIOAsync(linkedCts.Token);
                 tasks.Add(ioTask);
 
                 // 
@@ -85,7 +85,7 @@ namespace Backhand.Dlp
 
                 // Wait for wakeup + do handshake
                 await waitForWakeUpTask.ConfigureAwait(false);
-                await CmpConnection.DoHandshakeAsync(padp, TargetBaudRate, cancellationToken: cancellationToken).ConfigureAwait(false);
+                await CmpConnection.DoHandshakeAsync(padpConnection, TargetBaudRate, cancellationToken: linkedCts.Token).ConfigureAwait(false);
             }
             finally
             {

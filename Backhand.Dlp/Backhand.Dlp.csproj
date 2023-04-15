@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Backhand.Protocols\Backhand.Protocols.csproj" />
+    <ProjectReference Include="..\Backhand.Usb\Backhand.Usb.csproj" />
   </ItemGroup>
 
 </Project>

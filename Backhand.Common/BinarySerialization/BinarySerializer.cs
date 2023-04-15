@@ -609,6 +609,7 @@ namespace Backhand.Common.BinarySerialization
             TypeCode.Int32 => Expression.Constant(sizeof(int)),
             TypeCode.UInt64 => Expression.Constant(sizeof(ulong)),
             TypeCode.Int64 => Expression.Constant(sizeof(long)),
+            TypeCode.Boolean => Expression.Constant(sizeof(byte)),
             _ => null
         };
 
@@ -633,6 +634,7 @@ namespace Backhand.Common.BinarySerialization
             TypeCode.Int64 => options.Endian == Endian.Little ?
                 ByteSpanWriterExpressions.GetWriteInt64LittleEndianExpression(bufferWriter, Expression.Convert(value, typeof(long))) :
                 ByteSpanWriterExpressions.GetWriteInt64BigEndianExpression(bufferWriter, Expression.Convert(value, typeof(long))),
+            TypeCode.Boolean => SpanWriterExpressions<byte>.GetWriteExpression(bufferWriter, Expression.IfThenElse(value, Expression.Constant((byte)1), Expression.Constant((byte)0))),
             _ => null
         };
 
@@ -659,6 +661,7 @@ namespace Backhand.Common.BinarySerialization
                 TypeCode.Int64 => options.Endian == Endian.Little ?
                     ByteSequenceReaderExpressions.GetReadInt64LittleEndianExpression(bufferReader) :
                     ByteSequenceReaderExpressions.GetReadInt64BigEndianExpression(bufferReader),
+                TypeCode.Boolean => Expression.NotEqual(SequenceReaderExpressions<byte>.GetReadExpression(bufferReader), Expression.Constant((byte)0)),
                 _ => null
             };
 

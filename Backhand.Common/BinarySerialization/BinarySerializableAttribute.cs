@@ -2,7 +2,7 @@
 
 namespace Backhand.Common.BinarySerialization
 {
-    [AttributeUsage(AttributeTargets.Class)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
     public sealed class BinarySerializableAttribute : Attribute
     {
         public Endian Endian { get => _endian ?? default; set => _endian = value; }

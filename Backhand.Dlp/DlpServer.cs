@@ -45,8 +45,6 @@ namespace Backhand.Dlp
                         EndSyncRequest.EndOfSyncStatus.Okay :
                         EndSyncRequest.EndOfSyncStatus.UnknownError
                 }, cancellationToken).ConfigureAwait(false);
-
-                await Task.Delay(EndSyncDelay);
             }
             catch
             {
@@ -54,6 +52,7 @@ namespace Backhand.Dlp
             }
 
             SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs(connection, syncException));
+            await Task.Delay(EndSyncDelay);
         }
     }
 }

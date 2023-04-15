@@ -95,51 +95,46 @@ namespace Backhand.Cli.Commands.DbCommands
                 IEnumerable<ReadDbListMode> readModes = context.ParseResult.GetValueForOption(ReadModesOption)!;
                 IEnumerable<string> columns = context.ParseResult.GetValueForOption(ColumnsOption)!;
                 bool serverMode = context.ParseResult.GetValueForOption(ServerMode)!;
-                string serialPortName = context.ParseResult.GetValueForOption(SerialPortNameOption)!;
 
                 IConsole console = context.Console;
                 ILogger logger = context.BindingContext.GetRequiredService<ILogger>();
                 CancellationToken cancellationToken = context.GetCancellationToken();
 
-                await RunCommandAsync(readModes, columns, serverMode, serialPortName, console, logger, cancellationToken).ConfigureAwait(false);
+                IDlpServer dlpServer = GetDlpServer(context, (c, ct) => SyncAsync(c, readModes, columns, serverMode, console, logger, ct));
+
+                await dlpServer.RunAsync().ConfigureAwait(false);
             });
         }
 
-        private async Task RunCommandAsync(IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, bool serverMode, string serialPortName, IConsole console, ILogger logger, CancellationToken cancellationToken)
+        private async Task SyncAsync(DlpConnection connection, IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, bool serverMode, IConsole console, ILogger logger, CancellationToken cancellationToken)
         {
             ReadDbListMode readMode = readModes.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
 
-            async Task SyncFunc(DlpConnection connection, CancellationToken cancellationToken)
+            await connection.OpenConduitAsync(cancellationToken);
+
+            List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
+            ushort startIndex = 0;
+            while (true)
             {
-                await connection.OpenConduitAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
 
-                List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
-                ushort startIndex = 0;
-                while (true)
+                ReadDbListResponse dbListResponse = await connection.ReadDbListAsync(new()
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    Mode = readMode,
+                    CardId = 0,
+                    StartIndex = startIndex
+                }, cancellationToken);
 
-                    ReadDbListResponse dbListResponse = await connection.ReadDbListAsync(new()
-                    {
-                        Mode = readMode,
-                        CardId = 0,
-                        StartIndex = startIndex
-                    }, cancellationToken);
+                metadataList.AddRange(dbListResponse.Results);
+                startIndex = (ushort)(dbListResponse.LastIndex + 1);
 
-                    metadataList.AddRange(dbListResponse.Results);
-                    startIndex = (ushort)(dbListResponse.LastIndex + 1);
-
-                    if (dbListResponse.LastIndex == dbListResponse.Results.Last().Index)
-                    {
-                        break;
-                    }
+                if (dbListResponse.LastIndex == dbListResponse.Results.Last().Index)
+                {
+                    break;
                 }
-
-                PrintResults(console, columns, metadataList);
             }
 
-            SerialDlpServer dlpServer = new SerialDlpServer(SyncFunc, serialPortName, singleSync: !serverMode);
-            await dlpServer.RunAsync(cancellationToken).ConfigureAwait(false);
+            PrintResults(console, columns, metadataList);
         }
 
         private void PrintResults(IConsole console, IEnumerable<string> columnNames, ICollection<DatabaseMetadata> metadataList)

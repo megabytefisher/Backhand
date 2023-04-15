@@ -1,19 +1,20 @@
 using System.Buffers;
 using System.IO.Pipelines;
+using System.Runtime.InteropServices;
 using LibUsbDotNet;
 using LibUsbDotNet.Main;
 
 namespace Backhand.Usb
 {
-    public class UsbDevicePipe : IDisposable
+    public class UsbDevicePipe : IDuplexPipe, IDisposable
     {
-        public PipeReader Reader => _readPipe.Reader;
-        public PipeWriter Writer => _writePipe.Writer;
+        public PipeReader Input => _fromUsb.Reader;
+        public PipeWriter Output => _toUsb.Writer;
 
-        private readonly Pipe _readPipe = new();
-        private readonly Pipe _writePipe = new();
+        private readonly Pipe _fromUsb = new();
+        private readonly Pipe _toUsb = new();
 
-        private readonly UsbDevice _device;
+        private readonly UsbDeviceConnection _deviceConnection;
         private readonly ReadEndpointID _readEndpoint;
         private readonly WriteEndpointID _writeEndpoint;
 
@@ -21,23 +22,27 @@ namespace Backhand.Usb
         private const int WriteBufferSize = 64;
         private const int ReadBufferSize = 64;
 
-        public static async Task<UsbDevicePipe> RunPipe(UsbDevice device, ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint, CancellationToken cancellationToken = default)
+        public UsbDevicePipe(UsbDeviceConnection deviceConnection, ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint)
         {
-            UsbDevicePipe pipe = new(device, readEndpoint, writeEndpoint);
-            try
-            {
-                await pipe.RunIOAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch
-            {
-            }
-        }
-
-        public UsbDevicePipe(UsbDevice device, ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint)
-        {
-            _device = device;
+            _deviceConnection = deviceConnection;
             _readEndpoint = readEndpoint;
             _writeEndpoint = writeEndpoint;
+        }
+
+        public void Dispose()
+        {
+            _fromUsb.Reader.Complete();
+            _fromUsb.Writer.Complete();
+            _toUsb.Reader.Complete();
+            _toUsb.Writer.Complete();
+        }
+
+        public void Complete()
+        {
+            _fromUsb.Reader.Complete();
+            _fromUsb.Writer.Complete();
+            _toUsb.Reader.Complete();
+            _toUsb.Writer.Complete();
         }
 
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
@@ -45,15 +50,15 @@ namespace Backhand.Usb
             using CancellationTokenSource innerCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
 
-            UsbEndpointReader usbReader = _device.OpenEndpointReader(_readEndpoint);
-            UsbEndpointWriter usbWriter = _device.OpenEndpointWriter(_writeEndpoint);
-
-            Task writeTask = WriteToUsbAsync(_writePipe.Reader, usbWriter, linkedCts.Token);
-            Task readTask = ReadToPipeAsync(usbReader, _readPipe.Writer, linkedCts.Token);
+            using UsbEndpointReader usbReader = _deviceConnection.UsbDevice.OpenEndpointReader(_readEndpoint);
+            using UsbEndpointWriter usbWriter = _deviceConnection.UsbDevice.OpenEndpointWriter(_writeEndpoint);
+            
+            Task writeTask = WriteToUsbAsync(_toUsb.Reader, usbWriter, linkedCts.Token);
+            Task readTask = ReadToPipeAsync(usbReader, _fromUsb.Writer, linkedCts.Token);
 
             await Task.WhenAny(writeTask, readTask).ConfigureAwait(false);
             innerCts.Cancel();
-            await Task.whenAll(writeTask, readTask).ConfigureAwait(false);
+            await Task.WhenAll(writeTask, readTask).ConfigureAwait(false);
         }
 
         private async Task WriteToUsbAsync(PipeReader pipeReader, UsbEndpointWriter usbWriter, CancellationToken cancellationToken)
@@ -82,7 +87,11 @@ namespace Backhand.Usb
                 {
                     await Task.Run(() =>
                     {
-                        ErrorCode transferErrorCode = usbTransfer.Wait();
+                        ErrorCode transferErrorCode = usbTransfer.Wait(out int bytesWritten);
+                        if (bytesWritten != sendLength)
+                        {
+                            throw new UsbException("Failed to write all bytes");
+                        }
                         if (transferErrorCode == ErrorCode.IoCancelled)
                         {
                             throw new OperationCanceledException("Write transfer cancelled");

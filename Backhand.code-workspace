@@ -7,7 +7,7 @@
 	"settings": {
 		"files.exclude": {
 			".gitignore": true,
-			".vscode": true,
+			".vs": true,
 			"*.code-workspace": true,
 			"**/*.csproj": true,
 			"**/*.sln": true,
