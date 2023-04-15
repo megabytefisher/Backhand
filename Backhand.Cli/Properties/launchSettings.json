@@ -2,7 +2,7 @@
   "profiles": {
     "Backhand.Cli": {
       "commandName": "Project",
-      "commandLineArgs": "db list -d usb"
+      "commandLineArgs": "db list -d network"
     }
   }
 }

@@ -58,6 +58,7 @@ namespace Backhand.Dlp
         {
             public UsbDeviceConnection Device { get; }
             public UsbDeviceConfig Config { get; }
+            public DlpSyncFunc SyncFunc { get; }
             public Task HandlerTask { get; }
             public CancellationTokenSource CancellationTokenSource { get; }
 
@@ -67,31 +68,38 @@ namespace Backhand.Dlp
             {
                 Device = device;
                 Config = config;
+                SyncFunc = syncFunc;
                 CancellationTokenSource = new CancellationTokenSource();
                 _externalCancellationToken = cancellationToken;
 
-                HandlerTask = Task.Run(async () => await HandleDeviceAsync(device, config, syncFunc).ConfigureAwait(false), CancellationTokenSource.Token);
+                HandlerTask = Task.Run(HandleDeviceAsync);
             }
 
-            private async Task HandleDeviceAsync(UsbDeviceConnection device, UsbDeviceConfig config, DlpSyncFunc syncFunc)
+            public void Dispose()
+            {
+                CancellationTokenSource.Cancel();
+                CancellationTokenSource.Dispose();
+            }
+
+            private async Task HandleDeviceAsync()
             {
                 using CancellationTokenSource innerCts = new();
                 using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_externalCancellationToken, CancellationTokenSource.Token, innerCts.Token);
 
-                (ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint) = UsbHandshake.DoHandshake(Device, config.HandshakeMode);
+                (ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint) = UsbHandshake.DoHandshake(Device, Config.HandshakeMode);
 
-                using UsbDevicePipe pipe = new(device, readEndpoint, writeEndpoint);
+                using UsbDevicePipe pipe = new(Device, readEndpoint, writeEndpoint);
                 Task pipeTask = pipe.RunIOAsync(linkedCts.Token);
 
                 try
                 {
-                    switch (config.ProtocolType)
+                    switch (Config.ProtocolType)
                     {
                         case UsbProtocolType.NetSync:
-                            await HandleNetSyncDeviceAsync(pipe, syncFunc, linkedCts.Token).ConfigureAwait(false);
+                            await HandleNetSyncDeviceAsync(pipe, SyncFunc, linkedCts.Token).ConfigureAwait(false);
                             break;
                         case UsbProtocolType.Slp:
-                            await HandleSlpDeviceAsync(pipe, syncFunc, linkedCts.Token).ConfigureAwait(false);
+                            await HandleSlpDeviceAsync(pipe, SyncFunc, linkedCts.Token).ConfigureAwait(false);
                             break;
                         default:
                             throw new NotImplementedException();
@@ -196,12 +204,6 @@ namespace Backhand.Dlp
                         // Swallow
                     }
                 }
-            }
-
-            public void Dispose()
-            {
-                CancellationTokenSource.Cancel();
-                CancellationTokenSource.Dispose();
             }
         }
     }

@@ -95,7 +95,7 @@ namespace Backhand.Protocols.Dlp
         {
             SpanWriter<byte> bufferWriter = new(buffer);
 
-            bufferWriter.Write((byte)commandDefinition.Opcode);
+            bufferWriter.Write(commandDefinition.Opcode);
             bufferWriter.Write(Convert.ToByte(arguments.Count));
 
             for (int i = 0; i < commandDefinition.RequestArguments.Length; i++)

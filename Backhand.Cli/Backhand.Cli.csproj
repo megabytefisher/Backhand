@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Backhand.Dlp\Backhand.Dlp.csproj" />
+    <ProjectReference Include="..\Backhand.Network\Backhand.Network.csproj" />
   </ItemGroup>
 
 </Project>

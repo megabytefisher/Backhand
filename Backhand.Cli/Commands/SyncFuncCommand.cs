@@ -40,6 +40,10 @@ namespace Backhand.Cli.Commands
                 {
                     servers.Add(new UsbDlpServer(syncFunc));
                 }
+                else if (deviceParts[0] == "network")
+                {
+                    servers.Add(new NetworkDlpServer(syncFunc));
+                }
                 else
                 {
                     throw new ArgumentException($"Unknown device type: {deviceParts[0]}");

@@ -102,7 +102,7 @@ namespace Backhand.Cli.Commands.DbCommands
 
                 IDlpServer dlpServer = GetDlpServer(context, (c, ct) => SyncAsync(c, readModes, columns, serverMode, console, logger, ct));
 
-                await dlpServer.RunAsync().ConfigureAwait(false);
+                await dlpServer.RunAsync(cancellationToken).ConfigureAwait(false);
             });
         }
 
