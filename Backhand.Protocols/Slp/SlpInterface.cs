@@ -12,11 +12,11 @@ using Backhand.Common.Checksums;
 
 namespace Backhand.Protocols.Slp
 {
-    public class SlpConnection : IDisposable
+    public class SlpInterface : IDisposable
     {
-        public event EventHandler<SlpTransmissionEventArgs>? ReceivedPacket;
+        public event EventHandler<SlpTransmissionEventArgs>? PacketReceived;
 
-        private readonly IDuplexPipe _basePipe;
+        private readonly IDuplexPipe _pipe;
         private readonly ArrayPool<byte> _arrayPool;
         private readonly BufferBlock<SendJob> _sendQueue;
 
@@ -41,12 +41,12 @@ namespace Backhand.Protocols.Slp
             sizeof(ushort);     // Footer checksum
         private const int PacketMinimumSize = PacketHeaderSize + PacketFooterSize;
 
-        public SlpConnection(IDuplexPipe basePipe, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
+        public SlpInterface(IDuplexPipe basePipe, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
         {
-            _basePipe = basePipe;
-            _logger = logger ?? NullLogger.Instance;
+            _pipe = basePipe;
             _arrayPool = arrayPool ?? ArrayPool<byte>.Shared;
             _sendQueue = new BufferBlock<SendJob>();
+            _logger = logger ?? NullLogger.Instance;
         }
 
         public void Dispose()
@@ -67,8 +67,8 @@ namespace Backhand.Protocols.Slp
             using CancellationTokenSource innerCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
 
-            Task readTask = RunReadLoopAsync(cancellationToken);
-            Task writeTask = RunWriteLoopAsync(cancellationToken);
+            Task readTask = RunReadLoopAsync(linkedCts.Token);
+            Task writeTask = RunWriteLoopAsync(linkedCts.Token);
 
             await Task.WhenAny(readTask, writeTask).ConfigureAwait(false);
 
@@ -79,19 +79,19 @@ namespace Backhand.Protocols.Slp
 
         public void EnqueuePacket(SlpPacket packet)
         {
-            // Enqueue the job.
             _logger.EnqueueingPacket(packet);
-            _sendQueue.Post(CreateSendJob(packet));
+            SendJob sendJob = CreateSendJob(packet);
+            if (!_sendQueue.Post(sendJob))
+            {
+                sendJob.Dispose();
+            }
         }
 
         private SendJob CreateSendJob(SlpPacket packet)
         {
             int packetLength = Convert.ToInt32(PacketHeaderSize + packet.Data.Length + PacketFooterSize);
-
-            // Create a SendJob
             SendJob sendJob = new SendJob(_arrayPool, packetLength);
             WritePacket(packet, sendJob.Buffer);
-
             return sendJob;
         }
 
@@ -103,14 +103,12 @@ namespace Backhand.Protocols.Slp
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                ReadResult readResult = await _basePipe.Input.ReadAsync(cancellationToken).ConfigureAwait(false);
-                ReadOnlySequence<byte> readBuffer = readResult.Buffer;
-
-                SequencePosition processedPosition = ReadPackets(readBuffer, ref firstPacket);
-                _basePipe.Input.AdvanceTo(processedPosition, readBuffer.End);
-
+                ReadResult readResult = await _pipe.Input.ReadAsync(cancellationToken).ConfigureAwait(false);
                 if (readResult.IsCompleted)
                     break;
+
+                SequencePosition nextPosition = ReadPackets(readResult.Buffer, ref firstPacket);
+                _pipe.Input.AdvanceTo(nextPosition, readResult.Buffer.End);
             }
         }
 
@@ -121,9 +119,9 @@ namespace Backhand.Protocols.Slp
                 cancellationToken.ThrowIfCancellationRequested();
 
                 using SendJob job = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-                job.Buffer.CopyTo(_basePipe.Output.GetSpan(job.Buffer.Length));
-                _basePipe.Output.Advance(job.Buffer.Length);
-                FlushResult flushResult = await _basePipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
+                job.Buffer.CopyTo(_pipe.Output.GetSpan(job.Buffer.Length));
+                _pipe.Output.Advance(job.Buffer.Length);
+                FlushResult flushResult = await _pipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
 
                 if (flushResult.IsCompleted)
                     break;
@@ -250,7 +248,7 @@ namespace Backhand.Protocols.Slp
                 };
 
                 _logger.ReceivedPacket(receivedPacket);
-                ReceivedPacket?.Invoke(this, new SlpTransmissionEventArgs(receivedPacket));
+                PacketReceived?.Invoke(this, new SlpTransmissionEventArgs(receivedPacket));
             }
 
             return bufferReader.Position;

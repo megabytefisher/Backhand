@@ -1,17 +1,16 @@
 {
 	"folders": [
 		{
-			"path": "Backhand.Common"
-		},
-		{
-			"path": "Backhand.Protocols"
-		},
-		{
-			"path": "Backhand.Sandbox"
+			"path": "."
 		}
 	],
 	"settings": {
 		"files.exclude": {
+			".gitignore": true,
+			".vscode": true,
+			"*.code-workspace": true,
+			"**/*.csproj": true,
+			"**/*.sln": true,
 			"**/bin": true,
 			"**/obj": true
 		}

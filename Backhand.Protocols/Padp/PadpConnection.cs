@@ -11,7 +11,7 @@ namespace Backhand.Protocols.Padp
     {
         public bool UseLongForm { get; set; } = false;
 
-        private readonly SlpConnection _slpConnection;
+        private readonly SlpInterface _slpConnection;
         private readonly ArrayPool<byte> _arrayPool;
 
         private readonly byte _localSocketId;
@@ -41,7 +41,7 @@ namespace Backhand.Protocols.Padp
             IsLongForm = 0b00010000,
         }
 
-        public PadpConnection(SlpConnection slpConnection, byte localSocketId, byte remoteSocketId, byte initialTransactionId = 0xFF, ArrayPool<byte>? arrayPool = null)
+        public PadpConnection(SlpInterface slpConnection, byte localSocketId, byte remoteSocketId, byte initialTransactionId = 0xFF, ArrayPool<byte>? arrayPool = null)
         {
             _slpConnection = slpConnection;
             _localSocketId = localSocketId;
@@ -89,7 +89,7 @@ namespace Backhand.Protocols.Padp
             }
         }
 
-        public async Task ReceivePayloadAsync(Action<ReadOnlySequence<byte>> handlePayloadFunc, CancellationToken cancellationToken)
+        public async Task ReceivePayloadAsync(Action<ReadOnlySequence<byte>> callback, CancellationToken cancellationToken)
         {
             TaskCompletionSource receiveTcs = new();
             SegmentBuffer<byte> payloadBuffer = new(_arrayPool);
@@ -148,18 +148,18 @@ namespace Backhand.Protocols.Padp
                 receiveTcs.TrySetResult();
             }
 
-            _slpConnection.ReceivedPacket += OnSlpPacketReceived;
+            _slpConnection.PacketReceived += OnSlpPacketReceived;
             try
             {
                 await using (cancellationToken.Register(() => { receiveTcs.TrySetCanceled(); }))
                 {
                     await receiveTcs.Task.ConfigureAwait(false);
-                    handlePayloadFunc(payloadBuffer.AsReadOnlySequence());
+                    callback(payloadBuffer.AsReadOnlySequence());
                 }
             }
             finally
             {
-                _slpConnection.ReceivedPacket -= OnSlpPacketReceived;
+                _slpConnection.PacketReceived -= OnSlpPacketReceived;
                 payloadBuffer.Dispose();
             }
         }
@@ -202,20 +202,20 @@ namespace Backhand.Protocols.Padp
                 }
             }
 
-            _slpConnection.ReceivedPacket += OnSlpPacketReceived;
+            _slpConnection.PacketReceived += OnSlpPacketReceived;
 
             using CancellationTokenSource timeoutCts = new(AckTimeout);
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             try
             {
-                await using (linkedCts.Token.Register(() => { ackTcs.TrySetCanceled(); }))
+                await using (linkedCts.Token.Register(() => ackTcs.TrySetCanceled()))
                 {
                     await ackTcs.Task.ConfigureAwait(false);
                 }
             }
             finally
             {
-                _slpConnection.ReceivedPacket -= OnSlpPacketReceived;
+                _slpConnection.PacketReceived -= OnSlpPacketReceived;
             }
         }
 

@@ -62,7 +62,7 @@ namespace Backhand.Dlp
 
             SerialPortPipe serialPipe = new(serialPort);
 
-            using SlpConnection slp = new SlpConnection(serialPipe);
+            using SlpInterface slp = new SlpInterface(serialPipe);
             PadpConnection padp = new(slp, 3, 3);
 
             Task? waitForWakeUpTask = null;
@@ -118,7 +118,7 @@ namespace Backhand.Dlp
 
             SerialPortPipe serialPipe = new(serialPort);
 
-            using SlpConnection slp = new(serialPipe);
+            using SlpInterface slp = new(serialPipe);
             PadpConnection padp = new(slp, 3, 3);
 
             Task? ioTask = null;
