@@ -6,7 +6,6 @@ namespace Backhand.Cli.Commands
     {
         public AppRootCommand() : base("Backhand CLI")
         {
-            AddCommand(new TestCommand());
             AddCommand(new DbCommand());
         }
     }

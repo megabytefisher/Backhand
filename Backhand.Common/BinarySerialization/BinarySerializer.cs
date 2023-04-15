@@ -19,9 +19,37 @@ namespace Backhand.Common.BinarySerialization
         private static readonly Lazy<SerializeImplementation> _serialize = new(BuildSerialize);
         private static readonly Lazy<DeserializeImplementation> _deserialize = new(BuildDeserialize);
 
-        public static int GetSize(T value) => _getSize.Value(value);
-        public static void Serialize(T value, ref SpanWriter<byte> buffer) => _serialize.Value(value, ref buffer);
-        public static void Deserialize(ref SequenceReader<byte> buffer, T value) => _deserialize.Value(ref buffer, value);
+        public static int GetSize(T value)
+        {
+            if (value is ICustomBinarySerializable<T> customSerializable)
+            {
+                return customSerializable.GetSize();
+            }
+
+            return _getSize.Value(value);
+        }
+
+        public static void Serialize(T value, ref SpanWriter<byte> buffer)
+        {
+            if (value is ICustomBinarySerializable<T> customSerializable)
+            {
+                customSerializable.Serialize(ref buffer);
+                return;
+            }
+
+            _serialize.Value(value, ref buffer);
+        }
+
+        public static void Deserialize(ref SequenceReader<byte> buffer, T value)
+        {
+            if (value is ICustomBinarySerializable<T> customSerializable)
+            {
+                customSerializable.Deserialize(ref buffer);
+                return;
+            }
+
+            _deserialize.Value(ref buffer, value);
+        }
 
         public static void Serialize(T value, Span<byte> buffer)
         {
