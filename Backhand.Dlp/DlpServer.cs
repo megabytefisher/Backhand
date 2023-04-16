@@ -21,7 +21,7 @@ namespace Backhand.Dlp
             _syncFunc = syncFunc;
         }
 
-        public abstract Task RunAsync(CancellationToken cancellationToken = default);
+        public abstract Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default);
 
         protected async Task DoSyncAsync(DlpConnection connection, CancellationToken cancellationToken = default)
         {

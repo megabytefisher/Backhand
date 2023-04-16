@@ -9,6 +9,6 @@ namespace Backhand.Dlp
         event EventHandler<DlpSyncStartingEventArgs>? SyncStarting;
         event EventHandler<DlpSyncEndedEventArgs>? SyncEnded;
 
-        Task RunAsync(CancellationToken cancellationToken = default);
+        Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default);
     }
 }

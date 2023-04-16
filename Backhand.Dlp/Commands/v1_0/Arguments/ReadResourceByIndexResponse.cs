@@ -4,12 +4,14 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadRecordByIdResponse : DlpArgument
+    public class ReadResourceByIndexResponse : DlpArgument
     {
+        [BinarySerialize(Length = 4)]
+        public string Type { get; set; } = string.Empty;
+
         [BinarySerialize]
-        public uint RecordId { get; set; }
-        
+        public ushort ResourceId { get; set; }
+
         [BinarySerialize]
         public ushort Index { get; set; }
 
@@ -19,12 +21,6 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             get => (ushort)Data.Length;
             set => Data = new byte[value];
         }
-
-        [BinarySerialize]
-        public DlpRecordAttributes Attributes { get; set; }
-
-        [BinarySerialize]
-        public ushort Category { get; set; }
 
         [BinarySerialize]
         public byte[] Data { get; private set; } = Array.Empty<byte>();

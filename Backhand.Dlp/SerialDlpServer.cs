@@ -14,18 +14,16 @@ namespace Backhand.Dlp
     public class SerialDlpServer : DlpServer
     {
         private readonly string _portName;
-        private readonly bool _singleSync;
 
         private const int InitialBaudRate = 9600;
-        private const int TargetBaudRate = 9600;
+        private const int TargetBaudRate = 57600;
 
-        public SerialDlpServer(DlpSyncFunc syncFunc, string portName, bool singleSync = false, CancellationToken cancellationToken = default) : base(syncFunc)
+        public SerialDlpServer(DlpSyncFunc syncFunc, string portName, CancellationToken cancellationToken = default) : base(syncFunc)
         {
             _portName = portName;
-            _singleSync = singleSync;
         }
 
-        public override async Task RunAsync(CancellationToken cancellationToken = default)
+        public override async Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -34,7 +32,7 @@ namespace Backhand.Dlp
                     await DoCmpPortionAsync(cancellationToken).ConfigureAwait(false);
                     await DoDlpPortionAsync(cancellationToken).ConfigureAwait(false);
 
-                    if (_singleSync)
+                    if (singleSync)
                     {
                         break;
                     }

@@ -5,7 +5,6 @@ using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.Linq;
@@ -77,8 +76,6 @@ namespace Backhand.Cli.Commands.DbCommands
             AllowMultipleArgumentsPerToken = true
         };
 
-        public static readonly Option<bool> ServerMode = new(new[] { "--server-mode", "-s" }, () => false);
-
         public static readonly Option<IEnumerable<string>> ColumnsOption = new Option<IEnumerable<string>>(new[] { "--columns", "-c" }, () => new[] { "Name", "Attributes", "Type", "Creator" })
         {
             AllowMultipleArgumentsPerToken = true
@@ -88,25 +85,22 @@ namespace Backhand.Cli.Commands.DbCommands
         {
             this.Add(ReadModesOption);
             this.Add(ColumnsOption);
-            this.Add(ServerMode);
 
             this.SetHandler(async (context) =>
             {
                 IEnumerable<ReadDbListMode> readModes = context.ParseResult.GetValueForOption(ReadModesOption)!;
                 IEnumerable<string> columns = context.ParseResult.GetValueForOption(ColumnsOption)!;
-                bool serverMode = context.ParseResult.GetValueForOption(ServerMode)!;
 
                 IConsole console = context.Console;
                 ILogger logger = context.BindingContext.GetRequiredService<ILogger>();
-                CancellationToken cancellationToken = context.GetCancellationToken();
 
-                IDlpServer dlpServer = GetDlpServer(context, (c, ct) => SyncAsync(c, readModes, columns, serverMode, console, logger, ct));
+                DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, readModes, columns, console, logger, ct);
 
-                await dlpServer.RunAsync(cancellationToken).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncFunc);
             });
         }
 
-        private async Task SyncAsync(DlpConnection connection, IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, bool serverMode, IConsole console, ILogger logger, CancellationToken cancellationToken)
+        private async Task SyncAsync(DlpConnection connection, IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, IConsole console, ILogger logger, CancellationToken cancellationToken)
         {
             ReadDbListMode readMode = readModes.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
 

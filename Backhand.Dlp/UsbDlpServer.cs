@@ -15,42 +15,71 @@ namespace Backhand.Dlp
 {
     public class UsbDlpServer : DlpServer
     {
-        private readonly Dictionary<string, UsbDlpClient> _clients = new Dictionary<string, UsbDlpClient>();
-
         private static readonly TimeSpan PollDelay = TimeSpan.FromMilliseconds(1000);
 
-        public UsbDlpServer(DlpSyncFunc syncFunc, CancellationToken cancellationToken = default) : base(syncFunc)
+        public UsbDlpServer(DlpSyncFunc syncFunc) : base(syncFunc)
         {
         }
 
-        public override async Task RunAsync(CancellationToken cancellationToken = default)
+        public override async Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default)
         {
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
+            Dictionary<string, UsbDlpClient> clients = new();
 
-                RemoveDeadClients();
-                foreach ((UsbDeviceDescriptor device, UsbDeviceConfig config) in UsbDeviceConfigs.GetAvailableDevices())
+            using CancellationTokenSource innerCts = new();
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
+
+            try
+            {
+                while (true)
                 {
-                    if (_clients.ContainsKey(device.DevicePath))
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    foreach (string path in clients.Keys.ToList())
                     {
-                        continue;
+                        if (clients[path].HandlerTask.IsCompleted)
+                        {
+                            clients.Remove(path);
+                        }
                     }
 
-                    UsbDlpClient client = new(device.Open(), config, DoSyncAsync, cancellationToken);
-                    _clients.Add(device.DevicePath, client);
+                    foreach ((UsbDeviceDescriptor device, UsbDeviceConfig config) in UsbDeviceConfigs.GetAvailableDevices())
+                    {
+                        if (clients.ContainsKey(device.DevicePath))
+                        {
+                            continue;
+                        }
+
+                        UsbDlpClient client = new(device.Open(), config, DoSyncAsync, innerCts.Token);
+                        clients.Add(device.DevicePath, client);
+
+                        if (singleSync)
+                        {
+                            break;
+                        }    
+                    }
+
+                    if (singleSync && clients.Any())
+                    {
+                        await Task.WhenAll(clients.Values.Select(c => c.HandlerTask)).ConfigureAwait(false);
+                        break;
+                    }
+
+                    await Task.Delay(PollDelay, cancellationToken).ConfigureAwait(false);
                 }
-
-                await Task.Delay(PollDelay, cancellationToken).ConfigureAwait(false);
             }
-        }
-
-        private void RemoveDeadClients()
-        {
-            List<UsbDlpClient> deadClients = _clients.Values.Where(c => c.HandlerTask.IsCompleted).ToList();
-            foreach (UsbDlpClient deadClient in deadClients)
+            finally
             {
-                _clients.Remove(deadClient.Device.DevicePath);
+                innerCts.Cancel();
+                try
+                {
+                    await Task.WhenAll(clients.Values.Select(c => c.HandlerTask)).ConfigureAwait(false);
+                }
+                catch { /* Swallow */ }
+
+                foreach (UsbDlpClient client in clients.Values)
+                {
+                    client.Dispose();
+                }
             }
         }
 
@@ -77,6 +106,7 @@ namespace Backhand.Dlp
 
             public void Dispose()
             {
+                Device.Dispose();
                 CancellationTokenSource.Cancel();
                 CancellationTokenSource.Dispose();
             }

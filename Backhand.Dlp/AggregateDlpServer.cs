@@ -31,9 +31,9 @@ namespace Backhand.Dlp
             _servers = servers;
         }
 
-        public Task RunAsync(CancellationToken cancellationToken = default)
+        public Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default)
         {
-            return Task.WhenAll(Array.ConvertAll(_servers, s => s.RunAsync(cancellationToken)));
+            return Task.WhenAll(Array.ConvertAll(_servers, s => s.RunAsync(singleSync, cancellationToken)));
         }
     }
 }

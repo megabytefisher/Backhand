@@ -297,6 +297,78 @@ namespace Backhand.Dlp.Commands.v1_0
         }
 
         /************************************/
+        /* WriteRecord                      */
+        /************************************/
+        public static class WriteRecordArguments
+        {
+            public static readonly DlpArgumentDefinition<WriteRecordRequest> Request = new();
+            public static readonly DlpArgumentDefinition<WriteRecordResponse> Response = new();
+        }
+
+        public static readonly DlpCommandDefinition WriteRecord = new DlpCommandDefinition(
+            DlpOpcodes.WriteRecord,
+            new DlpArgumentDefinition[] { WriteRecordArguments.Request },
+            new DlpArgumentDefinition[] { WriteRecordArguments.Response }
+        );
+
+        public static async Task<WriteRecordResponse> WriteRecordAsync(this DlpConnection connection, WriteRecordRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.WriteRecordArguments.Request, request);
+
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.WriteRecord, requestArguments, cancellationToken);
+
+            return responseArguments.GetValue(DlpCommands.WriteRecordArguments.Response) ?? throw new Exception("Failed to get WriteRecordResult");
+        }
+        
+        /************************************/
+        /* ReadResource                     */
+        /************************************/
+        public static class ReadResourceArguments
+        {
+            public static readonly DlpArgumentDefinition<ReadResourceByIndexRequest> Request = new();
+            public static readonly DlpArgumentDefinition<ReadResourceByIndexResponse> Response = new();
+        }
+
+        public static readonly DlpCommandDefinition ReadResource = new DlpCommandDefinition(
+            DlpOpcodes.ReadResource,
+            new DlpArgumentDefinition[] { ReadResourceArguments.Request },
+            new DlpArgumentDefinition[] { ReadResourceArguments.Response }
+        );
+
+        public static async Task<ReadResourceByIndexResponse> ReadResourceAsync(this DlpConnection connection, ReadResourceByIndexRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.ReadResourceArguments.Request, request);
+
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadResource, requestArguments, cancellationToken);
+
+            return responseArguments.GetValue(DlpCommands.ReadResourceArguments.Response) ?? throw new Exception("Failed to get ReadResourceResult");
+        }
+
+        /************************************/
+        /* WriteResource                    */
+        /************************************/
+        public static class WriteResourceArguments
+        {
+            public static readonly DlpArgumentDefinition<WriteResourceRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition WriteResource = new DlpCommandDefinition(
+            DlpOpcodes.WriteResource,
+            new DlpArgumentDefinition[] { WriteResourceArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task WriteResourceAsync(this DlpConnection connection, WriteResourceRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.WriteResourceArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.WriteResource, requestArguments, cancellationToken);
+        }
+
+        /************************************/
         /* OpenConduit                      */
         /************************************/
         public static readonly DlpCommandDefinition OpenConduit = new DlpCommandDefinition(
@@ -330,6 +402,31 @@ namespace Backhand.Dlp.Commands.v1_0
             requestArguments.SetValue(DlpCommands.EndSyncArguments.Request, request);
 
             await connection.ExecuteTransactionAsync(DlpCommands.EndSync, requestArguments, cancellationToken);
+        }
+
+        /************************************/
+        /* ReadRecordIdList                 */
+        /************************************/
+        public static class ReadRecordIdListArguments
+        {
+            public static readonly DlpArgumentDefinition<ReadRecordIdListRequest> Request = new();
+            public static readonly DlpArgumentDefinition<ReadRecordIdListResponse> Response = new();
+        }
+
+        public static readonly DlpCommandDefinition ReadRecordIdList = new DlpCommandDefinition(
+            DlpOpcodes.ReadRecordIdList,
+            new DlpArgumentDefinition[] { ReadRecordIdListArguments.Request },
+            new DlpArgumentDefinition[] { ReadRecordIdListArguments.Response }
+        );
+
+        public static async Task<ReadRecordIdListResponse> ReadRecordIdListAsync(this DlpConnection connection, ReadRecordIdListRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.ReadRecordIdListArguments.Request, request);
+
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadRecordIdList, requestArguments, cancellationToken);
+
+            return responseArguments.GetValue(DlpCommands.ReadRecordIdListArguments.Response) ?? throw new Exception("Failed to get ReadRecordIdListResult");
         }
     }
 }

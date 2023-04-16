@@ -3,6 +3,7 @@ using Backhand.Protocols.Dlp;
 using Backhand.Protocols.NetSync;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -12,52 +13,58 @@ namespace Backhand.Dlp
 {
     public class NetworkDlpServer : DlpServer
     {
-        private readonly TcpListener _listener;
-        private readonly List<NetworkDlpClient> _clients = new List<NetworkDlpClient>();
+        public IPAddress BindAddress { get; set; } = IPAddress.Any;
 
-        public NetworkDlpServer(DlpSyncFunc syncFunc, int port = 14238, CancellationToken cancellationToken = default) : base(syncFunc)
+        public NetworkDlpServer(DlpSyncFunc syncFunc) : base(syncFunc)
         {
-            _listener = new TcpListener(new IPEndPoint(IPAddress.Any, port));
         }
 
-        public override async Task RunAsync(CancellationToken cancellationToken = default)
+        public override async Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default)
         {
+            TcpListener tcpListener = new(new IPEndPoint(BindAddress, 14238));
+
+            List<NetworkDlpClient> clients = new();
 
             using CancellationTokenSource innerCts = new();
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
 
-            using NetworkHandshakeServer handshakeServer = new(14237);
-            Task handshakeServerTask = handshakeServer.Run(linkedCts.Token);
+            //using NetworkHandshakeServer handshakeServer = new(14237);
+            //Task handshakeServerTask = handshakeServer.Run(linkedCts.Token);
 
             try
             {
-                _listener.Start();
+                tcpListener.Start();
                 while (true)
                 {
-                    RemoveDeadClients();
                     cancellationToken.ThrowIfCancellationRequested();
-                    TcpClient client = await _listener.AcceptTcpClientAsync(linkedCts.Token).ConfigureAwait(false);
+                    clients.RemoveAll(c => c.HandlerTask.IsCompleted);
+                    TcpClient client = await tcpListener.AcceptTcpClientAsync(linkedCts.Token).ConfigureAwait(false);
                     NetworkDlpClient networkDlpClient = new(client, DoSyncAsync, linkedCts.Token);
-                    _clients.Add(networkDlpClient);
+                    clients.Add(networkDlpClient);
+
+                    if (singleSync)
+                    {
+                        break;
+                    }
                 }
+                tcpListener.Stop();
+                await Task.WhenAll(clients.Select(c => c.HandlerTask)).ConfigureAwait(false);
             }
             finally
             {
+                tcpListener.Stop();
                 innerCts.Cancel();
                 try
                 {
-                    await handshakeServerTask;
+                    await Task.WhenAll(clients.Select(c => c.HandlerTask)).ConfigureAwait(false);
                 }
-                catch
+                catch { /* Swallow */ }
+
+                foreach (NetworkDlpClient client in clients)
                 {
-                    // Swallow
+                    client.Dispose();
                 }
             }
-        }
-
-        private void RemoveDeadClients()
-        {
-            _clients.RemoveAll(c => c.HandlerTask.IsCompleted);
         }
 
         private class NetworkDlpClient : IDisposable

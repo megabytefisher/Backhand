@@ -5,26 +5,23 @@ using Backhand.Protocols.Dlp;
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
     [BinarySerializable]
-    public class ReadRecordByIdResponse : DlpArgument
+    public class WriteResourceRequest : DlpArgument
     {
         [BinarySerialize]
-        public uint RecordId { get; set; }
-        
-        [BinarySerialize]
-        public ushort Index { get; set; }
+        public byte DbHandle { get; set; }
 
         [BinarySerialize]
-        public ushort Length
+        public byte Padding { get; set; }
+
+        [BinarySerialize]
+        public ushort ResourceId { get; set; }
+
+        [BinarySerialize]
+        public ushort Size
         {
             get => (ushort)Data.Length;
             set => Data = new byte[value];
         }
-
-        [BinarySerialize]
-        public DlpRecordAttributes Attributes { get; set; }
-
-        [BinarySerialize]
-        public ushort Category { get; set; }
 
         [BinarySerialize]
         public byte[] Data { get; private set; } = Array.Empty<byte>();
