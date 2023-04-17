@@ -1,3 +1,4 @@
+using System;
 using Backhand.Common.BinarySerialization;
 using Backhand.Protocols.Dlp;
 
@@ -16,7 +17,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         public uint LastSyncPcId { get; set; }
 
         [BinarySerialize]
-        public byte[] LastSuccessfulSyncDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
+        private DlpDateTime LastSuccessfulSyncDlpDate { get; set; } = new();
 
         [BinarySerialize]
         public byte Padding { get; set; }
@@ -25,6 +26,18 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         public byte UsernameByteLength { get; set; }
 
         [BinarySerialize]
-        public string Username { get; set; } = string.Empty;
+        private NullTerminatedBinaryString UsernameString { get; set; } = new();
+
+        public string Username
+        {
+            get => UsernameString.Value;
+            set => UsernameString.Value = value;
+        }
+
+        public DateTime LastSuccessfulSyncDate
+        {
+            get => LastSuccessfulSyncDlpDate.AsDateTime;
+            set => LastSuccessfulSyncDlpDate.AsDateTime = value;
+        }
     }
 }

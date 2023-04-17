@@ -17,13 +17,17 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         public uint LastSyncPcId { get; set; }
 
         [BinarySerialize]
-        public byte[] LastSuccessfulSyncDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
+        private DlpDateTime LastSuccessfulSyncDlpDate { get; } = new();
 
         [BinarySerialize]
-        public byte[] LastSyncDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
+        private DlpDateTime LastSyncDlpDate { get; } = new();
 
         [BinarySerialize]
-        public byte UsernameByteLength { get; set; }
+        public byte UsernameSize
+        {
+            get => Convert.ToByte(UsernameString.Size);
+            set => UsernameString.Size = value;
+        }
 
         [BinarySerialize]
         public byte PasswordByteLength
@@ -32,25 +36,28 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             set => Password = new byte[value];
         }
 
-        [BinarySerialize(ConditonProperty = nameof(ShouldSerializeUsername), LengthProperty = nameof(UsernameByteLength), NullTerminated = true)]
-        public string Username { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString UsernameString { get; set; } = new();
 
-        [BinarySerialize(ConditonProperty = nameof(ShouldSerializePassword))]
+        [BinarySerialize]
         public byte[] Password { get; private set; } = Array.Empty<byte>();
 
-        public bool ShouldSerializeUsername => UsernameByteLength > 0;
-        public bool ShouldSerializePassword => PasswordByteLength > 0;
+        public string Username
+        {
+            get => UsernameString.Value;
+            set => UsernameString.Value = value;
+        }
 
         public DateTime LastSuccessfulSyncDate
         {
-            get => DlpPrimitives.ReadDlpDateTime(LastSuccessfulSyncDateBytes);
-            set => DlpPrimitives.WriteDlpDateTime(LastSuccessfulSyncDateBytes, value);
+            get => LastSuccessfulSyncDlpDate.AsDateTime;
+            set => LastSuccessfulSyncDlpDate.AsDateTime = value;
         }
 
         public DateTime LastSyncDate
         {
-            get => DlpPrimitives.ReadDlpDateTime(LastSyncDateBytes);
-            set => DlpPrimitives.WriteDlpDateTime(LastSyncDateBytes, value);
+            get => LastSyncDlpDate.AsDateTime;
+            set => LastSyncDlpDate.AsDateTime = value;
         }
     }
 }

@@ -7,12 +7,12 @@
             // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
             "name": ".NET Core Launch (console)",
             "type": "coreclr",
-            "request": "launch",
+            "request": "launch", 
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
             "program": "${workspaceFolder}/Backhand.Cli/bin/Debug/net7.0/Backhand.Cli.dll",
-            "args": "db push -d network -f \"Sea War.prc\"",
-            //"args": "db pull -d network -n \"Sea War\"",
+            //"args": "db push -d network -f HelloWorld.prc",
+            "args": "db pull -d network -n HelloWorld -o HelloWorld_out.prc",
             "cwd": "${workspaceFolder}/Backhand.Cli",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
             "console": "internalConsole",

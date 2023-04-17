@@ -36,11 +36,11 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             [BinarySerialize]
             public DlpDatabaseAttributes Attributes { get; set; }
 
-            [BinarySerialize(Length = 4)]
-            public string Type { get; set; } = string.Empty;
+            [BinarySerialize]
+            private FixedSizeBinaryString TypeString { get; } = new(4);
 
-            [BinarySerialize(Length = 4)]
-            public string Creator { get; set; } = string.Empty;
+            [BinarySerialize]
+            private FixedSizeBinaryString CreatorString { get; } = new(4);
 
             [BinarySerialize]
             public ushort Version { get; set; }
@@ -49,36 +49,54 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             public uint ModificationNumber { get; set; }
 
             [BinarySerialize]
-            public byte[] CreationDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
+            private DlpDateTime CreationDlpDate { get; } = new();
 
             [BinarySerialize]
-            public byte[] ModificationDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
+            private DlpDateTime ModificationDlpDate { get; } = new();
 
             [BinarySerialize]
-            public byte[] LastBackupDateBytes { get; set; } = new byte[DlpPrimitives.DlpDateTimeSize];
+            private DlpDateTime LastBackupDlpDate { get; } = new();
 
             [BinarySerialize]
             public ushort Index { get; set; }
 
-            [BinarySerialize(NullTerminated = true)]
-            public string Name { get; set; } = string.Empty;
+            [BinarySerialize]
+            private NullTerminatedBinaryString NameString { get; } = new();
+
+            public string Type
+            {
+                get => TypeString.Value;
+                set => TypeString.Value = value;
+            }
+
+            public string Creator
+            {
+                get => CreatorString.Value;
+                set => CreatorString.Value = value;
+            }
+
+            public string Name
+            {
+                get => NameString.Value;
+                set => NameString.Value = value;
+            }
 
             public DateTime CreationDate
             {
-                get => DlpPrimitives.ReadDlpDateTime(CreationDateBytes);
-                set => DlpPrimitives.WriteDlpDateTime(CreationDateBytes, value);
+                get => CreationDlpDate.AsDateTime;
+                set => CreationDlpDate.AsDateTime = value;
             }
 
             public DateTime ModificationDate
             {
-                get => DlpPrimitives.ReadDlpDateTime(ModificationDateBytes);
-                set => DlpPrimitives.WriteDlpDateTime(ModificationDateBytes, value);
+                get => ModificationDlpDate.AsDateTime;
+                set => ModificationDlpDate.AsDateTime = value;
             }
 
             public DateTime LastBackupDate
             {
-                get => DlpPrimitives.ReadDlpDateTime(LastBackupDateBytes);
-                set => DlpPrimitives.WriteDlpDateTime(LastBackupDateBytes, value);
+                get => LastBackupDlpDate.AsDateTime;
+                set => LastBackupDlpDate.AsDateTime = value;
             }
         }
     }

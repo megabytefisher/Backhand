@@ -22,7 +22,13 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         [BinarySerialize]
         public OpenDbMode Mode { get; set; }
 
-        [BinarySerialize(NullTerminated = true)]
-        public string Name { get; set; } = string.Empty;
+        [BinarySerialize]
+        private NullTerminatedBinaryString NameString { get; } = new NullTerminatedBinaryString();
+
+        public string Name
+        {
+            get => NameString.Value;
+            set => NameString.Value = value;
+        }
     }
 }

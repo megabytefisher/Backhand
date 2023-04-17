@@ -33,6 +33,7 @@ namespace Backhand.Cli.Commands.DbCommands
                 DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, file, console, ct);
 
                 await RunDlpServerAsync(context, syncFunc).ConfigureAwait(false);
+                console.WriteLine("Operation completed successfully.");
             });
         }
 

@@ -24,24 +24,30 @@ namespace Backhand.Cli.Commands.DbCommands
             IsRequired = true
         };
 
+        public static readonly Option<FileInfo> OutputOption = new(new[] { "--output", "-o" }, "The output file to write the database to.")
+        {
+        };
+
         public PullCommand()
             : base("pull", "Pull a database file from the device.")
         {
             Add(NameOption);
+            Add(OutputOption);
 
             this.SetHandler(async (context) =>
             {
                 string name = context.ParseResult.GetValueForOption(NameOption)!;
+                FileInfo? output = context.ParseResult.GetValueForOption(OutputOption);
 
                 IConsole console = context.Console;
 
-                DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, name, console, ct);
+                DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, name, output, console, ct);
 
                 await RunDlpServerAsync(context, syncFunc).ConfigureAwait(false);
             });
         }
 
-        private async Task SyncAsync(DlpConnection connection, string name, IConsole console, CancellationToken cancellationToken)
+        private async Task SyncAsync(DlpConnection connection, string name, FileInfo? outputFile, IConsole console, CancellationToken cancellationToken)
         {
             await connection.OpenConduitAsync().ConfigureAwait(false);
 
@@ -151,7 +157,7 @@ namespace Backhand.Cli.Commands.DbCommands
             }, cancellationToken).ConfigureAwait(false);
 
             // Save database to file
-            await using FileStream outStream = File.OpenWrite(GetFileName(db));
+            await using FileStream outStream = File.OpenWrite(outputFile?.FullName ?? GetFileName(db));
             await db.SerializeAsync(outStream, cancellationToken).ConfigureAwait(false);
         }
 

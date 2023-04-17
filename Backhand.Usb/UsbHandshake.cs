@@ -30,8 +30,8 @@ namespace Backhand.Usb
         [BinarySerializable]
         private class ExtConnectionPortInfo
         {
-            [BinarySerialize(Length = 4)]
-            public string Type { get; set; } = string.Empty;
+            [BinarySerialize]
+            public FixedSizeBinaryString Type { get; set; } = new(4);
 
             [BinarySerialize]
             public byte PortNumber { get; set; }

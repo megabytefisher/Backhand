@@ -6,8 +6,11 @@ namespace Backhand.Pdb.FileSerialization
     [BinarySerializable]
     internal class PdbHeader
     {
-        [BinarySerialize(Length = 32, NullTerminated = true)]
-        public string Name { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString NameString { get; set; } = new(32)
+        {
+            NullTerminated = true
+        };
 
         [BinarySerialize]
         public DatabaseAttributes Attributes { get; set; }
@@ -16,13 +19,13 @@ namespace Backhand.Pdb.FileSerialization
         public ushort Version { get; set; }
 
         [BinarySerialize]
-        public uint CreationDateUInt32 { get; set; }
+        private PdbDateTime CreationPdbDate { get; } = new();
 
         [BinarySerialize]
-        public uint ModificationDateUInt32 { get; set; }
+        private PdbDateTime ModificationPdbDate { get; } = new();
 
         [BinarySerialize]
-        public uint LastBackupDateUInt32 { get; set; }
+        private PdbDateTime LastBackupPdbDate { get; } = new();
 
         [BinarySerialize]
         public uint ModificationNumber { get; set; }
@@ -33,31 +36,49 @@ namespace Backhand.Pdb.FileSerialization
         [BinarySerialize]
         public uint SortInfoId { get; set; }
 
-        [BinarySerialize(Length = 4)]
-        public string Type { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString TypeString { get; set; } = new(4);
 
-        [BinarySerialize(Length = 4)]
-        public string Creator { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString CreatorString { get; set; } = new(4);
 
         [BinarySerialize]
         public uint UniqueIdSeed { get; set; }
 
+        public string Name
+        {
+            get => NameString.ToString();
+            set => NameString.Value = value;
+        }
+
+        public string Type
+        {
+            get => TypeString.ToString();
+            set => TypeString.Value = value;
+        }
+
+        public string Creator
+        {
+            get => CreatorString.ToString();
+            set => CreatorString.Value = value;
+        }
+
         public DateTime CreationDate
         {
-            get => PdbPrimitives.FromPdbDateTime(CreationDateUInt32);
-            set => CreationDateUInt32 = PdbPrimitives.ToPdbDateTime(value);
+            get => CreationPdbDate;
+            set => CreationPdbDate.AsDateTime = value;
         }
 
         public DateTime ModificationDate
         {
-            get => PdbPrimitives.FromPdbDateTime(ModificationDateUInt32);
-            set => ModificationDateUInt32 = PdbPrimitives.ToPdbDateTime(value);
+            get => ModificationPdbDate;
+            set => ModificationPdbDate.AsDateTime = value;
         }
 
         public DateTime LastBackupDate
         {
-            get => PdbPrimitives.FromPdbDateTime(LastBackupDateUInt32);
-            set => LastBackupDateUInt32 = PdbPrimitives.ToPdbDateTime(value);
+            get => LastBackupPdbDate;
+            set => LastBackupPdbDate.AsDateTime = value;
         }
     }
 }

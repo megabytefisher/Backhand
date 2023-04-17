@@ -27,21 +27,20 @@ namespace Backhand.Pdb
 
         internal PdbHeader GetFileHeader(uint appInfoId, uint sortInfoId)
         {
-            return new PdbHeader
-            {
-                Name = Name,
-                Attributes = Attributes,
-                Version = Version,
-                CreationDate = CreationDate,
-                ModificationDate = ModificationDate,
-                LastBackupDate = LastBackupDate,
-                ModificationNumber = ModificationNumber,
-                AppInfoId = appInfoId,
-                SortInfoId = sortInfoId,
-                Type = Type,
-                Creator = Creator,
-                UniqueIdSeed = UniqueIdSeed,
-            };
+            PdbHeader result = new PdbHeader();
+            result.Name = Name;
+            result.Attributes = Attributes;
+            result.Version = Version;
+            result.CreationDate = CreationDate;
+            result.ModificationDate = ModificationDate;
+            result.LastBackupDate = LastBackupDate;
+            result.ModificationNumber = ModificationNumber;
+            result.AppInfoId = appInfoId;
+            result.SortInfoId = sortInfoId;
+            result.Type = Type;
+            result.Creator = Creator;
+            result.UniqueIdSeed = UniqueIdSeed;
+            return result;
         }
 
         internal void LoadFileHeader(PdbHeader header)

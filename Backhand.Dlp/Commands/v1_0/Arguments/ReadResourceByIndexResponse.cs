@@ -7,8 +7,8 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
     [BinarySerializable]
     public class ReadResourceByIndexResponse : DlpArgument
     {
-        [BinarySerialize(Length = 4)]
-        public string Type { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString TypeString { get; } = new(4);
 
         [BinarySerialize]
         public ushort ResourceId { get; set; }
@@ -25,5 +25,11 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
 
         [BinarySerialize]
         public byte[] Data { get; private set; } = Array.Empty<byte>();
+
+        public string Type
+        {
+            get => TypeString.Value;
+            set => TypeString.Value = value;
+        }
     }
 }

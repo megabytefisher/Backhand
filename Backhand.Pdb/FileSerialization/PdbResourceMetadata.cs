@@ -5,13 +5,19 @@ namespace Backhand.Pdb.FileSerialization
     [BinarySerializable]
     internal class PdbResourceMetadata
     {
-        [BinarySerialize(Length = 4)]
-        public string Type { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString TypeString { get; set; } = new(4);
 
         [BinarySerialize]
         public ushort ResourceId { get; set; }
 
         [BinarySerialize]
         public uint LocalChunkId { get; set; }
+
+        public string Type
+        {
+            get => TypeString.ToString();
+            set => TypeString.Value = value;
+        }
     }
 }

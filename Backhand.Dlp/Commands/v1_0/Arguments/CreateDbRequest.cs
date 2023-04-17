@@ -6,11 +6,11 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
     [BinarySerializable]
     public class CreateDbRequest : DlpArgument
     {
-        [BinarySerialize(Length = 4)]
-        public string Creator { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString CreatorString { get; } = new(4);
 
-        [BinarySerialize(Length = 4)]
-        public string Type { get; set; } = string.Empty;
+        [BinarySerialize]
+        private FixedSizeBinaryString TypeString { get; } = new(4);
 
         [BinarySerialize]
         public byte CardId { get; set; }
@@ -24,7 +24,25 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         [BinarySerialize]
         public ushort Version { get; set; }
 
-        [BinarySerialize(NullTerminated = true)]
-        public string Name { get; set; } = string.Empty;
+        [BinarySerialize]
+        private NullTerminatedBinaryString NameString { get; } = new();
+
+        public string Creator
+        {
+            get => CreatorString.Value;
+            set => CreatorString.Value = value;
+        }
+
+        public string Type
+        {
+            get => TypeString.Value;
+            set => TypeString.Value = value;
+        }
+
+        public string Name
+        {
+            get => NameString.Value;
+            set => NameString.Value = value;
+        }
     }
 }
