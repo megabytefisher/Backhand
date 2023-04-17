@@ -31,6 +31,9 @@ namespace Backhand.Protocols.Dlp
             byte minute = buffer[5];
             byte second = buffer[6];
 
+            if (year == 0 || month == 0 || day == 0)
+                return DateTime.MinValue;
+
             return new DateTime(year, month, day, hour, minute, second);
         }
     }

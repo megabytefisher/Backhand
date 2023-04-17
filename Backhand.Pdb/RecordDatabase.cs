@@ -1,4 +1,4 @@
-﻿using Backhand.Pdb.FileSerialization;
+using Backhand.Pdb.FileSerialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,19 +8,19 @@ using System.Threading.Tasks;
 
 namespace Backhand.Pdb
 {
-    public class ResourceDatabase : Database
+    public class RecordDatabase : Database
     {
-        public List<DatabaseResource> Resources { get; } = new();
+        public List<DatabaseRecord> Records { get; } = new();
 
-        public override async Task SerializeAsync(Stream stream, CancellationToken cancellationToken = default)
+        public override async Task SerializeAsync(Stream stream, CancellationToken cancellationToken)
         {
             uint appInfoOffset =
                 Convert.ToUInt32(PdbSerialization.HeaderSize) +
                 Convert.ToUInt32(PdbSerialization.EntryListHeaderSize) +
-                Convert.ToUInt32(PdbSerialization.ResourceMetadataSize * Resources.Count) +
+                Convert.ToUInt32(PdbSerialization.RecordMetadataSize * Records.Count) +
                 Convert.ToUInt32(PdbSerialization.HeaderPaddingSize);
             uint sortInfoOffset = appInfoOffset + Convert.ToUInt32(AppInfo?.Length ?? 0);
-            uint resourceBlockOffset = sortInfoOffset + Convert.ToUInt32(SortInfo?.Length ?? 0);
+            uint recordBlockOffset = sortInfoOffset + Convert.ToUInt32(SortInfo?.Length ?? 0);
 
             PdbHeader header = GetFileHeader(
                 AppInfo is { Length: > 0 } ? appInfoOffset : 0,
@@ -31,23 +31,25 @@ namespace Backhand.Pdb
             PdbEntryListHeader entryListHeader = new PdbEntryListHeader
             {
                 NextListId = 0,
-                Length = Convert.ToUInt16(Resources.Count)
+                Length = Convert.ToUInt16(Records.Count)
             };
 
             await PdbSerialization.WriteEntryListHeaderAsync(stream, entryListHeader, cancellationToken).ConfigureAwait(false);
 
-            uint blockOffset = resourceBlockOffset;
-            foreach (DatabaseResource resource in Resources)
+            uint blockOffset = recordBlockOffset;
+            foreach (DatabaseRecord record in Records)
             {
-                PdbResourceMetadata resourceMetadata = new PdbResourceMetadata
+                PdbRecordMetadata recordMetadata = new PdbRecordMetadata
                 {
-                    Type = resource.Type,
-                    ResourceId = resource.ResourceId,
+                    Attributes = record.Attributes,
+                    Category = record.Category,
+                    Archive = record.Archive,
+                    UniqueId = record.UniqueId,
                     LocalChunkId = blockOffset
                 };
 
-                await PdbSerialization.WriteResourceMetadataAsync(stream, resourceMetadata, cancellationToken).ConfigureAwait(false);
-                blockOffset += Convert.ToUInt32(resource.Data.Length);
+                await PdbSerialization.WriteRecordMetadataAsync(stream, recordMetadata, cancellationToken).ConfigureAwait(false);
+                blockOffset += Convert.ToUInt32(record.Data.Length);
             }
 
             // Write header padding
@@ -65,10 +67,10 @@ namespace Backhand.Pdb
                 await stream.WriteAsync(SortInfo).ConfigureAwait(false);
             }
 
-            // Write Resources
-            foreach (DatabaseResource resource in Resources)
+            // Write records
+            foreach (DatabaseRecord record in Records)
             {
-                await stream.WriteAsync(resource.Data).ConfigureAwait(false);
+                await stream.WriteAsync(record.Data).ConfigureAwait(false);
             }
         }
 
@@ -85,10 +87,10 @@ namespace Backhand.Pdb
             }
 
             // Read each metadata entry
-            List<PdbResourceMetadata> metadataList = new();
+            List<PdbRecordMetadata> metadataList = new();
             for (ushort i = 0; i < entryListHeader.Length; i++)
             {
-                metadataList.Add(await PdbSerialization.ReadResourceMetadataAsync(stream, cancellationToken).ConfigureAwait(false));
+                metadataList.Add(await PdbSerialization.ReadRecordMetadataAsync(stream, cancellationToken).ConfigureAwait(false));
             }
 
             // Read AppInfo
@@ -117,29 +119,29 @@ namespace Backhand.Pdb
             }
 
             // Read Resource entries
-            Resources.Clear();
-            foreach (PdbResourceMetadata metadata in metadataList)
+            Records.Clear();
+            foreach (PdbRecordMetadata metadata in metadataList)
             {
-                PdbResourceMetadata? nextMetadata = metadataList
+                PdbRecordMetadata? nextMetadata = metadataList
                     .Where(md => md.LocalChunkId > metadata.LocalChunkId)
                     .MinBy(md => md.LocalChunkId);
 
-                uint resourceLength =
+                uint recordLength =
                     nextMetadata != null ? nextMetadata.LocalChunkId - metadata.LocalChunkId :
                     Convert.ToUInt32(stream.Length) - metadata.LocalChunkId;
 
                 stream.Seek(metadata.LocalChunkId, SeekOrigin.Begin);
-                byte[] resourceData = new byte[resourceLength];
-                await PdbSerialization.FillBuffer(stream, resourceData, cancellationToken);
+                byte[] recordData = new byte[recordLength];
+                await PdbSerialization.FillBuffer(stream, recordData, cancellationToken);
 
-                DatabaseResource resource = new()
+                Records.Add(new DatabaseRecord
                 {
-                    Type = metadata.Type,
-                    ResourceId = metadata.ResourceId,
-                    Data = resourceData
-                };
-
-                Resources.Add(resource);
+                    Attributes = metadata.Attributes,
+                    Category = metadata.Category,
+                    Archive = metadata.Archive,
+                    UniqueId = metadata.UniqueId,
+                    Data = recordData
+                });
             }
         }
     }

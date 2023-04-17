@@ -8,6 +8,8 @@ namespace Backhand.Cli.Commands
         public DbCommand() : base("db", "Contains commands for manipulating databases on a connected device")
         {
             AddCommand(new ListCommand());
+            AddCommand(new PushCommand());
+            AddCommand(new PullCommand());
         }
     }
 }

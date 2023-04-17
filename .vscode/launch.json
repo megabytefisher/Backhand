@@ -11,7 +11,8 @@
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
             "program": "${workspaceFolder}/Backhand.Cli/bin/Debug/net7.0/Backhand.Cli.dll",
-            "args": ["db", "list", "--devices", "serial:COM4", "usb"],
+            "args": "db push -d network -f \"Sea War.prc\"",
+            //"args": "db pull -d network -n \"Sea War\"",
             "cwd": "${workspaceFolder}/Backhand.Cli",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
             "console": "internalConsole",

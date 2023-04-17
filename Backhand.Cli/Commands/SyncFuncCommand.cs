@@ -1,4 +1,5 @@
 ﻿using Backhand.Dlp;
+using Backhand.Protocols.Dlp;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
@@ -28,6 +29,7 @@ namespace Backhand.Cli.Commands
 
         protected async Task RunDlpServerAsync(InvocationContext context, DlpSyncFunc syncFunc)
         {
+            IConsole console = context.Console;
             CancellationToken cancellationToken = context.GetCancellationToken();
             string[] devicesString = context.ParseResult.GetValueForOption(DevicesOption)!;
             bool daemon = context.ParseResult.GetValueForOption(DaemonOption);
@@ -76,9 +78,30 @@ namespace Backhand.Cli.Commands
                 }
             }
 
-            IDlpServer server = new AggregatedDlpServer(servers);
+            EventHandler<DlpSyncEndedEventArgs> OnSyncEnded = (sender, e) =>
+            {
+                if (e.SyncException != null)
+                {
+                    HandleSyncError(e.Connection, e.SyncException, console);
+                }
+            };
 
-            await server.RunAsync(!daemon, cancellationToken).ConfigureAwait(false);
+            IDlpServer server = new AggregatedDlpServer(servers);
+            server.SyncEnded += OnSyncEnded;
+            try
+            {
+                await server.RunAsync(!daemon, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                server.SyncEnded -= OnSyncEnded;
+            }
+        }
+
+        protected virtual void HandleSyncError(DlpConnection connection, Exception ex, IConsole console)
+        {
+            console.WriteLine("Exception during sync:");
+            console.WriteLine(ex.ToString());
         }
     }
 }

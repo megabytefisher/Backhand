@@ -10,10 +10,10 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         [Flags]
         public enum ReadDbListMode : byte
         {
-            None = 0b00000000,
-            ListRam = 0b10000000,
-            ListRom = 0b01000000,
-            ListMultiple = 0b00100000,
+            None            = 0b00000000,
+            ListRam         = 0b10000000,
+            ListRom         = 0b01000000,
+            ListMultiple    = 0b00100000,
         }
 
         [BinarySerialize]

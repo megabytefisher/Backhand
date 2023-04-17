@@ -3,10 +3,14 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
+    [BinarySerializable]
     public class ReadResourceByIndexRequest : DlpArgument
     {
         [BinarySerialize]
         public byte DbHandle { get; set; }
+
+        [BinarySerialize]
+        public byte Padding { get; set; }
 
         [BinarySerialize]
         public ushort ResourceIndex { get; set; }

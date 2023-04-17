@@ -24,7 +24,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         public DlpRecordAttributes Attributes { get; set; }
 
         [BinarySerialize]
-        public ushort Category { get; set; }
+        public byte Category { get; set; }
 
         [BinarySerialize]
         public byte[] Data { get; private set; } = Array.Empty<byte>();

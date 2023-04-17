@@ -1,6 +1,7 @@
 ﻿using Backhand.Pdb.FileSerialization;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.Pdb
@@ -21,8 +22,8 @@ namespace Backhand.Pdb
         public byte[]? AppInfo { get; set; }
         public byte[]? SortInfo { get; set; }
 
-        public abstract Task SerializeAsync(Stream stream);
-        public abstract Task DeserializeAsync(Stream stream);
+        public abstract Task SerializeAsync(Stream stream, CancellationToken cancellationToken);
+        public abstract Task DeserializeAsync(Stream stream, CancellationToken cancellationToken);
 
         internal PdbHeader GetFileHeader(uint appInfoId, uint sortInfoId)
         {

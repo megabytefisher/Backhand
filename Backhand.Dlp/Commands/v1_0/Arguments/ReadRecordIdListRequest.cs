@@ -10,17 +10,18 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         [Flags]
         public enum ReadRecordIdListFlags : byte
         {
-            None = 0b00000000,
-            ShouldSort = 0b10000000
+            None            = 0b00000000,
+            ShouldSort      = 0b10000000
         };
 
         [BinarySerialize]
         public byte DbHandle { get; set; }
 
+        [BinarySerialize]
         public ReadRecordIdListFlags Flags { get; set; }
 
         [BinarySerialize]
-        public ushort Index { get; set; }
+        public ushort StartIndex { get; set; }
 
         [BinarySerialize]
         public ushort MaxRecords { get; set; }

@@ -71,7 +71,7 @@ namespace Backhand.Cli.Commands.DbCommands
             }
         };
 
-        public static readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption = new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListRam | ReadDbListMode.ListMultiple })
+        public static readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption = new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListMultiple | ReadDbListMode.ListRam })
         {
             AllowMultipleArgumentsPerToken = true
         };
@@ -96,7 +96,7 @@ namespace Backhand.Cli.Commands.DbCommands
 
                 DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, readModes, columns, console, logger, ct);
 
-                await RunDlpServerAsync(context, syncFunc);
+                await RunDlpServerAsync(context, syncFunc).ConfigureAwait(false);
             });
         }
 
@@ -104,7 +104,7 @@ namespace Backhand.Cli.Commands.DbCommands
         {
             ReadDbListMode readMode = readModes.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
 
-            await connection.OpenConduitAsync(cancellationToken);
+            await connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
 
             List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
             ushort startIndex = 0;
@@ -117,7 +117,7 @@ namespace Backhand.Cli.Commands.DbCommands
                     Mode = readMode,
                     CardId = 0,
                     StartIndex = startIndex
-                }, cancellationToken);
+                }, cancellationToken).ConfigureAwait(false);
 
                 metadataList.AddRange(dbListResponse.Results);
                 startIndex = (ushort)(dbListResponse.LastIndex + 1);

@@ -14,6 +14,9 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         public byte Padding { get; set; }
 
         [BinarySerialize]
+        public string Type { get; set; } = string.Empty;
+
+        [BinarySerialize]
         public ushort ResourceId { get; set; }
 
         [BinarySerialize]
@@ -24,6 +27,6 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         }
 
         [BinarySerialize]
-        public byte[] Data { get; private set; } = Array.Empty<byte>();
+        public byte[] Data { get; set; } = Array.Empty<byte>();
     }
 }

@@ -5,6 +5,7 @@ namespace Backhand.Pdb
     [Flags]
     public enum DatabaseAttributes : ushort
     {
+        None =                      0b00000000_00000000,
         Open =                      0b10000000_00000000,
         Unused1 =                   0b01000000_00000000,
         Unused2 =                   0b00100000_00000000,

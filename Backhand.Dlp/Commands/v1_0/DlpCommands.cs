@@ -30,6 +30,28 @@ namespace Backhand.Dlp.Commands.v1_0
         }
 
         /************************************/
+        /*  WriteUserInfo                   */
+        /************************************/
+        public static class WriteUserInfoArguments
+        {
+            public static readonly DlpArgumentDefinition<WriteUserInfoRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition WriteUserInfo = new DlpCommandDefinition(
+            DlpOpcodes.WriteUserInfo,
+            new DlpArgumentDefinition[] { WriteUserInfoArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task WriteUserInfoAsync(this DlpConnection connection, WriteUserInfoRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.WriteUserInfoArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.WriteUserInfo, requestArguments, cancellationToken);
+        }
+
+        /************************************/
         /*  ReadSysInfo                     */
         /************************************/
         public static class ReadSysInfoArguments
