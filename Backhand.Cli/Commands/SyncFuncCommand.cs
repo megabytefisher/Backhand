@@ -11,8 +11,6 @@ namespace Backhand.Cli.Commands
 {
     public abstract class SyncFuncCommand : Command
     {
-        protected IDlpServer DlpServer { get; private set; } = null!;
-
         protected readonly Option<string[]> DevicesOption = new(new[] { "--devices", "-d" })
         {
             IsRequired = true,
@@ -27,7 +25,7 @@ namespace Backhand.Cli.Commands
             AddOption(DaemonOption);
         }
 
-        protected async Task RunDlpServerAsync(InvocationContext context, DlpSyncFunc syncFunc)
+        protected async Task RunDlpServerAsync<TContext>(InvocationContext context, DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory = null)
         {
             IConsole console = context.Console;
             CancellationToken cancellationToken = context.GetCancellationToken();
@@ -39,38 +37,22 @@ namespace Backhand.Cli.Commands
                 throw new ArgumentException("Cannot specify multiple devices without running in daemon mode.");
             }
 
-            DlpSyncFunc innerSyncFunc = (dlpConnection, cancellationToken) =>
-            {
-                if (daemon)
-                {
-                    while (!cancellationToken.IsCancellationRequested)
-                    {
-                        syncFunc(dlpConnection, cancellationToken);
-                    }
-                    return Task.CompletedTask;
-                }
-                else
-                {
-                    return syncFunc(dlpConnection, cancellationToken);
-                }
-            };
-
-            List<DlpServer> servers = new List<DlpServer>();
+            List<DlpServer<TContext>> servers = new List<DlpServer<TContext>>();
             foreach (string deviceString in devicesString)
             {
                 string[] deviceParts = deviceString.Split(':');
 
                 if (deviceParts[0] == "serial")
                 {
-                    servers.Add(new SerialDlpServer(syncFunc, deviceParts[1]));
+                    servers.Add(new SerialDlpServer<TContext>(deviceParts[1], syncFunc, contextFactory));
                 }
                 else if (deviceParts[0] == "usb")
                 {
-                    servers.Add(new UsbDlpServer(syncFunc));
+                    servers.Add(new UsbDlpServer<TContext>(syncFunc, contextFactory));
                 }
                 else if (deviceParts[0] == "network")
                 {
-                    servers.Add(new NetworkDlpServer(syncFunc));
+                    servers.Add(new NetworkDlpServer<TContext>(syncFunc, contextFactory));
                 }
                 else
                 {
@@ -78,7 +60,7 @@ namespace Backhand.Cli.Commands
                 }
             }
 
-            EventHandler<DlpSyncEndedEventArgs> OnSyncEnded = (sender, e) =>
+            EventHandler<DlpSyncEndedEventArgs<TContext>> OnSyncEnded = (sender, e) =>
             {
                 if (e.SyncException != null)
                 {
@@ -86,7 +68,7 @@ namespace Backhand.Cli.Commands
                 }
             };
 
-            IDlpServer server = new AggregatedDlpServer(servers);
+            IDlpServer<TContext> server = new AggregatedDlpServer<TContext>(servers);
             server.SyncEnded += OnSyncEnded;
             try
             {

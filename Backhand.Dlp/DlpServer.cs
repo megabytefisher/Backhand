@@ -7,30 +7,34 @@ using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public abstract class DlpServer : IDlpServer
+    public abstract class DlpServer<TContext> : IDlpServer<TContext>
     {
-        public event EventHandler<DlpSyncStartingEventArgs>? SyncStarting;
-        public event EventHandler<DlpSyncEndedEventArgs>? SyncEnded;
+        public event EventHandler<DlpSyncStartingEventArgs<TContext>>? SyncStarting;
+        public event EventHandler<DlpSyncEndedEventArgs<TContext>>? SyncEnded;
 
-        private DlpSyncFunc _syncFunc;
+        private DlpSyncFunc<TContext> _syncFunc;
+        private Func<DlpConnection, TContext> _contextFactory;
 
         private static readonly TimeSpan EndSyncDelay = TimeSpan.FromMilliseconds(100);
 
-        protected DlpServer(DlpSyncFunc syncFunc)
+        protected DlpServer(DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory)
         {
             _syncFunc = syncFunc;
+            _contextFactory = contextFactory ?? (connection => Activator.CreateInstance<TContext>());
         }
 
         public abstract Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default);
 
         protected async Task DoSyncAsync(DlpConnection connection, CancellationToken cancellationToken = default)
         {
-            SyncStarting?.Invoke(this, new DlpSyncStartingEventArgs(connection));
+            TContext context = _contextFactory(connection);
+
+            SyncStarting?.Invoke(this, new DlpSyncStartingEventArgs<TContext>(connection, context));
 
             Exception? syncException = null;
             try
             {
-                await _syncFunc(connection, cancellationToken).ConfigureAwait(false);
+                await _syncFunc(connection, context, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -51,7 +55,7 @@ namespace Backhand.Dlp
                 // Swallow.
             }
 
-            SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs(connection, syncException));
+            SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs<TContext>(connection, context, syncException));
             await Task.Delay(EndSyncDelay);
         }
     }

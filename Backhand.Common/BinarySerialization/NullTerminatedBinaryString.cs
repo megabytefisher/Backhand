@@ -8,12 +8,21 @@ namespace Backhand.Common.BinarySerialization
     [BinarySerializable]
     public class NullTerminatedBinaryString : ICustomBinarySerializable
     {
-        public string Value { get; set; } = string.Empty;
-
         public Encoding Encoding { get; init; } = Encoding.ASCII;
+        public byte[] Bytes { get; set; } = Array.Empty<byte>();
 
-        public NullTerminatedBinaryString()
+        public string Value
         {
+            get => Encoding.GetString(Bytes, 0, Bytes.Length - NullBytes.Length);
+            set => Bytes = Encoding.GetBytes(value + "\0");
+        }
+
+        private readonly byte[] NullBytes;
+
+        public NullTerminatedBinaryString(string? defaultValue = null)
+        {
+            Value = defaultValue ?? string.Empty;
+            NullBytes = Encoding.GetBytes("\0");
         }
 
         public int GetSize()
@@ -23,9 +32,7 @@ namespace Backhand.Common.BinarySerialization
 
         public void Deserialize(ref SequenceReader<byte> bufferReader)
         {
-            byte[] nullBytes = Encoding.GetBytes("\0");
-
-            if (bufferReader.TryReadTo(out ReadOnlySequence<byte> sequence, nullBytes, advancePastDelimiter: true))
+            if (bufferReader.TryReadTo(out ReadOnlySequence<byte> sequence, NullBytes, advancePastDelimiter: true))
             {
                 Value = Encoding.GetString(sequence);
             }

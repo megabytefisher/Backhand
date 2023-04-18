@@ -3,13 +3,15 @@ using System;
 
 namespace Backhand.Dlp
 {
-    public class DlpSyncStartingEventArgs : EventArgs
+    public class DlpSyncStartingEventArgs<TContext> : EventArgs
     {
         public DlpConnection Connection { get; }
+        public TContext Context { get; }
 
-        public DlpSyncStartingEventArgs(DlpConnection connection)
+        public DlpSyncStartingEventArgs(DlpConnection connection, TContext context)
         {
             Connection = connection;
+            Context = context;
         }
     }
 }

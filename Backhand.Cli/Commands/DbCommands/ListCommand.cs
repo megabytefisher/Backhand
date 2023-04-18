@@ -1,10 +1,8 @@
 ﻿using Backhand.Cli.Internal;
-using Backhand.Dlp;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.Linq;
@@ -17,6 +15,81 @@ namespace Backhand.Cli.Commands.DbCommands
 {
     public class ListCommand : SyncFuncCommand
     {
+        private class SyncContext
+        {
+            public required ReadDbListMode ReadMode { get; init; }
+            public required IEnumerable<string> Columns { get; init; }
+            public required IConsole Console { get; init; }
+        }
+
+        private readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption = new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListMultiple | ReadDbListMode.ListRam })
+        {
+            AllowMultipleArgumentsPerToken = true
+        };
+
+        private readonly Option<IEnumerable<string>> ColumnsOption = new Option<IEnumerable<string>>(new[] { "--columns", "-c" }, () => new[] { "Name", "Attributes", "Type", "Creator" })
+        {
+            AllowMultipleArgumentsPerToken = true
+        }.FromAmong(MetadataColumns.Select(c => c.Header).ToArray());
+
+        public ListCommand() : base("list", "Lists databases on a device")
+        {
+            this.Add(ReadModesOption);
+            this.Add(ColumnsOption);
+
+            this.SetHandler(async (context) =>
+            {
+                ReadDbListMode readMode = context.ParseResult.GetValueForOption(ReadModesOption)!.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
+                IEnumerable<string> columns = context.ParseResult.GetValueForOption(ColumnsOption)!;
+
+                IConsole console = context.Console;
+
+                Func<DlpConnection, SyncContext> contextFactory = _ => new SyncContext
+                {
+                    ReadMode = readMode,
+                    Columns = columns,
+                    Console = console
+                };
+
+                await RunDlpServerAsync<SyncContext>(context, SyncAsync, contextFactory).ConfigureAwait(false);
+            });
+        }
+
+        private async Task SyncAsync(DlpConnection connection, SyncContext context, CancellationToken cancellationToken)
+        {
+            await connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
+
+            List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
+            ushort startIndex = 0;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    ReadDbListResponse dbListResponse = await connection.ReadDbListAsync(new()
+                    {
+                        Mode = context.ReadMode,
+                        CardId = 0,
+                        StartIndex = startIndex
+                    }, cancellationToken).ConfigureAwait(false);
+
+                    metadataList.AddRange(dbListResponse.Results);
+                    startIndex = (ushort)(dbListResponse.LastIndex + 1);
+                }
+                catch (DlpCommandErrorException ex) when (ex.ErrorCode == DlpErrorCode.NotFoundError)
+                {
+                    break;
+                }
+            }
+
+            PrintResults(context.Console, context.Columns, metadataList);
+        }
+
+        private void PrintResults(IConsole console, IEnumerable<string> columnNames, ICollection<DatabaseMetadata> metadataList)
+        {
+            console.WriteTable(columnNames.Select(n => MetadataColumns.Single(c => c.Header == n)).ToList(), metadataList);
+        }
+        
         private static readonly IReadOnlyCollection<ConsoleTableColumn<DatabaseMetadata>> MetadataColumns = new[]
         {
             new ConsoleTableColumn<DatabaseMetadata>
@@ -70,70 +143,5 @@ namespace Backhand.Cli.Commands.DbCommands
                 GetText = (metadata) => metadata.Name
             }
         };
-
-        public static readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption = new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListMultiple | ReadDbListMode.ListRam })
-        {
-            AllowMultipleArgumentsPerToken = true
-        };
-
-        public static readonly Option<IEnumerable<string>> ColumnsOption = new Option<IEnumerable<string>>(new[] { "--columns", "-c" }, () => new[] { "Name", "Attributes", "Type", "Creator" })
-        {
-            AllowMultipleArgumentsPerToken = true
-        }.FromAmong(MetadataColumns.Select(c => c.Header).ToArray());
-
-        public ListCommand() : base("list", "Lists databases on a device")
-        {
-            this.Add(ReadModesOption);
-            this.Add(ColumnsOption);
-
-            this.SetHandler(async (context) =>
-            {
-                IEnumerable<ReadDbListMode> readModes = context.ParseResult.GetValueForOption(ReadModesOption)!;
-                IEnumerable<string> columns = context.ParseResult.GetValueForOption(ColumnsOption)!;
-
-                IConsole console = context.Console;
-                ILogger logger = context.BindingContext.GetRequiredService<ILogger>();
-
-                DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, readModes, columns, console, logger, ct);
-
-                await RunDlpServerAsync(context, syncFunc).ConfigureAwait(false);
-            });
-        }
-
-        private async Task SyncAsync(DlpConnection connection, IEnumerable<ReadDbListMode> readModes, IEnumerable<string> columns, IConsole console, ILogger logger, CancellationToken cancellationToken)
-        {
-            ReadDbListMode readMode = readModes.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
-
-            await connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
-
-            List<DatabaseMetadata> metadataList = new List<DatabaseMetadata>();
-            ushort startIndex = 0;
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                ReadDbListResponse dbListResponse = await connection.ReadDbListAsync(new()
-                {
-                    Mode = readMode,
-                    CardId = 0,
-                    StartIndex = startIndex
-                }, cancellationToken).ConfigureAwait(false);
-
-                metadataList.AddRange(dbListResponse.Results);
-                startIndex = (ushort)(dbListResponse.LastIndex + 1);
-
-                if (dbListResponse.LastIndex == dbListResponse.Results.Last().Index)
-                {
-                    break;
-                }
-            }
-
-            PrintResults(console, columns, metadataList);
-        }
-
-        private void PrintResults(IConsole console, IEnumerable<string> columnNames, ICollection<DatabaseMetadata> metadataList)
-        {
-            console.WriteTable(columnNames.Select(n => MetadataColumns.Single(c => c.Header == n)).ToList(), metadataList);
-        }
     }
 }

@@ -15,7 +15,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Cli", "Backhand.Cl
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Usb", "Backhand.Usb\Backhand.Usb.csproj", "{190F1D53-E1A9-4AB8-A11C-DA776FD6D27A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.Network", "Backhand.Network\Backhand.Network.csproj", "{FAC6829A-7738-4BB6-B34F-8F7249F7D7A8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Network", "Backhand.Network\Backhand.Network.csproj", "{FAC6829A-7738-4BB6-B34F-8F7249F7D7A8}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Pdb.Memo", "Backhand.Pdb.Memo\Backhand.Pdb.Memo.csproj", "{D2729D6C-D3B0-4909-BBEA-9B11239F2935}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -51,6 +53,10 @@ Global
 		{FAC6829A-7738-4BB6-B34F-8F7249F7D7A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FAC6829A-7738-4BB6-B34F-8F7249F7D7A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FAC6829A-7738-4BB6-B34F-8F7249F7D7A8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2729D6C-D3B0-4909-BBEA-9B11239F2935}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2729D6C-D3B0-4909-BBEA-9B11239F2935}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2729D6C-D3B0-4909-BBEA-9B11239F2935}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2729D6C-D3B0-4909-BBEA-9B11239F2935}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

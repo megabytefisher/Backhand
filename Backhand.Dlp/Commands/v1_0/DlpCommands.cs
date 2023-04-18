@@ -81,6 +81,78 @@ namespace Backhand.Dlp.Commands.v1_0
         }
 
         /************************************/
+        /*  ReadSysDateTime                 */
+        /************************************/
+        public static class ReadSysDateTimeArguments
+        {
+            public static readonly DlpArgumentDefinition<ReadSysDateTimeResponse> Response = new();
+        }
+
+        public static readonly DlpCommandDefinition ReadSysDateTime = new DlpCommandDefinition(
+            DlpOpcodes.ReadSysDateTime,
+            new DlpArgumentDefinition[] { },
+            new DlpArgumentDefinition[] { ReadSysDateTimeArguments.Response }
+        );
+
+        public static async Task<ReadSysDateTimeResponse> ReadSysDateTimeAsync(this DlpConnection connection, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadSysDateTime, cancellationToken: cancellationToken);
+
+            return responseArguments.GetValue(DlpCommands.ReadSysDateTimeArguments.Response) ?? throw new Exception("Failed to get ReadSysDateTimeResult");
+        }
+
+        /************************************/
+        /*  WriteSysDateTime                */
+        /************************************/
+        public static class WriteSysDateTimeArguments
+        {
+            public static readonly DlpArgumentDefinition<WriteSysDateTimeRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition WriteSysDateTime = new DlpCommandDefinition(
+            DlpOpcodes.WriteSysDateTime,
+            new DlpArgumentDefinition[] { WriteSysDateTimeArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task WriteSysDateTimeAsync(this DlpConnection connection, WriteSysDateTimeRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.WriteSysDateTimeArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.WriteSysDateTime, requestArguments, cancellationToken);
+        }
+
+        /************************************/
+        /*  ReadStorageInfo                 */
+        /************************************/
+        public static class ReadStorageInfoArguments
+        {
+            public static readonly DlpArgumentDefinition<ReadStorageInfoRequest> Request = new();
+            public static readonly DlpArgumentDefinition<ReadStorageInfoMainResponse> MainResponse = new();
+            public static readonly DlpArgumentDefinition<ReadStorageInfoExtResponse> ExtResponse = new();
+        }
+
+        public static readonly DlpCommandDefinition ReadStorageInfo = new DlpCommandDefinition(
+            DlpOpcodes.ReadStorageInfo,
+            new DlpArgumentDefinition[] { ReadStorageInfoArguments.Request },
+            new DlpArgumentDefinition[] { ReadStorageInfoArguments.MainResponse, ReadStorageInfoArguments.ExtResponse }
+        );
+
+        public static async Task<(ReadStorageInfoMainResponse, ReadStorageInfoExtResponse)> ReadStorageInfoAsync(this DlpConnection connection, ReadStorageInfoRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.ReadStorageInfoArguments.Request, request);
+
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadStorageInfo, requestArguments, cancellationToken);
+
+            return (
+                responseArguments.GetValue(DlpCommands.ReadStorageInfoArguments.MainResponse) ?? throw new Exception("Failed to get ReadStorageInfoMainResult"),
+                responseArguments.GetValue(DlpCommands.ReadStorageInfoArguments.ExtResponse) ?? throw new Exception("Failed to get ReadStorageInfoExtResult")
+            );
+        }
+
+        /************************************/
         /*  ReadDbList                      */
         /************************************/
         public static class ReadDbListArguments
@@ -294,6 +366,31 @@ namespace Backhand.Dlp.Commands.v1_0
         }
 
         /************************************/
+        /* ReadNextModifiedRecord           */
+        /************************************/
+        public static class ReadNextModifiedRecordArguments
+        {
+            public static readonly DlpArgumentDefinition<ReadNextModifiedRecordRequest> Request = new();
+            public static readonly DlpArgumentDefinition<ReadNextModifiedRecordResponse> Response = new();
+        }
+
+        public static readonly DlpCommandDefinition ReadNextModifiedRecord = new DlpCommandDefinition(
+            DlpOpcodes.ReadNextModifiedRecord,
+            new DlpArgumentDefinition[] { ReadNextModifiedRecordArguments.Request },
+            new DlpArgumentDefinition[] { ReadNextModifiedRecordArguments.Response }
+        );
+
+        public static async Task<ReadNextModifiedRecordResponse> ReadNextModifiedRecordAsync(this DlpConnection connection, ReadNextModifiedRecordRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.ReadNextModifiedRecordArguments.Request, request);
+
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadNextModifiedRecord, requestArguments, cancellationToken);
+
+            return responseArguments.GetValue(DlpCommands.ReadNextModifiedRecordArguments.Response) ?? throw new Exception("Failed to get ReadNextModifiedRecordResult");
+        }
+
+        /************************************/
         /* ReadRecordById                   */
         /************************************/
         public static class ReadRecordByIdArguments
@@ -341,6 +438,28 @@ namespace Backhand.Dlp.Commands.v1_0
             DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.WriteRecord, requestArguments, cancellationToken);
 
             return responseArguments.GetValue(DlpCommands.WriteRecordArguments.Response) ?? throw new Exception("Failed to get WriteRecordResult");
+        }
+
+        /************************************/
+        /* DeleteRecord                     */
+        /************************************/
+        public static class DeleteRecordArguments
+        {
+            public static readonly DlpArgumentDefinition<DeleteRecordRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition DeleteRecord = new DlpCommandDefinition(
+            DlpOpcodes.DeleteRecord,
+            new DlpArgumentDefinition[] { DeleteRecordArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task DeleteRecordAsync(this DlpConnection connection, DeleteRecordRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.DeleteRecordArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.DeleteRecord, requestArguments, cancellationToken);
         }
         
         /************************************/
@@ -391,6 +510,180 @@ namespace Backhand.Dlp.Commands.v1_0
         }
 
         /************************************/
+        /* DeleteResource                   */
+        /**************************************/
+        public static class DeleteResourceArguments
+        {
+            public static readonly DlpArgumentDefinition<DeleteResourceRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition DeleteResource = new DlpCommandDefinition(
+            DlpOpcodes.DeleteResource,
+            new DlpArgumentDefinition[] { DeleteResourceArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task DeleteResourceAsync(this DlpConnection connection, DeleteResourceRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.DeleteResourceArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.DeleteResource, requestArguments, cancellationToken);
+        }
+
+        /************************************/
+        /* CleanUpDatabase                  */
+        /************************************/
+        public static class CleanUpDatabaseArguments
+        {
+            public static readonly DlpArgumentDefinition<CleanUpDatabaseRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition CleanUpDatabase = new DlpCommandDefinition(
+            DlpOpcodes.CleanUpDatabase,
+            new DlpArgumentDefinition[] { CleanUpDatabaseArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task CleanUpDatabaseAsync(this DlpConnection connection, CleanUpDatabaseRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.CleanUpDatabaseArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.CleanUpDatabase, requestArguments, cancellationToken);
+        }
+
+        /************************************/
+        /* ResetSyncFlags                   */
+        /************************************/
+        public static class ResetSyncFlagsArguments
+        {
+            public static readonly DlpArgumentDefinition<ResetSyncFlagsRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition ResetSyncFlags = new DlpCommandDefinition(
+            DlpOpcodes.ResetSyncFlags,
+            new DlpArgumentDefinition[] { ResetSyncFlagsArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task ResetSyncFlagsAsync(this DlpConnection connection, ResetSyncFlagsRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.ResetSyncFlagsArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.ResetSyncFlags, requestArguments, cancellationToken);
+        }
+
+        /************************************/
+        /* CallApplication                  */
+        /************************************/
+        public static class CallApplicationArguments
+        {
+            public static readonly DlpArgumentDefinition<CallApplicationRequest> Request = new();
+            public static readonly DlpArgumentDefinition<CallApplicationResponse> Response = new();
+        }
+
+        public static readonly DlpCommandDefinition CallApplication = new DlpCommandDefinition(
+            DlpOpcodes.CallApplication,
+            new DlpArgumentDefinition[] { CallApplicationArguments.Request },
+            new DlpArgumentDefinition[] { CallApplicationArguments.Response }
+        );
+
+        public static async Task<CallApplicationResponse> CallApplicationAsync(this DlpConnection connection, CallApplicationRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.CallApplicationArguments.Request, request);
+
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.CallApplication, requestArguments, cancellationToken);
+
+            return responseArguments.GetValue(DlpCommands.CallApplicationArguments.Response) ?? throw new Exception("Failed to get CallApplicationResult");
+        }
+
+        /************************************/
+        /* ResetSystem                      */
+        /************************************/
+        public static readonly DlpCommandDefinition ResetSystem = new DlpCommandDefinition(
+            DlpOpcodes.ResetSystem,
+            new DlpArgumentDefinition[] { },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task ResetSystemAsync(this DlpConnection connection, CancellationToken cancellationToken = default)
+        {
+            await connection.ExecuteTransactionAsync(DlpCommands.ResetSystem, cancellationToken: cancellationToken);
+        }
+
+        /************************************/
+        /* AddSyncLogEntry                  */
+        /************************************/
+        public static class AddSyncLogEntryArguments
+        {
+            public static readonly DlpArgumentDefinition<AddSyncLogEntryRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition AddSyncLogEntry = new DlpCommandDefinition(
+            DlpOpcodes.AddSyncLogEntry,
+            new DlpArgumentDefinition[] { AddSyncLogEntryArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task AddSyncLogEntryAsync(this DlpConnection connection, AddSyncLogEntryRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.AddSyncLogEntryArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.AddSyncLogEntry, requestArguments, cancellationToken);
+        }
+        
+        /************************************/
+        /* ReadOpenDbInfo                   */
+        /************************************/
+        public static class ReadOpenDbInfoArguments
+        {
+            public static readonly DlpArgumentDefinition<ReadOpenDbInfoRequest> Request = new();
+            public static readonly DlpArgumentDefinition<ReadOpenDbInfoResponse> Response = new();
+        }
+
+        public static readonly DlpCommandDefinition ReadOpenDbInfo = new DlpCommandDefinition(
+            DlpOpcodes.ReadOpenDbInfo,
+            new DlpArgumentDefinition[] { ReadOpenDbInfoArguments.Request },
+            new DlpArgumentDefinition[] { ReadOpenDbInfoArguments.Response }
+        );
+
+        public static async Task<ReadOpenDbInfoResponse> ReadOpenDbInfoAsync(this DlpConnection connection, ReadOpenDbInfoRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.ReadOpenDbInfoArguments.Request, request);
+
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadOpenDbInfo, requestArguments, cancellationToken);
+
+            return responseArguments.GetValue(DlpCommands.ReadOpenDbInfoArguments.Response) ?? throw new Exception("Failed to get ReadOpenDbInfoResult");
+        }
+
+        /************************************/
+        /* MoveCategory                     */
+        /************************************/
+        public static class MoveCategoryArguments
+        {
+            public static readonly DlpArgumentDefinition<MoveCategoryRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition MoveCategory = new DlpCommandDefinition(
+            DlpOpcodes.MoveCategory,
+            new DlpArgumentDefinition[] { MoveCategoryArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task MoveCategoryAsync(this DlpConnection connection, MoveCategoryRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.MoveCategoryArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.MoveCategory, requestArguments, cancellationToken);
+        }
+
+        /************************************/
         /* OpenConduit                      */
         /************************************/
         public static readonly DlpCommandDefinition OpenConduit = new DlpCommandDefinition(
@@ -424,6 +717,28 @@ namespace Backhand.Dlp.Commands.v1_0
             requestArguments.SetValue(DlpCommands.EndSyncArguments.Request, request);
 
             await connection.ExecuteTransactionAsync(DlpCommands.EndSync, requestArguments, cancellationToken);
+        }
+
+        /************************************/
+        /* ResetRecordIndex                 */
+        /************************************/
+        public static class ResetRecordIndexArguments
+        {
+            public static readonly DlpArgumentDefinition<ResetRecordIndexRequest> Request = new();
+        }
+
+        public static readonly DlpCommandDefinition ResetRecordIndex = new DlpCommandDefinition(
+            DlpOpcodes.ResetRecordIndex,
+            new DlpArgumentDefinition[] { ResetRecordIndexArguments.Request },
+            new DlpArgumentDefinition[] { }
+        );
+
+        public static async Task ResetRecordIndexAsync(this DlpConnection connection, ResetRecordIndexRequest request, CancellationToken cancellationToken = default)
+        {
+            DlpArgumentMap requestArguments = new DlpArgumentMap();
+            requestArguments.SetValue(DlpCommands.ResetRecordIndexArguments.Request, request);
+
+            await connection.ExecuteTransactionAsync(DlpCommands.ResetRecordIndex, requestArguments, cancellationToken);
         }
 
         /************************************/

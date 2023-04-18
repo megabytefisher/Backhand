@@ -4,10 +4,10 @@ using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public interface IDlpServer
+    public interface IDlpServer<TContext>
     {
-        event EventHandler<DlpSyncStartingEventArgs>? SyncStarting;
-        event EventHandler<DlpSyncEndedEventArgs>? SyncEnded;
+        event EventHandler<DlpSyncStartingEventArgs<TContext>>? SyncStarting;
+        event EventHandler<DlpSyncEndedEventArgs<TContext>>? SyncEnded;
 
         Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default);
     }

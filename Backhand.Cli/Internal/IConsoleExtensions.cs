@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.CommandLine;
 using System.Linq;
 using System.Text;
@@ -11,17 +12,30 @@ namespace Backhand.Cli.Internal
         {
             options = options ?? new ConsoleTableOptions();
 
+            Dictionary<ConsoleTableColumn<T>, int> columnMaxLengths = GetColumnMaxLengths(columns, rows);
+
             StringBuilder stringBuilder = new StringBuilder();
-            WriteTableHeader(stringBuilder, columns, rows, options);
-            WriteTableRows(stringBuilder, columns, rows, options);
+            WriteTableHeader(stringBuilder, columns, rows, columnMaxLengths, options);
+            WriteTableRows(stringBuilder, columns, rows, columnMaxLengths, options);
             console.Write(stringBuilder.ToString());
         }
 
-        private static void WriteTableHeader<T>(StringBuilder stringBuilder, ICollection<ConsoleTableColumn<T>> columns, ICollection<T> rows, ConsoleTableOptions options)
+        private static Dictionary<ConsoleTableColumn<T>, int> GetColumnMaxLengths<T>(ICollection<ConsoleTableColumn<T>> columns, ICollection<T> rows)
+        {
+            Dictionary<ConsoleTableColumn<T>, int> columnMaxLengths = new Dictionary<ConsoleTableColumn<T>, int>();
+            foreach (ConsoleTableColumn<T> column in columns)
+            {
+                columnMaxLengths[column] = Math.Max(column.Header.Length, rows.Max(r => column.GetText(r).Length));
+            }
+            return columnMaxLengths;
+        }
+
+        private static void WriteTableHeader<T>(StringBuilder stringBuilder, ICollection<ConsoleTableColumn<T>> columns, ICollection<T> rows, Dictionary<ConsoleTableColumn<T>, int> columnLengths, ConsoleTableOptions options)
         {
             bool any = false;
-            foreach ((ConsoleTableColumn<T> column, int maxLength) in columns.Select(c => (c, rows.Max(r => c.GetText(r).Length))))
+            foreach (ConsoleTableColumn<T> column in columns)
             {
+                int maxLength = columnLengths[column];
                 any = true;
 
                 string columnNameText = column.Header;
@@ -52,14 +66,12 @@ namespace Backhand.Cli.Internal
             stringBuilder.AppendLine();
         }
 
-        private static void WriteTableRows<T>(StringBuilder stringBuilder, ICollection<ConsoleTableColumn<T>> columns, ICollection<T> rows, ConsoleTableOptions options)
+        private static void WriteTableRows<T>(StringBuilder stringBuilder, ICollection<ConsoleTableColumn<T>> columns, ICollection<T> rows, Dictionary<ConsoleTableColumn<T>, int> columnLengths, ConsoleTableOptions options)
         {
-            List<(ConsoleTableColumn<T> columns, int maxLength)> columnMaxLengths = columns.Select(c => (c, rows.Max(r => c.GetText(r).Length))).ToList();
-
             foreach (T row in rows)
             {
                 bool any = false;
-                foreach ((ConsoleTableColumn<T> column, int maxLength) in columnMaxLengths)
+                foreach ((ConsoleTableColumn<T> column, int maxLength) in columnLengths)
                 {
                     any = true;
 

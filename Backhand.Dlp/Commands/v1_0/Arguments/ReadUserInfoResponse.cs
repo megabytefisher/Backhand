@@ -1,6 +1,7 @@
 ﻿using Backhand.Common.BinarySerialization;
 using Backhand.Protocols.Dlp;
 using System;
+using System.Text;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
@@ -23,7 +24,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         private DlpDateTime LastSyncDlpDate { get; } = new();
 
         [BinarySerialize]
-        public byte UsernameSize
+        private byte UsernameSize
         {
             get => Convert.ToByte(UsernameString.Size);
             set => UsernameString.Size = value;
@@ -37,7 +38,10 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         }
 
         [BinarySerialize]
-        private FixedSizeBinaryString UsernameString { get; set; } = new();
+        private FixedSizeBinaryString UsernameString { get; set; } = new()
+        {
+            NullTerminated = true
+        };
 
         [BinarySerialize]
         public byte[] Password { get; private set; } = Array.Empty<byte>();

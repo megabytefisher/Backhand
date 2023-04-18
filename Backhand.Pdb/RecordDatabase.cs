@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 
 namespace Backhand.Pdb
 {
-    public class RecordDatabase : Database
+    public class RecordDatabase<TRecord> : Database where TRecord : DatabaseRecord, new()
     {
-        public List<DatabaseRecord> Records { get; } = new();
+        public virtual List<TRecord> Records { get; } = new();
 
         public override async Task SerializeAsync(Stream stream, CancellationToken cancellationToken)
         {
@@ -37,7 +37,7 @@ namespace Backhand.Pdb
             await PdbSerialization.WriteEntryListHeaderAsync(stream, entryListHeader, cancellationToken).ConfigureAwait(false);
 
             uint blockOffset = recordBlockOffset;
-            foreach (DatabaseRecord record in Records)
+            foreach (TRecord record in Records)
             {
                 PdbRecordMetadata recordMetadata = new PdbRecordMetadata
                 {
@@ -68,7 +68,7 @@ namespace Backhand.Pdb
             }
 
             // Write records
-            foreach (DatabaseRecord record in Records)
+            foreach (TRecord record in Records)
             {
                 await stream.WriteAsync(record.Data).ConfigureAwait(false);
             }
@@ -134,7 +134,7 @@ namespace Backhand.Pdb
                 byte[] recordData = new byte[recordLength];
                 await PdbSerialization.FillBuffer(stream, recordData, cancellationToken);
 
-                Records.Add(new DatabaseRecord
+                Records.Add(new TRecord
                 {
                     Attributes = metadata.Attributes,
                     Category = metadata.Category,
@@ -144,5 +144,9 @@ namespace Backhand.Pdb
                 });
             }
         }
+    }
+
+    public class RecordDatabase : RecordDatabase<DatabaseRecord>
+    {
     }
 }

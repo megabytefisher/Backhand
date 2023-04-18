@@ -14,7 +14,13 @@ namespace Backhand.Cli.Commands.DbCommands
 {
     public class PushCommand : SyncFuncCommand
     {
-        public static readonly Option<FileInfo> FileOption = new(new[] { "--file", "-f" }, "The file to push to the device.")
+        private class SyncContext
+        {
+            public required FileInfo File { get; set; }
+            public required IConsole Console { get; set; }
+        }
+
+        private static readonly Option<FileInfo> FileOption = new(new[] { "--file", "-f" }, "The file to push to the device.")
         {
             IsRequired = true
         };
@@ -30,27 +36,37 @@ namespace Backhand.Cli.Commands.DbCommands
 
                 IConsole console = context.Console;
 
-                DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, file, console, ct);
+                Func<DlpConnection, SyncContext> contextFactory = _ => new()
+                {
+                    File = file,
+                    Console = console
+                };
 
-                await RunDlpServerAsync(context, syncFunc).ConfigureAwait(false);
-                console.WriteLine("Operation completed successfully.");
+                await RunDlpServerAsync(context, SyncAsync, contextFactory).ConfigureAwait(false);
             });
         }
 
-        private async Task SyncAsync(DlpConnection connection, FileInfo file, IConsole console, CancellationToken cancellationToken)
+        private async Task SyncAsync(DlpConnection connection, SyncContext context, CancellationToken cancellationToken)
         {
             await connection.OpenConduitAsync().ConfigureAwait(false);
 
-            using var fileStream = file.OpenRead();
+            using var fileStream = context.File.OpenRead();
             Database fileDb =
-                file.Extension == ".prc" ? new ResourceDatabase() :
-                file.Extension == ".pdb" ? new RecordDatabase() :
+                context.File.Extension == ".prc" ? new ResourceDatabase() :
+                context.File.Extension == ".pdb" ? new RecordDatabase() :
                 null!;
 
-            using (FileStream dbStream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream dbStream = context.File.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 await fileDb.DeserializeAsync(dbStream, cancellationToken).ConfigureAwait(false);
             }
+
+            try
+            {
+                await connection.DeleteDbAsync(new() {
+                    Name = fileDb.Name
+                }, cancellationToken).ConfigureAwait(false);
+            } catch { }
 
             CreateDbResponse createDbResult = await connection.CreateDbAsync(new() {
                 Creator = fileDb.Creator,

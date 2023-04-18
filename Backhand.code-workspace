@@ -10,6 +10,7 @@
 			".vs": true,
 			"*.code-workspace": true,
 			"**/*.csproj": true,
+			"**/*.csproj.user": true,
 			"**/*.sln": true,
 			"**/bin": true,
 			"**/obj": true

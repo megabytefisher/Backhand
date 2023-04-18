@@ -11,11 +11,11 @@ using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public class NetworkDlpServer : DlpServer
+    public class NetworkDlpServer<TContext> : DlpServer<TContext>
     {
         public IPAddress BindAddress { get; set; } = IPAddress.Any;
 
-        public NetworkDlpServer(DlpSyncFunc syncFunc) : base(syncFunc)
+        public NetworkDlpServer(DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory = null) : base(syncFunc, contextFactory)
         {
         }
 
@@ -70,13 +70,13 @@ namespace Backhand.Dlp
         private class NetworkDlpClient : IDisposable
         {
             public TcpClient Client { get; }
-            public DlpSyncFunc SyncFunc { get; }
+            public Func<DlpConnection, CancellationToken, Task> SyncFunc { get; }
             public Task HandlerTask { get; }
             public CancellationTokenSource CancellationTokenSource { get; set; }
 
             private CancellationToken _externalCancellationToken;
 
-            public NetworkDlpClient(TcpClient client, DlpSyncFunc syncFunc, CancellationToken cancellationToken)
+            public NetworkDlpClient(TcpClient client, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
             {
                 Client = client;
                 SyncFunc = syncFunc;

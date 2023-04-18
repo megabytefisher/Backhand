@@ -178,9 +178,21 @@ namespace Backhand.Protocols.Dlp
                         throw new DlpException("Response contained unsupported argument type");
                 }
 
+                long argumentStart = bufferReader.Consumed;
+
                 DlpArgumentDefinition argumentDefinition = commandDefinition.ResponseArguments[argumentIndex];
                 DlpArgument argument = Activator.CreateInstance(argumentDefinition.Type) as DlpArgument ?? throw new Exception("Failed to instantiate argument type");
                 argumentDefinition.Deserialize(ref bufferReader, argument);
+
+                long readLength = bufferReader.Consumed - argumentStart;
+                if (readLength < argumentLength)
+                {
+                    bufferReader.Advance(argumentLength - (int)readLength);
+                }
+                else if (readLength > argumentLength)
+                {
+                    throw new DlpException("Response argument was too long");
+                }
 
                 results.SetValue(argumentDefinition, argument);
             }

@@ -13,11 +13,11 @@ using LibUsbDotNet.Main;
 
 namespace Backhand.Dlp
 {
-    public class UsbDlpServer : DlpServer
+    public class UsbDlpServer<TContext> : DlpServer<TContext>
     {
         private static readonly TimeSpan PollDelay = TimeSpan.FromMilliseconds(1000);
 
-        public UsbDlpServer(DlpSyncFunc syncFunc) : base(syncFunc)
+        public UsbDlpServer(DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory = null) : base(syncFunc, contextFactory)
         {
         }
 
@@ -87,13 +87,13 @@ namespace Backhand.Dlp
         {
             public UsbDeviceConnection Device { get; }
             public UsbDeviceConfig Config { get; }
-            public DlpSyncFunc SyncFunc { get; }
+            public Func<DlpConnection, CancellationToken, Task> SyncFunc { get; }
             public Task HandlerTask { get; }
             public CancellationTokenSource CancellationTokenSource { get; }
 
             private CancellationToken _externalCancellationToken;
 
-            public UsbDlpClient(UsbDeviceConnection device, UsbDeviceConfig config, DlpSyncFunc syncFunc, CancellationToken cancellationToken)
+            public UsbDlpClient(UsbDeviceConnection device, UsbDeviceConfig config, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
             {
                 Device = device;
                 Config = config;
@@ -149,7 +149,7 @@ namespace Backhand.Dlp
                 }
             }
 
-            private static async Task HandleNetSyncDeviceAsync(UsbDevicePipe devicePipe, DlpSyncFunc syncFunc, CancellationToken cancellationToken)
+            private static async Task HandleNetSyncDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
             {
                 using CancellationTokenSource innerCts = new();
                 using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
@@ -191,7 +191,7 @@ namespace Backhand.Dlp
                 }
             }
 
-            private static async Task HandleSlpDeviceAsync(UsbDevicePipe devicePipe, DlpSyncFunc syncFunc, CancellationToken cancellationToken)
+            private static async Task HandleSlpDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
             {
                 using CancellationTokenSource innerCts = new CancellationTokenSource();
                 using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);

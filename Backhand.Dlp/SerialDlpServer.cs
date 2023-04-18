@@ -11,14 +11,14 @@ using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public class SerialDlpServer : DlpServer
+    public class SerialDlpServer<TContext> : DlpServer<TContext>
     {
         private readonly string _portName;
 
         private const int InitialBaudRate = 9600;
         private const int TargetBaudRate = 57600;
 
-        public SerialDlpServer(DlpSyncFunc syncFunc, string portName, CancellationToken cancellationToken = default) : base(syncFunc)
+        public SerialDlpServer(string portName, DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory = null) : base(syncFunc, contextFactory)
         {
             _portName = portName;
         }

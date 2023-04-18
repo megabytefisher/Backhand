@@ -51,8 +51,9 @@ namespace Backhand.Common.BinarySerialization
             }
             set
             {
-                if (Size == 0 && value == string.Empty)
+                if (value == string.Empty)
                 {
+                    Bytes = Array.Empty<byte>();
                     return;
                 }
 

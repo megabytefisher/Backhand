@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Backhand.Dlp;
 using Backhand.Dlp.Commands;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
@@ -19,12 +18,19 @@ namespace Backhand.Cli.Commands.DbCommands
 {
     public class PullCommand : SyncFuncCommand
     {
-        public static readonly Option<string> NameOption = new(new[] { "--name", "-n" }, "The name of the database to pull.")
+        private class SyncContext
+        {
+            public required string Name { get; init; }
+            public required FileInfo? Output { get; init; }
+            public required IConsole Console { get; init; }
+        }
+
+        private static readonly Option<string> NameOption = new(new[] { "--name", "-n" }, "The name of the database to pull.")
         {
             IsRequired = true
         };
 
-        public static readonly Option<FileInfo> OutputOption = new(new[] { "--output", "-o" }, "The output file to write the database to.")
+        private static readonly Option<FileInfo> OutputOption = new(new[] { "--output", "-o" }, "The output file to write the database to.")
         {
         };
 
@@ -41,13 +47,18 @@ namespace Backhand.Cli.Commands.DbCommands
 
                 IConsole console = context.Console;
 
-                DlpSyncFunc syncFunc = (c, ct) => SyncAsync(c, name, output, console, ct);
+                Func<DlpConnection, SyncContext> contextFactory = _ => new SyncContext
+                {
+                    Name = name,
+                    Output = output,
+                    Console = console
+                };
 
-                await RunDlpServerAsync(context, syncFunc).ConfigureAwait(false);
+                await RunDlpServerAsync<SyncContext>(context, SyncAsync, contextFactory).ConfigureAwait(false);
             });
         }
 
-        private async Task SyncAsync(DlpConnection connection, string name, FileInfo? outputFile, IConsole console, CancellationToken cancellationToken)
+        private async Task SyncAsync(DlpConnection connection, SyncContext context, CancellationToken cancellationToken)
         {
             await connection.OpenConduitAsync().ConfigureAwait(false);
 
@@ -74,10 +85,10 @@ namespace Backhand.Cli.Commands.DbCommands
             }
 
             // Find our database
-            DatabaseMetadata? dbMetadata = metadataList.FirstOrDefault(m => m.Name == name);
+            DatabaseMetadata? dbMetadata = metadataList.FirstOrDefault(m => m.Name == context.Name);
             if (dbMetadata == null)
             {
-                console.WriteLine($"Database '{name}' not found.");
+                context.Console.WriteLine($"Database '{context.Name}' not found.");
                 return;
             }
 
@@ -157,7 +168,7 @@ namespace Backhand.Cli.Commands.DbCommands
             }, cancellationToken).ConfigureAwait(false);
 
             // Save database to file
-            await using FileStream outStream = File.OpenWrite(outputFile?.FullName ?? GetFileName(db));
+            await using FileStream outStream = File.OpenWrite(context.Output?.FullName ?? GetFileName(db));
             await db.SerializeAsync(outStream, cancellationToken).ConfigureAwait(false);
         }
 

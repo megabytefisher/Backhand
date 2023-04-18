@@ -20,10 +20,10 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         private DlpDateTime LastSuccessfulSyncDlpDate { get; set; } = new();
 
         [BinarySerialize]
-        public byte Padding { get; set; }
+        private byte Padding { get; set; } = 0xff;
 
         [BinarySerialize]
-        public byte UsernameByteLength { get; set; }
+        public byte UsernameByteLength => Convert.ToByte(UsernameString.GetSize());
 
         [BinarySerialize]
         private NullTerminatedBinaryString UsernameString { get; set; } = new();

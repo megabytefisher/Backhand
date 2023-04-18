@@ -257,7 +257,7 @@ namespace Backhand.Common.BinarySerialization
 
             if (!string.IsNullOrEmpty(defaultOptions.MinimumLengthProperty))
             {
-                PropertyInfo minimumLengthProperty = typeof(T).GetProperty(defaultOptions.MinimumLengthProperty) ?? throw new Exception($"Length property {defaultOptions.MinimumLengthProperty} not found on type {typeof(T).FullName}");
+                PropertyInfo minimumLengthProperty = typeof(T).GetProperty(defaultOptions.MinimumLengthProperty, DefaultPropertyFlags) ?? throw new Exception($"Length property {defaultOptions.MinimumLengthProperty} not found on type {typeof(T).FullName}");
                 Expression minimumLength = Expression.Property(value, minimumLengthProperty);
 
                 Expression readLength = Expression.Subtract(

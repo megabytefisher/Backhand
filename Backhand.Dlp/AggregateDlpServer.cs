@@ -6,27 +6,27 @@ using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public class AggregatedDlpServer : IDlpServer
+    public class AggregatedDlpServer<TContext> : IDlpServer<TContext>
     {
-        private readonly IDlpServer[] _servers;
+        private readonly IDlpServer<TContext>[] _servers;
 
-        public event EventHandler<DlpSyncStartingEventArgs>? SyncStarting
+        public event EventHandler<DlpSyncStartingEventArgs<TContext>>? SyncStarting
         {
             add => Array.ForEach(_servers, s => s.SyncStarting += value);
             remove => Array.ForEach(_servers, s => s.SyncStarting -= value);
         }
-        public event EventHandler<DlpSyncEndedEventArgs>? SyncEnded
+        public event EventHandler<DlpSyncEndedEventArgs<TContext>>? SyncEnded
         {
             add => Array.ForEach(_servers, s => s.SyncEnded += value);
             remove => Array.ForEach(_servers, s => s.SyncEnded -= value);
         }
 
-        public AggregatedDlpServer(IEnumerable<IDlpServer> servers)
+        public AggregatedDlpServer(IEnumerable<IDlpServer<TContext>> servers)
         {
             _servers = servers.ToArray();
         }
 
-        public AggregatedDlpServer(params IDlpServer[] servers)
+        public AggregatedDlpServer(params IDlpServer<TContext>[] servers)
         {
             _servers = servers;
         }

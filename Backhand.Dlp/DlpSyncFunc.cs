@@ -4,5 +4,5 @@ using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public delegate Task DlpSyncFunc(DlpConnection connection, CancellationToken cancellationToken = default);
+    public delegate Task DlpSyncFunc<TContext>(DlpConnection connection, TContext context, CancellationToken cancellationToken = default);
 }

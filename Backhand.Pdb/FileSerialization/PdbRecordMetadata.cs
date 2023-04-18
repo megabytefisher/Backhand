@@ -38,7 +38,12 @@ namespace Backhand.Pdb.FileSerialization
             set
             {
                 if (!Attributes.HasFlag(DatabaseRecordAttributes.Delete | DatabaseRecordAttributes.Dirty))
+                {
+                    if (!value)
+                        return;
+
                     throw new InvalidOperationException("Archive can only be set if the record is deleted or dirty.");
+                }
 
                 RawAttributes = (byte)((RawAttributes & 0b11101111) | (value ? 0b1000 : 0));
             }

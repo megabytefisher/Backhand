@@ -1,8 +1,16 @@
 {
   "profiles": {
-    "Backhand.Cli": {
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    },
+    "List DB (Network)": {
       "commandName": "Project",
       "commandLineArgs": "db list -d network"
+    },
+    "Pull MemoDB (Network)": {
+      "commandName": "Project",
+      "commandLineArgs": "db pull -d network -n MemoDB"
     }
   }
 }
