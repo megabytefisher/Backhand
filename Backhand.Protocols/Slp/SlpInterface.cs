@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Backhand.Common.Buffers;
 using Backhand.Common.Checksums;
+using Backhand.Protocols.Slp.Internal;
 
 namespace Backhand.Protocols.Slp
 {
@@ -104,6 +105,8 @@ namespace Backhand.Protocols.Slp
                 cancellationToken.ThrowIfCancellationRequested();
 
                 ReadResult readResult = await _pipe.Input.ReadAsync(cancellationToken).ConfigureAwait(false);
+                _logger.ReadBytes(readResult.Buffer);
+
                 if (readResult.IsCompleted)
                     break;
 
@@ -119,6 +122,7 @@ namespace Backhand.Protocols.Slp
                 cancellationToken.ThrowIfCancellationRequested();
 
                 using SendJob job = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+                _logger.WritingBytes(job.Buffer);
                 job.Buffer.CopyTo(_pipe.Output.GetSpan(job.Buffer.Length));
                 _pipe.Output.Advance(job.Buffer.Length);
                 FlushResult flushResult = await _pipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);

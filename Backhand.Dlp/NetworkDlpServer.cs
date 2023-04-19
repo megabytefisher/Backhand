@@ -1,6 +1,7 @@
 ﻿using Backhand.Network;
 using Backhand.Protocols.Dlp;
 using Backhand.Protocols.NetSync;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,15 +14,35 @@ namespace Backhand.Dlp
 {
     public class NetworkDlpServer<TContext> : DlpServer<TContext>
     {
-        public IPAddress BindAddress { get; set; } = IPAddress.Any;
+        public IPEndPoint NetworkEndPoint { get; }
 
-        public NetworkDlpServer(DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory = null) : base(syncFunc, contextFactory)
+        private const int DefaultHandshakePort = 14237;
+        private const int DefaultMainPort = 14238;
+
+        public NetworkDlpServer(IPEndPoint networkEndPoint, ILoggerFactory? loggerFactory = null)
+            : base(loggerFactory)
+        {
+            NetworkEndPoint = networkEndPoint;
+        }
+
+        public NetworkDlpServer(IPAddress bindAddress, ILoggerFactory? loggerFactory = null)
+            : this(new IPEndPoint(bindAddress, DefaultMainPort), loggerFactory)
         {
         }
 
-        public override async Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default)
+        public NetworkDlpServer(ILoggerFactory? loggerFactory = null)
+            : this(IPAddress.Any, loggerFactory)
         {
-            TcpListener tcpListener = new(new IPEndPoint(BindAddress, 14238));
+        }
+
+        public override async Task RunAsync(ISyncHandler<TContext> context, CancellationToken cancellationToken)
+        {
+            await RunAsync(context, false, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task RunAsync(ISyncHandler<TContext> syncHandler, bool singleSync, CancellationToken cancellationToken = default)
+        {
+            TcpListener tcpListener = new(NetworkEndPoint);
 
             List<NetworkDlpClient> clients = new();
 
@@ -39,7 +60,7 @@ namespace Backhand.Dlp
                     cancellationToken.ThrowIfCancellationRequested();
                     clients.RemoveAll(c => c.HandlerTask.IsCompleted);
                     TcpClient client = await tcpListener.AcceptTcpClientAsync(linkedCts.Token).ConfigureAwait(false);
-                    NetworkDlpClient networkDlpClient = new(client, DoSyncAsync, linkedCts.Token);
+                    NetworkDlpClient networkDlpClient = new(client, (connection, cancellation) => HandleConnection(connection, syncHandler, cancellationToken), linkedCts.Token, LoggerFactory);
                     clients.Add(networkDlpClient);
 
                     if (singleSync)
@@ -76,12 +97,20 @@ namespace Backhand.Dlp
 
             private CancellationToken _externalCancellationToken;
 
-            public NetworkDlpClient(TcpClient client, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
+            private readonly ILogger _netSyncInterfaceLogger;
+            private readonly ILogger _netSyncConnectionLogger;
+            private readonly ILogger _dlpConnectionLogger;
+
+            public NetworkDlpClient(TcpClient client, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken, ILoggerFactory loggerFactory)
             {
                 Client = client;
                 SyncFunc = syncFunc;
                 CancellationTokenSource = new CancellationTokenSource();
                 _externalCancellationToken = cancellationToken;
+
+                _netSyncInterfaceLogger = loggerFactory.CreateLogger<NetSyncInterface>();
+                _netSyncConnectionLogger = loggerFactory.CreateLogger<NetSyncConnection>();
+                _dlpConnectionLogger = loggerFactory.CreateLogger<DlpConnection>();
 
                 HandlerTask = Task.Run(HandleDeviceAsync);
             }
@@ -99,8 +128,8 @@ namespace Backhand.Dlp
 
                 NetworkPipe pipe = new(Client);
 
-                using NetSyncInterface netSyncInterface = new(pipe);
-                NetSyncConnection netSyncConnection = new(netSyncInterface);
+                using NetSyncInterface netSyncInterface = new(pipe, logger: _netSyncInterfaceLogger);
+                NetSyncConnection netSyncConnection = new(netSyncInterface, logger: _netSyncConnectionLogger);
 
                 Task? netSyncHandshakeTask = null;
                 Task? netSyncIoTask = null;
@@ -119,7 +148,7 @@ namespace Backhand.Dlp
                     await netSyncHandshakeTask.ConfigureAwait(false);
 
                     // Build up the DLP connection
-                    DlpConnection dlpConnection = new(netSyncConnection);
+                    DlpConnection dlpConnection = new(netSyncConnection, logger: _dlpConnectionLogger);
                     await SyncFunc(dlpConnection, linkedCts.Token);
                 }
                 finally

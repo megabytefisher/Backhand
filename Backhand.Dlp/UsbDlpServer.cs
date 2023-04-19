@@ -10,6 +10,7 @@ using Backhand.Protocols.Padp;
 using Backhand.Protocols.Slp;
 using Backhand.Usb;
 using LibUsbDotNet.Main;
+using Microsoft.Extensions.Logging;
 
 namespace Backhand.Dlp
 {
@@ -17,11 +18,17 @@ namespace Backhand.Dlp
     {
         private static readonly TimeSpan PollDelay = TimeSpan.FromMilliseconds(1000);
 
-        public UsbDlpServer(DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory = null) : base(syncFunc, contextFactory)
+        public UsbDlpServer(ILoggerFactory? loggerFactory = null)
+            : base(loggerFactory)
         {
         }
 
-        public override async Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default)
+        public override async Task RunAsync(ISyncHandler<TContext> syncHandler, CancellationToken cancellationToken)
+        {
+            await RunAsync(syncHandler, false, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task RunAsync(ISyncHandler<TContext> syncHandler, bool singleSync, CancellationToken cancellationToken = default)
         {
             Dictionary<string, UsbDlpClient> clients = new();
 
@@ -49,7 +56,7 @@ namespace Backhand.Dlp
                             continue;
                         }
 
-                        UsbDlpClient client = new(device.Open(), config, DoSyncAsync, innerCts.Token);
+                        UsbDlpClient client = new(device.Open(), config, (connection, cancellation) => HandleConnection(connection, syncHandler, cancellation), innerCts.Token, LoggerFactory);
                         clients.Add(device.DevicePath, client);
 
                         if (singleSync)
@@ -93,7 +100,14 @@ namespace Backhand.Dlp
 
             private CancellationToken _externalCancellationToken;
 
-            public UsbDlpClient(UsbDeviceConnection device, UsbDeviceConfig config, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
+            private readonly ILogger _netSyncInterfaceLogger;
+            private readonly ILogger _netSyncConnectionLogger;
+            private readonly ILogger _slpInterfaceLogger;
+            private readonly ILogger _padpConnectionLogger;
+            private readonly ILogger _cmpConnectionLogger;
+            private readonly ILogger _dlpConnectionLogger;
+
+            public UsbDlpClient(UsbDeviceConnection device, UsbDeviceConfig config, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken, ILoggerFactory loggerFactory)
             {
                 Device = device;
                 Config = config;
@@ -102,6 +116,13 @@ namespace Backhand.Dlp
                 _externalCancellationToken = cancellationToken;
 
                 HandlerTask = Task.Run(HandleDeviceAsync);
+
+                _netSyncInterfaceLogger = loggerFactory.CreateLogger<NetSyncInterface>();
+                _netSyncConnectionLogger = loggerFactory.CreateLogger<NetSyncConnection>();
+                _slpInterfaceLogger = loggerFactory.CreateLogger<SlpInterface>();
+                _padpConnectionLogger = loggerFactory.CreateLogger<PadpConnection>();
+                _cmpConnectionLogger = loggerFactory.CreateLogger<CmpConnection>();
+                _dlpConnectionLogger = loggerFactory.CreateLogger<DlpConnection>();
             }
 
             public void Dispose()
@@ -149,13 +170,13 @@ namespace Backhand.Dlp
                 }
             }
 
-            private static async Task HandleNetSyncDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
+            private async Task HandleNetSyncDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
             {
                 using CancellationTokenSource innerCts = new();
                 using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
 
-                using NetSyncInterface netSyncInterface = new(devicePipe);
-                NetSyncConnection netSyncConnection = new(netSyncInterface);
+                using NetSyncInterface netSyncInterface = new(devicePipe, logger: _netSyncInterfaceLogger);
+                NetSyncConnection netSyncConnection = new(netSyncInterface, logger: _netSyncConnectionLogger);
 
                 Task? netSyncHandshakeTask = null;
                 Task? netSyncIoTask = null;
@@ -174,7 +195,7 @@ namespace Backhand.Dlp
                     await netSyncHandshakeTask.ConfigureAwait(false);
 
                     // Build up the DLP connection
-                    DlpConnection dlpConnection = new(netSyncConnection);
+                    DlpConnection dlpConnection = new(netSyncConnection, logger: _dlpConnectionLogger);
                     await syncFunc(dlpConnection, linkedCts.Token);
                 }
                 finally
@@ -191,21 +212,23 @@ namespace Backhand.Dlp
                 }
             }
 
-            private static async Task HandleSlpDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
+            private async Task HandleSlpDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
             {
                 using CancellationTokenSource innerCts = new CancellationTokenSource();
                 using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
 
-                using SlpInterface slpInterface = new(devicePipe);
-                PadpConnection padpConnection = new(slpInterface, 3, 3);
+                using SlpInterface slpInterface = new(devicePipe, logger: _slpInterfaceLogger);
+                PadpConnection padpConnection = new(slpInterface, 3, 3, logger: _padpConnectionLogger);
 
                 Task? waitForWakeUpTask = null;
                 Task? ioTask = null;
                 List<Task> tasks = new List<Task>(3);
                 try
                 {
+                    CmpConnection cmpConnection = new(padpConnection, logger: _cmpConnectionLogger);
+
                     // Watch for wakeup
-                    waitForWakeUpTask = CmpConnection.WaitForWakeUpAsync(padpConnection, linkedCts.Token);
+                    waitForWakeUpTask = cmpConnection.WaitForWakeUpAsync(linkedCts.Token);
                     tasks.Add(waitForWakeUpTask);
 
                     // Run SLP IO
@@ -214,10 +237,10 @@ namespace Backhand.Dlp
 
                     // Wait for wakeup + do handshake
                     await waitForWakeUpTask.ConfigureAwait(false);
-                    await CmpConnection.DoHandshakeAsync(padpConnection, cancellationToken: linkedCts.Token).ConfigureAwait(false);
+                    await cmpConnection.DoHandshakeAsync(cancellationToken: linkedCts.Token).ConfigureAwait(false);
 
                     // Build up the DLP connection
-                    DlpConnection dlpConnection = new(padpConnection);
+                    DlpConnection dlpConnection = new(padpConnection, logger: _dlpConnectionLogger);
 
                     // Run the sync function
                     await syncFunc(dlpConnection, linkedCts.Token).ConfigureAwait(false);

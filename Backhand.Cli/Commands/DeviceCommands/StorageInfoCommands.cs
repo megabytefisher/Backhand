@@ -1,7 +1,7 @@
 using System.CommandLine;
-using Backhand.Cli.Commands.StorageInfoCommands;
+using Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands;
 
-namespace Backhand.Cli.Commands
+namespace Backhand.Cli.Commands.DeviceCommands
 {
     public class StorageInfoCommand : Command
     {

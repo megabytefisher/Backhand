@@ -1,4 +1,7 @@
 ﻿using Backhand.Common.Buffers;
+using Backhand.Protocols.Dlp.Internal;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Buffers;
 using System.Threading;
@@ -20,6 +23,7 @@ namespace Backhand.Protocols.Dlp
 
         private readonly IDlpTransport _transport;
         private readonly ArrayPool<byte> _arrayPool;
+        private readonly ILogger _logger;
 
         private const int DlpRequestHeaderSize = sizeof(byte) * 2;
         private const int DlpResponseHeaderSize = sizeof(byte) * 4;
@@ -30,16 +34,19 @@ namespace Backhand.Protocols.Dlp
         private const int DlpSmallArgMaxSize = ushort.MaxValue;
         private const int DlpSmallArgHeaderSize = sizeof(byte) * 4;
 
-        public DlpConnection(IDlpTransport transport, ArrayPool<byte>? arrayPool = null)
+        public DlpConnection(IDlpTransport transport, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
         {
             _transport = transport;
             _arrayPool = arrayPool ?? ArrayPool<byte>.Shared;
+            _logger = logger ?? NullLogger.Instance;
         }
 
         public async Task<DlpArgumentMap> ExecuteTransactionAsync(DlpCommandDefinition commandDefinition, DlpArgumentMap? requestArguments = null, CancellationToken cancellationToken = default)
         {
             requestArguments = requestArguments ?? new DlpArgumentMap();
             DlpArgumentMap? responseArguments = null;
+
+            _logger.ExecutingTransaction(commandDefinition, requestArguments);
 
             int requestSize = GetRequestSize(commandDefinition, requestArguments);
             byte[] requestBuffer = _arrayPool.Rent(requestSize);
@@ -50,6 +57,7 @@ namespace Backhand.Protocols.Dlp
                 (responseData) =>
                 {
                     responseArguments = ReadDlpResponse(commandDefinition, responseData);
+                    _logger.ReceivedTransactionResponse(commandDefinition, responseArguments!);
                 },
                 cancellationToken).ConfigureAwait(false);
 

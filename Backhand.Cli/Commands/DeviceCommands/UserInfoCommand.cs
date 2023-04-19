@@ -1,5 +1,5 @@
 using System.CommandLine;
-using Backhand.Cli.Commands.UserInfoCommands;
+using Backhand.Cli.Commands.DeviceCommands.UserInfoCommands;
 
 namespace Backhand.Cli.Commands
 {

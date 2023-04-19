@@ -3,6 +3,7 @@ using Backhand.Protocols.Cmp;
 using Backhand.Protocols.Dlp;
 using Backhand.Protocols.Padp;
 using Backhand.Protocols.Slp;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO.Ports;
@@ -14,23 +15,38 @@ namespace Backhand.Dlp
     public class SerialDlpServer<TContext> : DlpServer<TContext>
     {
         private readonly string _portName;
+        private readonly ILogger _slpLogger;
+        private readonly ILogger _padpLogger;
+        private readonly ILogger _cmpLogger;
+        private readonly ILogger _dlpLogger;
 
         private const int InitialBaudRate = 9600;
         private const int TargetBaudRate = 57600;
 
-        public SerialDlpServer(string portName, DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory = null) : base(syncFunc, contextFactory)
+        public SerialDlpServer(string portName, ILoggerFactory? loggerFactory = null)
+            : base(loggerFactory)
         {
             _portName = portName;
+
+            _slpLogger = LoggerFactory.CreateLogger<SlpInterface>();
+            _padpLogger = LoggerFactory.CreateLogger<PadpConnection>();
+            _cmpLogger = LoggerFactory.CreateLogger<CmpConnection>();
+            _dlpLogger = LoggerFactory.CreateLogger<DlpConnection>();
         }
 
-        public override async Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default)
+        public override async Task RunAsync(ISyncHandler<TContext> context, CancellationToken cancellationToken)
+        {
+            await RunAsync(context, false, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task RunAsync(ISyncHandler<TContext> syncHandler, bool singleSync, CancellationToken cancellationToken = default)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     await DoCmpPortionAsync(cancellationToken).ConfigureAwait(false);
-                    await DoDlpPortionAsync(cancellationToken).ConfigureAwait(false);
+                    await DoDlpPortionAsync(syncHandler, cancellationToken).ConfigureAwait(false);
 
                     if (singleSync)
                     {
@@ -60,8 +76,8 @@ namespace Backhand.Dlp
 
             SerialPortPipe serialPipe = new(serialPort);
 
-            using SlpInterface slpInterface = new SlpInterface(serialPipe);
-            PadpConnection padpConnection = new(slpInterface, 3, 3);
+            using SlpInterface slpInterface = new SlpInterface(serialPipe, logger: _slpLogger);
+            PadpConnection padpConnection = new(slpInterface, 3, 3, logger: _padpLogger);
 
             Task? waitForWakeUpTask = null;
             Task? ioTask = null;
@@ -69,8 +85,10 @@ namespace Backhand.Dlp
             List<Task> tasks = new List<Task>(3);
             try
             {
+                CmpConnection cmpConnection = new(padpConnection, logger: _cmpLogger);
+
                 // Watch for wakeup
-                waitForWakeUpTask = CmpConnection.WaitForWakeUpAsync(padpConnection, linkedCts.Token);
+                waitForWakeUpTask = cmpConnection.WaitForWakeUpAsync(linkedCts.Token);
                 tasks.Add(waitForWakeUpTask);
 
                 // Run SLP IO
@@ -83,7 +101,7 @@ namespace Backhand.Dlp
 
                 // Wait for wakeup + do handshake
                 await waitForWakeUpTask.ConfigureAwait(false);
-                await CmpConnection.DoHandshakeAsync(padpConnection, TargetBaudRate, cancellationToken: linkedCts.Token).ConfigureAwait(false);
+                await cmpConnection.DoHandshakeAsync(TargetBaudRate, cancellationToken: linkedCts.Token).ConfigureAwait(false);
             }
             finally
             {
@@ -101,7 +119,7 @@ namespace Backhand.Dlp
             }
         }
 
-        private async Task DoDlpPortionAsync(CancellationToken cancellationToken = default)
+        private async Task DoDlpPortionAsync(ISyncHandler<TContext> syncHandler, CancellationToken cancellationToken = default)
         {
             using CancellationTokenSource internalCts = new();
             using CancellationTokenSource linkedCts =
@@ -116,8 +134,8 @@ namespace Backhand.Dlp
 
             SerialPortPipe serialPipe = new(serialPort);
 
-            using SlpInterface slp = new(serialPipe);
-            PadpConnection padp = new(slp, 3, 3);
+            using SlpInterface slp = new(serialPipe, logger: _slpLogger);
+            PadpConnection padp = new(slp, 3, 3, logger: _padpLogger);
 
             Task? ioTask = null;
             Task? ioCompletionTask = null;
@@ -133,10 +151,10 @@ namespace Backhand.Dlp
                 tasks.Add(ioCompletionTask);
 
                 // Create DLP connection
-                DlpConnection dlp = new(padp);
+                DlpConnection dlp = new(padp, logger: _dlpLogger);
 
                 // Do sync
-                await DoSyncAsync(dlp, linkedCts.Token).ConfigureAwait(false);
+                await HandleConnection(dlp, syncHandler, linkedCts.Token).ConfigureAwait(false);
             }
             finally
             {

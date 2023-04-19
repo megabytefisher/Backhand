@@ -28,7 +28,7 @@ namespace Backhand.Common.Buffers
             return result.ToString();
         }
 
-        public static string GetHexString(Span<byte> buffer)
+        public static string GetHexString(ReadOnlySpan<byte> buffer)
         {
             if (buffer.Length == 0)
                 return string.Empty;

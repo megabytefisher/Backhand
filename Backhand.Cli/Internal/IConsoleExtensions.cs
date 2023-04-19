@@ -17,7 +17,7 @@ namespace Backhand.Cli.Internal
             StringBuilder stringBuilder = new StringBuilder();
             WriteTableHeader(stringBuilder, columns, rows, columnMaxLengths, options);
             WriteTableRows(stringBuilder, columns, rows, columnMaxLengths, options);
-            console.Write(stringBuilder.ToString());
+            console.WriteLine(stringBuilder.ToString());
         }
 
         private static Dictionary<ConsoleTableColumn<T>, int> GetColumnMaxLengths<T>(ICollection<ConsoleTableColumn<T>> columns, ICollection<T> rows)
@@ -32,11 +32,10 @@ namespace Backhand.Cli.Internal
 
         private static void WriteTableHeader<T>(StringBuilder stringBuilder, ICollection<ConsoleTableColumn<T>> columns, ICollection<T> rows, Dictionary<ConsoleTableColumn<T>, int> columnLengths, ConsoleTableOptions options)
         {
-            bool any = false;
+            ConsoleTableColumn<T> lastColumn = columns.LastOrDefault() ?? throw new InvalidOperationException("No columns");
             foreach (ConsoleTableColumn<T> column in columns)
             {
                 int maxLength = columnLengths[column];
-                any = true;
 
                 string columnNameText = column.Header;
 
@@ -55,12 +54,32 @@ namespace Backhand.Cli.Internal
                 }
 
                 stringBuilder.Append(columnNameText);
-                stringBuilder.Append(new string(' ', options.ColumnPadding));
+
+                if (column != lastColumn)
+                    stringBuilder.Append(new string(' ', options.ColumnPadding));
             }
 
-            if (any)
+            stringBuilder.AppendLine();
+
+            foreach (ConsoleTableColumn<T> column in columns)
             {
-                stringBuilder.Remove(stringBuilder.Length - 1, 1);
+                int maxLength = columnLengths[column];
+
+                string columnBorderText = new string('-', column.Width ?? maxLength);
+
+                if (column.IsRightAligned)
+                {
+                    columnBorderText = columnBorderText.PadLeft(column.Width ?? maxLength, ' ');
+                }
+                else
+                {
+                    columnBorderText = columnBorderText.PadRight(column.Width ?? maxLength, ' ');
+                }
+
+                stringBuilder.Append(columnBorderText);
+
+                if (column != lastColumn)
+                    stringBuilder.Append(new string(' ', options.ColumnPadding));
             }
 
             stringBuilder.AppendLine();

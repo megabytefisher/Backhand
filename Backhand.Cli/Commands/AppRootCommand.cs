@@ -6,11 +6,7 @@ namespace Backhand.Cli.Commands
     {
         public AppRootCommand() : base("Backhand CLI")
         {
-            AddCommand(new DbCommand());
-            AddCommand(new UserInfoCommand());
-            AddCommand(new SysInfoCommand());
-            AddCommand(new TimeCommand());
-            AddCommand(new StorageInfoCommand());
+            AddCommand(new DeviceCommand());
         }
     }
 }

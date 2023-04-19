@@ -25,7 +25,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         public DatabaseMetadata[] Results { get; private set; } = Array.Empty<DatabaseMetadata>();
 
         [BinarySerializable(MinimumLengthProperty = nameof(Length))]
-        public class DatabaseMetadata
+        public class DatabaseMetadata : DlpArgument
         {
             [BinarySerialize]
             public byte Length { get; set; }

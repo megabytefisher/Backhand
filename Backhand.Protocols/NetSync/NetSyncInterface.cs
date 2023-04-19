@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Backhand.Common.Buffers;
+using Backhand.Protocols.NetSync.Internal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -61,6 +62,7 @@ namespace Backhand.Protocols.NetSync
 
         public void EnqueuePacket(NetSyncPacket packet)
         {
+            _logger.EnqueueingPacket(packet);
             SendJob sendJob = CreateSendJob(packet);
             if (!_sendQueue.Post(sendJob))
             {
@@ -83,6 +85,8 @@ namespace Backhand.Protocols.NetSync
                 cancellationToken.ThrowIfCancellationRequested();
 
                 ReadResult readResult = await _pipe.Input.ReadAsync(cancellationToken).ConfigureAwait(false);
+                _logger.ReadBytes(readResult.Buffer);
+
                 if (readResult.IsCompleted)
                     break;
 
@@ -98,6 +102,7 @@ namespace Backhand.Protocols.NetSync
                 cancellationToken.ThrowIfCancellationRequested();
 
                 using SendJob job = await _sendQueue.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+                _logger.WritingBytes(job.Buffer);
                 job.Buffer.CopyTo(_pipe.Output.GetSpan(job.Buffer.Length));
                 _pipe.Output.Advance(job.Buffer.Length);
                 FlushResult flushResult = await _pipe.Output.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -133,7 +138,9 @@ namespace Backhand.Protocols.NetSync
                 ReadOnlySequence<byte> packetData = bufferReader.Sequence.Slice(bufferReader.Position, dataLength);
                 bufferReader.Advance(dataLength);
 
-                PacketReceived?.Invoke(this, new NetSyncTransmissionEventArgs(new NetSyncPacket(transactionId, packetData)));
+                NetSyncPacket packet = new(transactionId, packetData);
+                _logger.ReceivedPacket(packet);
+                PacketReceived?.Invoke(this, new NetSyncTransmissionEventArgs(packet));
             }
 
             return bufferReader.Position;

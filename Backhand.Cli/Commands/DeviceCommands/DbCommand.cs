@@ -1,7 +1,7 @@
-﻿using Backhand.Cli.Commands.DbCommands;
+﻿using Backhand.Cli.Commands.DeviceCommands.DbCommands;
 using System.CommandLine;
 
-namespace Backhand.Cli.Commands
+namespace Backhand.Cli.Commands.DeviceCommands
 {
     public class DbCommand : Command
     {

@@ -28,7 +28,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         public StorageInfo[] Results { get; set; } = Array.Empty<StorageInfo>();
 
         [BinarySerializable(MinimumLengthProperty = nameof(ElementLength))]
-        public class StorageInfo
+        public class StorageInfo : DlpArgument
         {
             [BinarySerialize]
             private byte ElementLength { get; set; }

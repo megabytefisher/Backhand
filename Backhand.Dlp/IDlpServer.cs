@@ -6,9 +6,6 @@ namespace Backhand.Dlp
 {
     public interface IDlpServer<TContext>
     {
-        event EventHandler<DlpSyncStartingEventArgs<TContext>>? SyncStarting;
-        event EventHandler<DlpSyncEndedEventArgs<TContext>>? SyncEnded;
-
-        Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default);
+        Task RunAsync(ISyncHandler<TContext> syncHandler, CancellationToken cancellationToken = default);
     }
 }

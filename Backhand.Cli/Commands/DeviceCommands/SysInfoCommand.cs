@@ -1,7 +1,7 @@
 using System.CommandLine;
-using Backhand.Cli.Commands.SysInfoCommands;
+using Backhand.Cli.Commands.DeviceCommands.SysInfoCommands;
 
-namespace Backhand.Cli.Commands
+namespace Backhand.Cli.Commands.DeviceCommands
 {
     public class SysInfoCommand : Command
     {

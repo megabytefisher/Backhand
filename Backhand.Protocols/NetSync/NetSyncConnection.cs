@@ -2,6 +2,9 @@ using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Protocols.NetSync.Internal;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Backhand.Protocols.NetSync
 {
@@ -9,6 +12,8 @@ namespace Backhand.Protocols.NetSync
     {
         private readonly NetSyncInterface _interface;
         private byte _transactionId = 0xff;
+
+        private readonly ILogger _logger;
         
         private static readonly byte[] NetSyncHandshakeWakeup = {
             0x90, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00,
@@ -42,16 +47,17 @@ namespace Backhand.Protocols.NetSync
             0x93, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         };
 
-        public NetSyncConnection(NetSyncInterface netSyncInterface)
+        public NetSyncConnection(NetSyncInterface netSyncInterface, ILogger? logger = null)
         {
             _interface = netSyncInterface;
+            _logger = logger ?? NullLogger.Instance;
         }
 
         public async Task ExecuteTransactionAsync(ReadOnlySequence<byte> requestData, Action<ReadOnlySequence<byte>> responseCallback, CancellationToken cancellationToken = default)
         {
-            BumpTransactionId();
-            Task receivePayloadTask = ReceivePayloadAsync(responseCallback, cancellationToken);
-            SendPayload(requestData);
+            byte transactionId = GetNewTransactionId();
+            Task receivePayloadTask = ReceivePayloadAsync(transactionId, responseCallback, cancellationToken);
+            SendPayload(transactionId, requestData);
             await receivePayloadTask;
         }
 
@@ -61,6 +67,7 @@ namespace Backhand.Protocols.NetSync
 
             // Wait for wakeup packet
             await ReceivePayloadAsync(
+                _transactionId,
                 data =>
                 {
                     if (data.Length != NetSyncHandshakeWakeup.Length)
@@ -98,28 +105,31 @@ namespace Backhand.Protocols.NetSync
             );
         }
 
-        private void BumpTransactionId()
+        private byte GetNewTransactionId()
         {
-            _transactionId++;
-            if (_transactionId is 0xff or 0x00 or 0x01)
+            if (++_transactionId is 0xff or 0x00 or 0x01)
             {
                 _transactionId = 0x02;
             }
+            return _transactionId;
         }
 
-        private async Task ReceivePayloadAsync(Action<ReadOnlySequence<byte>> callback, CancellationToken cancellationToken)
+        private async Task ReceivePayloadAsync(byte transactionId, Action<ReadOnlySequence<byte>> callback, CancellationToken cancellationToken)
         {
+            _logger.WaitingForPayload(transactionId);
+
             TaskCompletionSource receiveTcs = new();
 
             void OnNetSyncPacketReceived(object? sender, NetSyncTransmissionEventArgs e)
             {
                 try
                 {
-                    if (e.Packet.TransactionId != _transactionId)
+                    if (e.Packet.TransactionId != transactionId)
                     {
                         throw new NetSyncException("Received packet with wrong transaction ID");
                     }
 
+                    _logger.ReceivedPayload(e.Packet);
                     callback(e.Packet.Data);
                     receiveTcs.TrySetResult();
                 }
@@ -143,9 +153,11 @@ namespace Backhand.Protocols.NetSync
             }
         }
 
-        private void SendPayload(ReadOnlySequence<byte> buffer)
+        private void SendPayload(byte transactionId, ReadOnlySequence<byte> buffer)
         {
-            _interface.EnqueuePacket(new NetSyncPacket(_transactionId, buffer));
+            NetSyncPacket payloadPacket = new NetSyncPacket(transactionId, buffer);
+            _logger.SendingPayload(payloadPacket);
+            _interface.EnqueuePacket(payloadPacket);
         }
     }
 }

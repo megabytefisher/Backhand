@@ -1,7 +1,7 @@
 using System.CommandLine;
-using Backhand.Cli.Commands.TimeCommands;
+using Backhand.Cli.Commands.DeviceCommands.TimeCommands;
 
-namespace Backhand.Cli.Commands
+namespace Backhand.Cli.Commands.DeviceCommands
 {
     public class TimeCommand : Command
     {

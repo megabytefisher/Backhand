@@ -1,6 +1,8 @@
 ﻿using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,32 +11,27 @@ namespace Backhand.Dlp
 {
     public abstract class DlpServer<TContext> : IDlpServer<TContext>
     {
-        public event EventHandler<DlpSyncStartingEventArgs<TContext>>? SyncStarting;
-        public event EventHandler<DlpSyncEndedEventArgs<TContext>>? SyncEnded;
-
-        private DlpSyncFunc<TContext> _syncFunc;
-        private Func<DlpConnection, TContext> _contextFactory;
+        protected ILoggerFactory LoggerFactory { get; }
+        protected ILogger Logger { get; }
 
         private static readonly TimeSpan EndSyncDelay = TimeSpan.FromMilliseconds(100);
 
-        protected DlpServer(DlpSyncFunc<TContext> syncFunc, Func<DlpConnection, TContext>? contextFactory)
+        public DlpServer(ILoggerFactory? loggerFactory = null)
         {
-            _syncFunc = syncFunc;
-            _contextFactory = contextFactory ?? (connection => Activator.CreateInstance<TContext>());
+            LoggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+            Logger = LoggerFactory.CreateLogger(GetType());
         }
 
-        public abstract Task RunAsync(bool singleSync = false, CancellationToken cancellationToken = default);
+        public abstract Task RunAsync(ISyncHandler<TContext> context, CancellationToken cancellationToken);
 
-        protected async Task DoSyncAsync(DlpConnection connection, CancellationToken cancellationToken = default)
+        protected async Task HandleConnection(DlpConnection connection, ISyncHandler<TContext> syncHandler, CancellationToken cancellationToken = default)
         {
-            TContext context = _contextFactory(connection);
-
-            SyncStarting?.Invoke(this, new DlpSyncStartingEventArgs<TContext>(connection, context));
+            TContext context = await syncHandler.InitializeAsync(connection, cancellationToken).ConfigureAwait(false);
 
             Exception? syncException = null;
             try
             {
-                await _syncFunc(connection, context, cancellationToken).ConfigureAwait(false);
+                await syncHandler.OnSyncAsync(context, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -55,8 +52,9 @@ namespace Backhand.Dlp
                 // Swallow.
             }
 
-            SyncEnded?.Invoke(this, new DlpSyncEndedEventArgs<TContext>(connection, context, syncException));
-            await Task.Delay(EndSyncDelay);
+            await syncHandler.OnSyncEndedAsync(context, syncException, cancellationToken).ConfigureAwait(false);
+
+            await Task.Delay(EndSyncDelay, cancellationToken).ConfigureAwait(false);
         }
     }
 }
