@@ -1,3 +1,4 @@
+using Backhand.Common.Buffers;
 using Backhand.Pdb.FileSerialization;
 using System;
 using System.Collections.Generic;
@@ -22,7 +23,9 @@ namespace Backhand.Pdb
             uint sortInfoOffset = appInfoOffset + Convert.ToUInt32(AppInfo?.Length ?? 0);
             uint recordBlockOffset = sortInfoOffset + Convert.ToUInt32(SortInfo?.Length ?? 0);
 
-            PdbHeader header = GetFileHeader(
+            PdbHeader header = new();
+            WriteFileHeader(
+                header,
                 AppInfo is { Length: > 0 } ? appInfoOffset : 0,
                 SortInfo is { Length: > 0 } ? sortInfoOffset : 0);
 
@@ -49,7 +52,7 @@ namespace Backhand.Pdb
                 };
 
                 await PdbSerialization.WriteRecordMetadataAsync(stream, recordMetadata, cancellationToken).ConfigureAwait(false);
-                blockOffset += Convert.ToUInt32(record.Data.Length);
+                blockOffset += Convert.ToUInt32(record.GetDataSize());
             }
 
             // Write header padding
@@ -70,14 +73,16 @@ namespace Backhand.Pdb
             // Write records
             foreach (TRecord record in Records)
             {
-                await stream.WriteAsync(record.Data).ConfigureAwait(false);
+                byte[] recordBuffer = new byte[record.GetDataSize()];
+                record.WriteData(recordBuffer);
+                await stream.WriteAsync(recordBuffer).ConfigureAwait(false);
             }
         }
 
         public override async Task DeserializeAsync(Stream stream, CancellationToken cancellationToken)
         {
             PdbHeader header = await PdbSerialization.ReadHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
-            LoadFileHeader(header);
+            ReadFileHeader(header);
 
             PdbEntryListHeader entryListHeader = await PdbSerialization.ReaderEntryListHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
             
@@ -103,7 +108,7 @@ namespace Backhand.Pdb
 
                 stream.Seek(header.AppInfoId, SeekOrigin.Begin);
                 AppInfo = new byte[appInfoLength];
-                await PdbSerialization.FillBuffer(stream, AppInfo, cancellationToken);
+                await stream.FillBufferAsync(AppInfo, cancellationToken);
             }
 
             // Read SortInfo
@@ -115,7 +120,7 @@ namespace Backhand.Pdb
 
                 stream.Seek(header.SortInfoId, SeekOrigin.Begin);
                 SortInfo = new byte[sortInfoLength];
-                await PdbSerialization.FillBuffer(stream, SortInfo, cancellationToken);
+                await stream.FillBufferAsync(SortInfo, cancellationToken);
             }
 
             // Read Resource entries
@@ -132,21 +137,18 @@ namespace Backhand.Pdb
 
                 stream.Seek(metadata.LocalChunkId, SeekOrigin.Begin);
                 byte[] recordData = new byte[recordLength];
-                await PdbSerialization.FillBuffer(stream, recordData, cancellationToken);
+                await stream.FillBufferAsync(recordData, cancellationToken);
 
-                Records.Add(new TRecord
-                {
-                    Attributes = metadata.Attributes,
-                    Category = metadata.Category,
-                    Archive = metadata.Archive,
-                    UniqueId = metadata.UniqueId,
-                    Data = recordData
-                });
+                TRecord newRecord = new TRecord();
+                newRecord.ReadFileMetadata(metadata);
+                newRecord.ReadData(new System.Buffers.ReadOnlySequence<byte>(recordData));
+
+                Records.Add(newRecord);
             }
         }
     }
 
-    public class RecordDatabase : RecordDatabase<DatabaseRecord>
+    public class RecordDatabase : RecordDatabase<RawDatabaseRecord>
     {
     }
 }

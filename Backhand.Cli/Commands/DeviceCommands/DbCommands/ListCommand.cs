@@ -1,8 +1,9 @@
 ﻿using Backhand.Cli.Internal;
-using Backhand.Dlp;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
+using Spectre.Console;
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.Linq;
@@ -21,62 +22,47 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                 AllowMultipleArgumentsPerToken = true
             };
 
-        private readonly Option<IEnumerable<string>> ColumnsOption =
-            new Option<IEnumerable<string>>(new[] { "--columns", "-c" }, () => MetadataColumns.Select(c => c.Header).ToArray())
-            {
-                AllowMultipleArgumentsPerToken = true
-            }.FromAmong(MetadataColumns.Select(c => c.Header).ToArray());
-
         public ListCommand()
             : base("list", "Lists databases on a device")
         {
-            this.Add(ReadModesOption);
-            this.Add(ColumnsOption);
+            Add(ReadModesOption);
 
             this.SetHandler(async (context) =>
             {
                 ReadDbListMode readMode = context.ParseResult.GetValueForOption(ReadModesOption)!.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
-                IEnumerable<string> columns = context.ParseResult.GetValueForOption(ColumnsOption)!;
 
-                IConsole console = context.Console;
+                IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
 
                 ListSyncHandler syncHandler = new()
                 {
                     ReadMode = readMode,
-                    Columns = columns,
                     Console = console
                 };
 
-                await RunDlpServerAsync<ListSyncContext>(context, syncHandler).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class ListSyncContext
+        private class ListSyncContext : SyncContext
         {
-            public required DlpConnection Connection { get; init; }
             public required ReadDbListMode ReadMode { get; init; }
-            public required IEnumerable<string> Columns { get; init; }
-            public required IConsole Console { get; init; }
         }
 
-        private class ListSyncHandler : ISyncHandler<ListSyncContext>
+        private class ListSyncHandler : SyncHandler<ListSyncContext>
         {
             public required ReadDbListMode ReadMode { get; init; }
-            public required IEnumerable<string> Columns { get; init; }
-            public required IConsole Console { get; init; }
 
-            public Task<ListSyncContext> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            protected override Task<ListSyncContext> GetContextAsync(DlpConnection connection, CancellationToken cancellationToken)
             {
                 return Task.FromResult(new ListSyncContext
                 {
                     Connection = connection,
+                    Console = Console,
                     ReadMode = ReadMode,
-                    Columns = Columns,
-                    Console = Console
                 });
             }
 
-            public async Task OnSyncAsync(ListSyncContext context, CancellationToken cancellationToken)
+            public override async Task OnSyncAsync(ListSyncContext context, CancellationToken cancellationToken)
             {
                 await context.Connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -101,72 +87,46 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                     }
                 }
 
-                PrintResults(context.Console, context.Columns, dbResults);
+                PrintResults(context.Console, context.Connection, dbResults);
             }
         }
 
-        private static void PrintResults(IConsole console, IEnumerable<string> columnNames, ICollection<DatabaseMetadata> metadataList)
+        private static void PrintResults(IAnsiConsole console, DlpConnection connection, ICollection<DatabaseMetadata> metadataList)
         {
-            console.WriteTable(columnNames.Select(n => MetadataColumns.Single(c => c.Header == n)).ToList(), metadataList);
-        }
-        
-        private static readonly IReadOnlyCollection<ConsoleTableColumn<DatabaseMetadata>> MetadataColumns = new[]
-        {
-            new ConsoleTableColumn<DatabaseMetadata>
+            Table table = new Table()
             {
-                Header = "Name",
-                GetText = (metadata) => metadata.Name
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
+                Title = new TableTitle($"{connection.ToString()} Database Listing"),
+                Expand = true
+            };
+
+            table.AddColumn(new TableColumn(new Markup("[bold]Name[/]")));
+            table.AddColumn("MiscFlags");
+            table.AddColumn("Attributes");
+            table.AddColumn("Type");
+            table.AddColumn("Creator");
+            table.AddColumn("Version", c => c.RightAligned());
+            table.AddColumn("ModificationNumber", c => c.RightAligned());
+            table.AddColumn("CreationDate", c => c.RightAligned());
+            table.AddColumn("ModificationDate", c => c.RightAligned());
+            table.AddColumn("LastBackupDate", c => c.RightAligned());
+
+            foreach (DatabaseMetadata metadata in metadataList)
             {
-                Header = "MiscFlags",
-                GetText = (metadata) => metadata.MiscFlags.ToString()
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "Attributes",
-                GetText = (metadata) => metadata.Attributes.ToString()
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "Type",
-                GetText = (metadata) => metadata.Type
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "Creator",
-                GetText = (metadata) => metadata.Creator
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "Version",
-                GetText = (metadata) => metadata.Version.ToString(),
-                IsRightAligned = true
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "ModificationNumber",
-                GetText = (metadata) => metadata.ModificationNumber.ToString(),
-                IsRightAligned = true
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "CreationDate",
-                GetText = (metadata) => metadata.CreationDate.ToString("s"),
-                IsRightAligned = true
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "ModificationDate",
-                GetText = (metadata) => metadata.ModificationDate.ToString("s"),
-                IsRightAligned = true
-            },
-            new ConsoleTableColumn<DatabaseMetadata>
-            {
-                Header = "LastBackupDate",
-                GetText = (metadata) => metadata.LastBackupDate.ToString("s"),
-                IsRightAligned = true
+                table.AddRow(
+                    Markup.FromInterpolated($"[bold]{metadata.Name}[/]"),
+                    Markup.FromInterpolated($"{metadata.MiscFlags}"),
+                    Markup.FromInterpolated($"{metadata.Attributes}"),
+                    Markup.FromInterpolated($"{metadata.Type}"),
+                    Markup.FromInterpolated($"{metadata.Creator}"),
+                    Markup.FromInterpolated($"{metadata.Version}"),
+                    Markup.FromInterpolated($"{metadata.ModificationNumber}"),
+                    Markup.FromInterpolated($"{metadata.CreationDate:s}"),
+                    Markup.FromInterpolated($"{metadata.ModificationDate:s}"),
+                    Markup.FromInterpolated($"{metadata.LastBackupDate:s}")
+                );
             }
-        };
+
+            console.Write(table);
+        }
     }
 }

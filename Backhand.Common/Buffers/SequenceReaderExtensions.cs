@@ -14,6 +14,15 @@ namespace Backhand.Common.Buffers
             return value;
         }
 
+        public static ReadOnlySequence<T> ReadExact<T>(this ref SequenceReader<T> reader, int length) where T : unmanaged, IEquatable<T>
+        {
+            if (!reader.TryReadExact(length, out ReadOnlySequence<T> sequence))
+            {
+                throw new BufferReadException();
+            }
+            return sequence;
+        }
+
         public static T Peek<T>(this ref SequenceReader<T> reader, long offset = 0) where T : unmanaged, IEquatable<T>
         {
             if (!reader.TryPeek(offset, out T value))

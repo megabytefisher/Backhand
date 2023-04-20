@@ -30,17 +30,7 @@ namespace Backhand.Common.Buffers
             return true;
         }
 
-        public void Advance(int count)
-        {
-            Index += count;
-        }
-
-        public void Rewind(int count)
-        {
-            Index -= count;
-        }
-
-        public bool TryWriteRange(ReadOnlySpan<T> span)
+        public bool TryWrite(ReadOnlySpan<T> span)
         {
             if (Remaining < span.Length)
             {
@@ -52,7 +42,7 @@ namespace Backhand.Common.Buffers
             return true;
         }
 
-        public bool TryWriteRange(ReadOnlySequence<T> sequence)
+        public bool TryWrite(ReadOnlySequence<T> sequence)
         {
             if (Remaining < sequence.Length)
             {
@@ -62,6 +52,16 @@ namespace Backhand.Common.Buffers
             sequence.CopyTo(RemainingSpan);
             Index += Convert.ToInt32(sequence.Length);
             return true;
+        }
+
+        public void Advance(int count)
+        {
+            Index += count;
+        }
+
+        public void Rewind(int count)
+        {
+            Index -= count;
         }
     }
 }

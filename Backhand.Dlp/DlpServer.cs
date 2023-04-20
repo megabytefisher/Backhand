@@ -28,6 +28,8 @@ namespace Backhand.Dlp
         {
             TContext context = await syncHandler.InitializeAsync(connection, cancellationToken).ConfigureAwait(false);
 
+            await syncHandler.OnSyncStartedAsync(context, cancellationToken).ConfigureAwait(false);
+
             Exception? syncException = null;
             try
             {

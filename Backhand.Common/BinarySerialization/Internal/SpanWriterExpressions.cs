@@ -1,5 +1,6 @@
 ﻿using Backhand.Common.Buffers;
 using System;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -8,10 +9,14 @@ namespace Backhand.Common.BinarySerialization.Internal
     internal static class SpanWriterExpressions<T> where T : unmanaged, IEquatable<T>
     {
         private static readonly ConstructorInfo FromSpan = typeof(SpanWriter<T>).GetConstructor(new[] { typeof(Span<T>) }) ?? throw new Exception("Couldn't find constructor Span<T>");
-        private static readonly MethodInfo Write = typeof(SpanWriterExtensions).GetMethod(nameof(SpanWriterExtensions.Write))?.MakeGenericMethod(typeof(T)) ?? throw new Exception("Couldn't find Write");
         private static readonly MethodInfo Advance = typeof(SpanWriter<T>).GetMethod(nameof(SpanWriter<T>.Advance)) ?? throw new Exception("Couldn't find Advance");
         private static readonly PropertyInfo Span = typeof(SpanWriter<T>).GetProperty(nameof(SpanWriter<T>.Span)) ?? throw new Exception("Couldn't find Span");
         private static readonly PropertyInfo Index = typeof(SpanWriter<T>).GetProperty(nameof(SpanWriter<T>.Index)) ?? throw new Exception("Couldn't find Index");
+
+        private static readonly MethodInfo Write = typeof(SpanWriterExtensions).GetMethods()
+            .Where(m => m.Name == nameof(SpanWriterExtensions.Write))
+            .Where(m => m.GetParameters().Length == 2 && m.GetParameters()[1].ParameterType.IsGenericMethodParameter)
+            .SingleOrDefault()?.MakeGenericMethod(typeof(T)) ?? throw new Exception("Couldn't find Write");
 
         public static Expression GetFromSpanExpression(Expression span) => Expression.New(FromSpan, span);
         public static Expression GetWriteExpression(Expression bufferWriter, Expression value) => Expression.Call(Write, bufferWriter, value);

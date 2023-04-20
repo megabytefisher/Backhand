@@ -10,12 +10,14 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0-preview.3.23174.8" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0-preview.3.23174.8" />
+    <PackageReference Include="Spectre.Console" Version="0.46.0" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Backhand.Dlp\Backhand.Dlp.csproj" />
     <ProjectReference Include="..\Backhand.Network\Backhand.Network.csproj" />
+    <ProjectReference Include="..\Backhand.Pdb.Stream\Backhand.Pdb.Stream.csproj" />
     <ProjectReference Include="..\Backhand.Pdb\Backhand.Pdb.csproj" />
   </ItemGroup>
 

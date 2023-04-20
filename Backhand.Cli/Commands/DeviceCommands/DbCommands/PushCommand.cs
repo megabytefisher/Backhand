@@ -41,7 +41,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                     Console = console
                 };
 
-                await RunDlpServerAsync<PushSyncContext>(context, syncHandler).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
@@ -95,8 +95,8 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
             {
                 using var fileStream = file.OpenRead();
                 Database fileDb =
-                    file.Extension == ".prc" ? new ResourceDatabase() :
-                    file.Extension == ".pdb" ? new RecordDatabase() :
+                    file.Extension.ToLower() == ".prc" ? new ResourceDatabase() :
+                    file.Extension.ToLower() == ".pdb" ? new RecordDatabase() :
                     null!;
 
                 using (FileStream dbStream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
@@ -115,7 +115,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                     Creator = fileDb.Creator,
                     Type = fileDb.Type,
                     CardId = 0,
-                    Attributes = (DlpDatabaseAttributes)fileDb.Attributes,
+                    Attributes = (DlpDatabaseAttributes)((int)fileDb.Attributes & ~(int)DlpDatabaseAttributes.ReadOnly),
                     Version = fileDb.Version,
                     Name = fileDb.Name,
                 }, cancellationToken).ConfigureAwait(false);
@@ -155,7 +155,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                 }
                 else if (fileDb is RecordDatabase recordDb)
                 {
-                    foreach (DatabaseRecord record in recordDb.Records)
+                    foreach (RawDatabaseRecord record in recordDb.Records)
                     {
                         await connection.WriteRecordAsync(new() {
                             DbHandle = dbHandle,

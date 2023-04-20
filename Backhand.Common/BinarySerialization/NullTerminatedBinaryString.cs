@@ -47,7 +47,7 @@ namespace Backhand.Common.BinarySerialization
             Span<byte> remainingBytes = bufferWriter.RemainingSpan;
             int bytesWritten = Encoding.GetBytes(Value, remainingBytes);
             bufferWriter.Advance(bytesWritten);
-            bufferWriter.WriteRange(Encoding.GetBytes("\0"));
+            bufferWriter.Write(Encoding.GetBytes("\0"));
         }
 
         public override string ToString()

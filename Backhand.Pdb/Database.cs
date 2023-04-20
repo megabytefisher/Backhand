@@ -25,25 +25,23 @@ namespace Backhand.Pdb
         public abstract Task SerializeAsync(Stream stream, CancellationToken cancellationToken);
         public abstract Task DeserializeAsync(Stream stream, CancellationToken cancellationToken);
 
-        internal PdbHeader GetFileHeader(uint appInfoId, uint sortInfoId)
+        internal void WriteFileHeader(PdbHeader header, uint appInfoId, uint sortInfoId)
         {
-            PdbHeader result = new PdbHeader();
-            result.Name = Name;
-            result.Attributes = Attributes;
-            result.Version = Version;
-            result.CreationDate = CreationDate;
-            result.ModificationDate = ModificationDate;
-            result.LastBackupDate = LastBackupDate;
-            result.ModificationNumber = ModificationNumber;
-            result.AppInfoId = appInfoId;
-            result.SortInfoId = sortInfoId;
-            result.Type = Type;
-            result.Creator = Creator;
-            result.UniqueIdSeed = UniqueIdSeed;
-            return result;
+            header.Name = Name;
+            header.Attributes = Attributes;
+            header.Version = Version;
+            header.CreationDate = CreationDate;
+            header.ModificationDate = ModificationDate;
+            header.LastBackupDate = LastBackupDate;
+            header.ModificationNumber = ModificationNumber;
+            header.AppInfoId = appInfoId;
+            header.SortInfoId = sortInfoId;
+            header.Type = Type;
+            header.Creator = Creator;
+            header.UniqueIdSeed = UniqueIdSeed;
         }
 
-        internal void LoadFileHeader(PdbHeader header)
+        internal void ReadFileHeader(PdbHeader header)
         {
             Name = header.Name;
             Attributes = header.Attributes;

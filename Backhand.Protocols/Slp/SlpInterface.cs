@@ -274,7 +274,7 @@ namespace Backhand.Protocols.Slp
             bufferWriter.Write(ComputeHeaderChecksum(packet.DestinationSocket, packet.SourceSocket, packet.PacketType, Convert.ToUInt16(packet.Data.Length), packet.TransactionId));
 
             // Write body
-            bufferWriter.WriteRange(packet.Data);
+            bufferWriter.Write(packet.Data);
 
             // Write footer (CRC16 of header + data)
             bufferWriter.WriteUInt16BigEndian(Crc16.ComputeChecksum(buffer.Slice(0, PacketHeaderSize + (int)packet.Data.Length)));

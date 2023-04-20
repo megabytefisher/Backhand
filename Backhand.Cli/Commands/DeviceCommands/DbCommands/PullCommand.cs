@@ -10,96 +10,79 @@ using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Pdb;
 using Backhand.Protocols.Dlp;
+using Backhand.Cli.Internal;
+using Spectre.Console;
+using Microsoft.Extensions.DependencyInjection;
 using OpenDbMode = Backhand.Dlp.Commands.v1_0.Arguments.OpenDbRequest.OpenDbMode;
 using DatabaseMetadata = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListResponse.DatabaseMetadata;
 using ReadDbListMode = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListRequest.ReadDbListMode;
-using Backhand.Dlp;
-using Backhand.Cli.Internal;
 
 namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 {
     public class PullCommand : BaseSyncCommand
     {
-        private static readonly Option<string[]> NameOption =
-            new(new[] { "--name", "-n" }, "The name of the database to pull.")
-            {
-                Arity = ArgumentArity.ZeroOrMore
-            };
-
-        private static readonly Option<FileInfo> OutputOption =
-            new(new[] { "--output", "-o" }, "The output file to write the database to.");
-            
-        private readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption =
-            new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListMultiple | ReadDbListMode.ListRam })
-            {
-                AllowMultipleArgumentsPerToken = true
-            };
+        private readonly Option<bool> RomOption = new(new[] { "--rom", "-r" }, "Pulls databases from ROM rather than RAM.");
 
         private readonly Option<IEnumerable<DlpDatabaseAttributes>> AttributesOption =
             new(new[] { "--attributes", "-a" }, () => new[] { DlpDatabaseAttributes.Backup }, "Only pulls databases with the specified attribute(s).");
 
+        private static readonly Argument<string[]> NamesArgument =
+            new("names", "Names of databases to pull. If not specified, all available databases will be pulled.");
+
         public PullCommand()
             : base("pull", "Pull a database file from the device.")
         {
-            Add(NameOption);
-            Add(OutputOption);
-            Add(ReadModesOption);
+            Add(RomOption);
             Add(AttributesOption);
+            Add(NamesArgument);
 
             this.SetHandler(async (context) =>
             {
-                string[] names = context.ParseResult.GetValueForOption(NameOption)!;
-                FileInfo? output = context.ParseResult.GetValueForOption(OutputOption);
-                ReadDbListMode readMode = context.ParseResult.GetValueForOption(ReadModesOption)!.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
+                bool rom = context.ParseResult.GetValueForOption(RomOption)!;
                 DlpDatabaseAttributes attributes = context.ParseResult.GetValueForOption(AttributesOption)!.Aggregate(DlpDatabaseAttributes.None, (acc, cur) => acc | cur);
+                string[]? names = context.ParseResult.GetValueForArgument(NamesArgument);
+                names = names?.Length == 0 ? null : names;
 
-                IConsole console = context.Console;
+                IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
 
                 PullSyncHandler syncHandler = new()
                 {
-                    Names = names,
-                    Output = output,
-                    ReadMode = readMode,
+                    Console = console,
+                    Rom = rom,
                     Attributes = attributes,
-                    Console = console
+                    Names = names
                 };
 
-                await RunDlpServerAsync<PullSyncContext>(context, syncHandler).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class PullSyncContext
+        private class PullSyncContext : SyncContext
         {
-            public required DlpConnection Connection { get; init; }
-            public required string[] Names { get; init; }
-            public required FileInfo? Output { get; init; }
-            public required ReadDbListMode ReadMode { get; init; }
+            public required bool Rom { get; init; }
             public required DlpDatabaseAttributes Attributes { get; init; }
-            public required IConsole Console { get; init; }
+            public required string[]? Names { get; init; }
         }
 
-        private class PullSyncHandler : ISyncHandler<PullSyncContext>
+        private class PullSyncHandler : SyncHandler<PullSyncContext>
         {
-            public required string[] Names { get; init; }
-            public required FileInfo? Output { get; init; }
-            public required ReadDbListMode ReadMode { get; init; }
+            public required bool Rom { get; init; }
             public required DlpDatabaseAttributes Attributes { get; init; }
-            public required IConsole Console { get; init; }
+            public required string[]? Names { get; init; }
 
-            public Task<PullSyncContext> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            protected override Task<PullSyncContext> GetContextAsync(DlpConnection connection, CancellationToken cancellationToken)
             {
                 return Task.FromResult(new PullSyncContext
                 {
                     Connection = connection,
-                    Names = Names,
-                    ReadMode = ReadMode,
+                    Console = Console,
+                    Rom = Rom,
                     Attributes = Attributes,
-                    Output = Output,
-                    Console = Console
+                    Names = Names
                 });
             }
-
-            public async Task OnSyncAsync(PullSyncContext context, CancellationToken cancellationToken)
+        
+            public override async Task OnSyncAsync(PullSyncContext context, CancellationToken cancellationToken)
             {
                 await context.Connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -111,7 +94,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                     {
                         ReadDbListResponse response = await context.Connection.ReadDbListAsync(new ReadDbListRequest
                         {
-                            Mode = ReadMode,
+                            Mode = ReadDbListMode.ListMultiple | (Rom ? ReadDbListMode.ListRom : ReadDbListMode.ListRam),
                             StartIndex = startIndex
                         }, cancellationToken).ConfigureAwait(false);
 
@@ -124,18 +107,50 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                     }
                 }
 
-                IEnumerable<DatabaseMetadata> pullDatabases =
-                    Names.Length > 0 ? dbResults.Where(db => Names.Contains(db.Name, StringComparer.OrdinalIgnoreCase)) :
-                    Attributes != DlpDatabaseAttributes.None ? dbResults.Where(db => db.Attributes.HasFlag(Attributes)) :
-                    dbResults;
-
-                foreach (DatabaseMetadata dbMetadata in pullDatabases)
+                if (Names != null)
                 {
-                    Database database = await PullDatabaseAsync(context.Connection, dbMetadata, cancellationToken).ConfigureAwait(false);
+                    foreach (string name in Names)
+                    {
+                        DatabaseMetadata? databaseMetadata = dbResults.FirstOrDefault(r => r.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-                    // Save database to file
-                    await using FileStream outStream = File.OpenWrite(context.Output?.FullName ?? GetFileName(database));
-                    await database.SerializeAsync(outStream, cancellationToken).ConfigureAwait(false);
+                        if (databaseMetadata == null)
+                        {
+                            context.Console.MarkupLineInterpolated($"[bold red]Database not found: {name}[/]");
+                        }
+                        else
+                        {
+                            context.Console.MarkupLineInterpolated($"[green]Pulling database: {name}[/]");
+                            Database database = await PullDatabaseAsync(context.Connection, databaseMetadata, cancellationToken).ConfigureAwait(false);
+
+                            FileInfo outputFile = new(GetFileName(database));
+
+                            await using FileStream outStream = outputFile.OpenWrite();
+                            await database.SerializeAsync(outStream, cancellationToken).ConfigureAwait(false);
+                            context.Console.MarkupLineInterpolated($"[green]Wrote {outStream.Position} bytes to {outputFile.FullName}[/]");
+                        }
+                    }
+                }
+                else
+                {
+                    IEnumerable<DatabaseMetadata> pullDatabasesEnumerable =
+                        Attributes != DlpDatabaseAttributes.None ? dbResults.Where(db => db.Attributes.HasFlag(Attributes)) :
+                        dbResults;
+
+                    DatabaseMetadata[] pullDatabases = pullDatabasesEnumerable.ToArray();
+
+                    context.Console.MarkupLineInterpolated($"[green]Pulling {pullDatabases.Length} databases[/]");
+
+                    foreach (DatabaseMetadata dbMetadata in pullDatabases)
+                    {
+                        context.Console.MarkupLineInterpolated($"[green]Pulling database: {dbMetadata.Name}[/]");
+                        Database database = await PullDatabaseAsync(context.Connection, dbMetadata, cancellationToken).ConfigureAwait(false);
+
+                        FileInfo outputFile = new(GetFileName(database));
+
+                        await using FileStream outStream = File.OpenWrite(GetFileName(database));
+                        await database.SerializeAsync(outStream, cancellationToken).ConfigureAwait(false);
+                        context.Console.MarkupLineInterpolated($"[green]Wrote {outStream.Position} bytes to {outputFile.FullName}[/]");
+                    }
                 }
             }
 

@@ -16,17 +16,17 @@ namespace Backhand.Common.Buffers
             }
         }
 
-        public static void WriteRange<T>(this ref SpanWriter<T> writer, ReadOnlySpan<T> span) where T : unmanaged
+        public static void Write<T>(this ref SpanWriter<T> writer, ReadOnlySpan<T> span) where T : unmanaged
         {
-            if (!writer.TryWriteRange(span))
+            if (!writer.TryWrite(span))
             {
                 throw new BufferWriteException();
             }
         }
 
-        public static void WriteRange<T>(this ref SpanWriter<T> writer, ReadOnlySequence<T> sequence) where T : unmanaged
+        public static void Write<T>(this ref SpanWriter<T> writer, ReadOnlySequence<T> sequence) where T : unmanaged
         {
-            if (!writer.TryWriteRange(sequence))
+            if (!writer.TryWrite(sequence))
             {
                 throw new BufferWriteException();
             }

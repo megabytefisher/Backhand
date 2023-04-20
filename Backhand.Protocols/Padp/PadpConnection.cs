@@ -260,7 +260,7 @@ namespace Backhand.Protocols.Padp
                 }
 
                 // Write data
-                bufferWriter.WriteRange(data);
+                bufferWriter.Write(data);
 
                 // Build SLP packet
                 SlpPacket slpPacket = new()

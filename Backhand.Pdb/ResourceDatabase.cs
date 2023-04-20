@@ -1,4 +1,5 @@
-﻿using Backhand.Pdb.FileSerialization;
+﻿using Backhand.Common.Buffers;
+using Backhand.Pdb.FileSerialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,7 +23,9 @@ namespace Backhand.Pdb
             uint sortInfoOffset = appInfoOffset + Convert.ToUInt32(AppInfo?.Length ?? 0);
             uint resourceBlockOffset = sortInfoOffset + Convert.ToUInt32(SortInfo?.Length ?? 0);
 
-            PdbHeader header = GetFileHeader(
+            PdbHeader header = new();
+            WriteFileHeader(
+                header,
                 AppInfo is { Length: > 0 } ? appInfoOffset : 0,
                 SortInfo is { Length: > 0 } ? sortInfoOffset : 0);
 
@@ -75,7 +78,7 @@ namespace Backhand.Pdb
         public override async Task DeserializeAsync(Stream stream, CancellationToken cancellationToken)
         {
             PdbHeader header = await PdbSerialization.ReadHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
-            LoadFileHeader(header);
+            ReadFileHeader(header);
 
             PdbEntryListHeader entryListHeader = await PdbSerialization.ReaderEntryListHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
             
@@ -101,7 +104,7 @@ namespace Backhand.Pdb
 
                 stream.Seek(header.AppInfoId, SeekOrigin.Begin);
                 AppInfo = new byte[appInfoLength];
-                await PdbSerialization.FillBuffer(stream, AppInfo, cancellationToken);
+                await stream.FillBufferAsync(AppInfo, cancellationToken);
             }
 
             // Read SortInfo
@@ -113,7 +116,7 @@ namespace Backhand.Pdb
 
                 stream.Seek(header.SortInfoId, SeekOrigin.Begin);
                 SortInfo = new byte[sortInfoLength];
-                await PdbSerialization.FillBuffer(stream, SortInfo, cancellationToken);
+                await stream.FillBufferAsync(SortInfo, cancellationToken);
             }
 
             // Read Resource entries
@@ -130,7 +133,7 @@ namespace Backhand.Pdb
 
                 stream.Seek(metadata.LocalChunkId, SeekOrigin.Begin);
                 byte[] resourceData = new byte[resourceLength];
-                await PdbSerialization.FillBuffer(stream, resourceData, cancellationToken);
+                await stream.FillBufferAsync(resourceData, cancellationToken);
 
                 DatabaseResource resource = new()
                 {

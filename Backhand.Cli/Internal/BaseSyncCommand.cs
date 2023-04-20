@@ -1,6 +1,8 @@
 ﻿using Backhand.Dlp;
 using Backhand.Protocols.Dlp;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
@@ -26,10 +28,10 @@ namespace Backhand.Cli.Internal
             AddOption(DaemonOption);
         }
 
-        protected async Task RunDlpServerAsync<TContext>(InvocationContext context, ISyncHandler<TContext> syncHandler)
+        protected async Task RunDlpServerAsync<TContext>(InvocationContext context, ISyncHandler<TContext> syncHandler)// where TContext : SyncContext
         {
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
             ILoggerFactory loggerFactory = GetLoggerFactory(context);
-            IConsole console = context.Console;
             CancellationToken cancellationToken = context.GetCancellationToken();
             string[] devicesString = context.ParseResult.GetValueForOption(DevicesOption)!;
             bool daemon = context.ParseResult.GetValueForOption(DaemonOption);
@@ -44,28 +46,113 @@ namespace Backhand.Cli.Internal
             {
                 string[] deviceParts = deviceString.Split(':');
 
+                DlpServer<TContext> server;
                 if (deviceParts[0] == "serial")
                 {
-                    console.WriteLine($"Listening on serial port {deviceParts[1]}");
-                    serverTasks.Add(new SerialDlpServer<TContext>(deviceParts[1], loggerFactory).RunAsync(syncHandler, !daemon, cancellationToken));
+                    SerialDlpServer<TContext> serialServer;
+                    server = serialServer = new SerialDlpServer<TContext>(deviceParts[1], loggerFactory);
+                    Task runTask = serialServer.RunAsync(syncHandler, !daemon, cancellationToken);
+                    serverTasks.Add(WrapServerRunTaskAsync(server, runTask, console, cancellationToken));
                 }
                 else if (deviceParts[0] == "usb")
                 {
-                    console.WriteLine("Listening for USB devices");
-                    serverTasks.Add(new UsbDlpServer<TContext>(loggerFactory).RunAsync(syncHandler, !daemon, cancellationToken));
+                    UsbDlpServer<TContext> usbServer;
+                    server = usbServer = new UsbDlpServer<TContext>(loggerFactory);
+                    Task runTask = usbServer.RunAsync(syncHandler, !daemon, cancellationToken);
+                    serverTasks.Add(WrapServerRunTaskAsync(server, runTask, console, cancellationToken));
                 }
                 else if (deviceParts[0] == "network")
                 {
-                    console.WriteLine("Listening for network devices");
-                    serverTasks.Add(new NetworkDlpServer<TContext>(loggerFactory).RunAsync(syncHandler, !daemon, cancellationToken));
+                    NetworkDlpServer<TContext> networkServer;
+                    server = networkServer = new NetworkDlpServer<TContext>(loggerFactory);
+                    Task runTask = networkServer.RunAsync(syncHandler, !daemon, cancellationToken);
+                    serverTasks.Add(WrapServerRunTaskAsync(server, runTask, console, cancellationToken));
                 }
                 else
                 {
                     throw new ArgumentException($"Unknown device type: {deviceParts[0]}");
                 }
+
+                console.MarkupLineInterpolated($"[green]Sync server started: {server.ToString()}[/]");
             }
 
-            await Task.WhenAll(serverTasks).ConfigureAwait(false);
+            try
+            {
+                await Task.WhenAll(serverTasks).ConfigureAwait(false);
+                console.MarkupLine("[green]Operation completed successfully.[/]");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                console.MarkupLine("[gray]Operation cancelled.[/]");
+                context.ExitCode = 1;
+            }
+            catch (Exception ex)
+            {
+                console.WriteException(ex);
+                context.ExitCode = 1;
+            }
+        }
+
+        private async Task WrapServerRunTaskAsync<TContext>(DlpServer<TContext> server, Task runTask, IAnsiConsole console, CancellationToken userRequestedCancellationToken)
+        {
+            try
+            {
+                await runTask;
+                console.MarkupLineInterpolated($"[green]Sync server stopped: {server.ToString()}[/]");
+            }
+            catch (OperationCanceledException) when (userRequestedCancellationToken.IsCancellationRequested)
+            {
+                console.MarkupLineInterpolated($"[gray]Sync server stopped due cancellation request: {server.ToString()}[/]");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                console.MarkupLineInterpolated($"[red]Sync server stopped due to error: {server.ToString()}[/]");
+                console.WriteException(ex);
+                throw;
+            }
+        }
+
+        protected class SyncContext
+        {
+            public required DlpConnection Connection { get; init; }
+            public required IAnsiConsole Console { get; init; }
+        }
+
+        protected abstract class SyncHandler<T> : ISyncHandler<T> where T : SyncContext
+        {
+            public required IAnsiConsole Console { get; init; }
+
+            protected abstract Task<T> GetContextAsync(DlpConnection connection, CancellationToken cancellationToken);
+
+            public Task<T> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            {
+                return GetContextAsync(connection, cancellationToken);
+            }
+
+            public Task OnSyncStartedAsync(T context, CancellationToken cancellationToken)
+            {
+                context.Console.MarkupLineInterpolated($"[bold green]Sync started: {context.Connection.ToString()}[/]");
+
+                return Task.CompletedTask;
+            }
+
+            public abstract Task OnSyncAsync(T context, CancellationToken cancellationToken);
+
+            public Task OnSyncEndedAsync(T context, Exception? exception, CancellationToken cancellationToken)
+            {
+                if (exception != null)
+                {
+                    context.Console.MarkupLineInterpolated($"[bold red]Sync ended with error: {context.Connection.ToString()}[/]");
+                    context.Console.WriteException(exception);
+                }
+                else
+                {
+                    context.Console.MarkupLineInterpolated($"[bold green]Sync ended: {context.Connection.ToString()}[/]");
+                }
+
+                return Task.CompletedTask;
+            }
         }
     }
 }

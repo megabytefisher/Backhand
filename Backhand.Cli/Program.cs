@@ -1,5 +1,5 @@
 ﻿using Backhand.Cli.Commands;
-using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using System;
 using System.CommandLine;
 using System.CommandLine.Builder;
@@ -11,33 +11,25 @@ namespace Backhand.Cli
 {
     public static class Program
     {
+        public static readonly IAnsiConsole Console = AnsiConsole.Console;
+        public static Parser Parser { get; private set; } = null!;
+
         public static async Task<int> Main(string[] args)
         {
-            /*ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
-            {
-                builder.AddConsole();
-            });*/
-
-            Parser parser = new CommandLineBuilder(new AppRootCommand())
+            Parser = new CommandLineBuilder(new AppRootCommand())
                 .UseDefaults()
-                //.AddMiddleware((context, next) => InjectServices(context, next, loggerFactory))
+                .AddMiddleware(AddServices)
                 .Build();
 
-            return await parser.InvokeAsync(args);
+            return await Parser.InvokeAsync(args);
         }
 
-        /*private static async Task InjectServices(InvocationContext context, Func<InvocationContext, Task> next, ILoggerFactory loggerFactory)
+        private static Task AddServices(InvocationContext context, Func<InvocationContext, Task> next)
         {
-            Type commandType = context.BindingContext.ParseResult.CommandResult.Command.GetType();
-            context.BindingContext.AddService((_) => loggerFactory);
-            context.BindingContext.AddService((serviceProvider) => BuildLoggerService(serviceProvider, loggerFactory, commandType));
+            context.BindingContext.AddService(_ => Console);
+            context.BindingContext.AddService(_ => Parser);
 
-            await next(context);
-        }*/
-
-        private static ILogger BuildLoggerService(IServiceProvider serviceProvider, ILoggerFactory loggerFactory, Type commandType)
-        {
-            return loggerFactory.CreateLogger(commandType);
+            return next(context);
         }
     }
 }

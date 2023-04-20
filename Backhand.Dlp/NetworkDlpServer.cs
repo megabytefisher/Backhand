@@ -3,6 +3,7 @@ using Backhand.Protocols.Dlp;
 using Backhand.Protocols.NetSync;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -88,6 +89,27 @@ namespace Backhand.Dlp
             }
         }
 
+        public override string ToString()
+        {
+            return $"network[{NetworkEndPoint}]";
+        }
+
+        private class NetworkDlpConnection : DlpConnection
+        {
+            public IPEndPoint IPEndPoint { get; }
+
+            public NetworkDlpConnection(IPEndPoint ipEndPoint, NetSyncConnection netSyncConnection, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
+                : base(netSyncConnection, arrayPool, logger)
+            {
+                IPEndPoint = ipEndPoint;
+            }
+
+            public override string ToString()
+            {
+                return $"network@{IPEndPoint}";
+            }
+        }
+
         private class NetworkDlpClient : IDisposable
         {
             public TcpClient Client { get; }
@@ -110,7 +132,7 @@ namespace Backhand.Dlp
 
                 _netSyncInterfaceLogger = loggerFactory.CreateLogger<NetSyncInterface>();
                 _netSyncConnectionLogger = loggerFactory.CreateLogger<NetSyncConnection>();
-                _dlpConnectionLogger = loggerFactory.CreateLogger<DlpConnection>();
+                _dlpConnectionLogger = loggerFactory.CreateLogger<NetworkDlpConnection>();
 
                 HandlerTask = Task.Run(HandleDeviceAsync);
             }
@@ -148,7 +170,8 @@ namespace Backhand.Dlp
                     await netSyncHandshakeTask.ConfigureAwait(false);
 
                     // Build up the DLP connection
-                    DlpConnection dlpConnection = new(netSyncConnection, logger: _dlpConnectionLogger);
+                    IPEndPoint remoteEndPoint = (Client.Client.RemoteEndPoint as IPEndPoint)!;
+                    NetworkDlpConnection dlpConnection = new(remoteEndPoint, netSyncConnection, logger: _dlpConnectionLogger);
                     await SyncFunc(dlpConnection, linkedCts.Token);
                 }
                 finally

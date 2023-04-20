@@ -5,6 +5,7 @@ using Backhand.Protocols.Padp;
 using Backhand.Protocols.Slp;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Ports;
 using System.Threading;
@@ -14,7 +15,8 @@ namespace Backhand.Dlp
 {
     public class SerialDlpServer<TContext> : DlpServer<TContext>
     {
-        private readonly string _portName;
+        public string PortName { get; }
+
         private readonly ILogger _slpLogger;
         private readonly ILogger _padpLogger;
         private readonly ILogger _cmpLogger;
@@ -26,7 +28,7 @@ namespace Backhand.Dlp
         public SerialDlpServer(string portName, ILoggerFactory? loggerFactory = null)
             : base(loggerFactory)
         {
-            _portName = portName;
+            PortName = portName;
 
             _slpLogger = LoggerFactory.CreateLogger<SlpInterface>();
             _padpLogger = LoggerFactory.CreateLogger<PadpConnection>();
@@ -41,8 +43,10 @@ namespace Backhand.Dlp
 
         public async Task RunAsync(ISyncHandler<TContext> syncHandler, bool singleSync, CancellationToken cancellationToken = default)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 try
                 {
                     await DoCmpPortionAsync(cancellationToken).ConfigureAwait(false);
@@ -61,13 +65,15 @@ namespace Backhand.Dlp
             }
         }
 
+        public override string ToString() => $"serial[{PortName}]";
+
         private async Task DoCmpPortionAsync(CancellationToken cancellationToken = default)
         {
             using CancellationTokenSource internalCts = new();
             using CancellationTokenSource linkedCts =
                 CancellationTokenSource.CreateLinkedTokenSource(internalCts.Token, cancellationToken);
 
-            using SerialPort serialPort = new(_portName);
+            using SerialPort serialPort = new(PortName);
             serialPort.BaudRate = InitialBaudRate;
             serialPort.Handshake = Handshake.RequestToSend;
             serialPort.Parity = Parity.None;
@@ -125,7 +131,7 @@ namespace Backhand.Dlp
             using CancellationTokenSource linkedCts =
                 CancellationTokenSource.CreateLinkedTokenSource(internalCts.Token, cancellationToken);
 
-            using SerialPort serialPort = new(_portName);
+            using SerialPort serialPort = new(PortName);
             serialPort.BaudRate = TargetBaudRate;
             serialPort.Handshake = Handshake.RequestToSend;
             serialPort.Parity = Parity.None;
@@ -151,7 +157,7 @@ namespace Backhand.Dlp
                 tasks.Add(ioCompletionTask);
 
                 // Create DLP connection
-                DlpConnection dlp = new(padp, logger: _dlpLogger);
+                SerialDlpConnection dlp = new(PortName, padp, logger: _dlpLogger);
 
                 // Do sync
                 await HandleConnection(dlp, syncHandler, linkedCts.Token).ConfigureAwait(false);
@@ -184,6 +190,22 @@ namespace Backhand.Dlp
             }
 
             cts.Cancel();
+        }
+
+        private class SerialDlpConnection : DlpConnection
+        {
+            public string SerialPortName { get; }
+
+            public SerialDlpConnection(string serialPortName, PadpConnection padpConnection, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
+                : base(padpConnection, arrayPool, logger)
+            {
+                SerialPortName = serialPortName;
+            }
+
+            public override string ToString()
+            {
+                return $"serial@{SerialPortName}";
+            }
         }
     }
 }

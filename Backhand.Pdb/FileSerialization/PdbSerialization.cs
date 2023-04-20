@@ -1,4 +1,5 @@
 ﻿using Backhand.Common.BinarySerialization;
+using Backhand.Common.Buffers;
 using System;
 using System.Buffers;
 using System.IO;
@@ -20,18 +21,6 @@ namespace Backhand.Pdb.FileSerialization
         public static readonly int ResourceMetadataSize = BinarySerializer<PdbResourceMetadata>.GetSize(BlankResourceMetadata);
         public static readonly int RecordMetadataSize = BinarySerializer<PdbRecordMetadata>.GetSize(BlankRecordMetadata);
 
-        public static async Task FillBuffer(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)
-        {
-            int bytesRead = 0;
-            while (bytesRead < buffer.Length)
-            {
-                int read = await stream.ReadAsync(buffer.Slice(bytesRead), cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                    throw new EndOfStreamException();
-                bytesRead += read;
-            }
-        }
-
         public static async Task WriteHeaderAsync(Stream stream, PdbHeader header, CancellationToken cancellationToken)
         {
             byte[] buffer = new byte[HeaderSize];
@@ -43,7 +32,7 @@ namespace Backhand.Pdb.FileSerialization
         {
             PdbHeader header = new();
             byte[] buffer = new byte[HeaderSize];
-            await FillBuffer(stream, buffer, cancellationToken).ConfigureAwait(false);
+            await stream.FillBufferAsync(buffer, cancellationToken).ConfigureAwait(false);
             BinarySerializer<PdbHeader>.Deserialize(new ReadOnlySequence<byte>(buffer), header);
             return header;
         }
@@ -59,7 +48,7 @@ namespace Backhand.Pdb.FileSerialization
         {
             PdbEntryListHeader header = new();
             byte[] buffer = new byte[EntryListHeaderSize];
-            await FillBuffer(stream, buffer, cancellationToken).ConfigureAwait(false);
+            await stream.FillBufferAsync(buffer, cancellationToken).ConfigureAwait(false);
             BinarySerializer<PdbEntryListHeader>.Deserialize(new ReadOnlySequence<byte>(buffer), header);
             return header;
         }
@@ -75,7 +64,7 @@ namespace Backhand.Pdb.FileSerialization
         {
             PdbResourceMetadata metadata = new();
             byte[] buffer = new byte[ResourceMetadataSize];
-            await FillBuffer(stream, buffer, cancellationToken).ConfigureAwait(false);
+            await stream.FillBufferAsync(buffer, cancellationToken).ConfigureAwait(false);
             BinarySerializer<PdbResourceMetadata>.Deserialize(new ReadOnlySequence<byte>(buffer), metadata);
             return metadata;
         }
@@ -91,7 +80,7 @@ namespace Backhand.Pdb.FileSerialization
         {
             PdbRecordMetadata metadata = new();
             byte[] buffer = new byte[RecordMetadataSize];
-            await FillBuffer(stream, buffer, cancellationToken).ConfigureAwait(false);
+            await stream.FillBufferAsync(buffer, cancellationToken).ConfigureAwait(false);
             BinarySerializer<PdbRecordMetadata>.Deserialize(new ReadOnlySequence<byte>(buffer), metadata);
             return metadata;
         }

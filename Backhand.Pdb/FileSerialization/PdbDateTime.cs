@@ -37,6 +37,11 @@ namespace Backhand.Pdb.FileSerialization
                     return;
                 }
 
+                if (value < epoch && !IsPalmEpoch)
+                {
+                    epoch = PalmEpoch;
+                }
+
                 Offset = Convert.ToUInt32(value.Subtract(epoch).TotalSeconds);
             }
         }

@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Backhand.Common.BinarySerialization
 {
-    public static class BinarySerializer<T>
+    public static class BinarySerializer<T> where T : class
     {
         private delegate int GetSizeImplementation(T value);
         private delegate void SerializeImplementation(T value, ref SpanWriter<byte> bufferWriter);
@@ -18,6 +18,7 @@ namespace Backhand.Common.BinarySerialization
         private static readonly Lazy<GetSizeImplementation> _getSize = new(BuildGetSize);
         private static readonly Lazy<SerializeImplementation> _serialize = new(BuildSerialize);
         private static readonly Lazy<DeserializeImplementation> _deserialize = new(BuildDeserialize);
+        private static T? _defaultInstance = null;
 
         private const BindingFlags DefaultPropertyFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
@@ -31,6 +32,16 @@ namespace Backhand.Common.BinarySerialization
             return _getSize.Value(value);
         }
 
+        public static int GetMinimumSize<TItem>() where TItem : T, new()
+        {
+            if (_defaultInstance == null)
+            {
+                _defaultInstance = new TItem();
+            }
+
+            return GetSize(_defaultInstance);
+        }
+
         public static void Serialize(T value, ref SpanWriter<byte> buffer)
         {
             if (value is ICustomBinarySerializable customSerializable)
@@ -40,6 +51,18 @@ namespace Backhand.Common.BinarySerialization
             }
 
             _serialize.Value(value, ref buffer);
+        }
+
+        public static void Serialize(T value, Span<byte> buffer)
+        {
+            SpanWriter<byte> bufferWriter = new(buffer);
+            Serialize(value, ref bufferWriter);
+        }
+
+        public static void Serialize(T value, byte[] buffer)
+        {
+            SpanWriter<byte> bufferWriter = new(buffer);
+            Serialize(value, ref bufferWriter);
         }
 
         public static void Deserialize(ref SequenceReader<byte> buffer, T value)
@@ -53,22 +76,10 @@ namespace Backhand.Common.BinarySerialization
             _deserialize.Value(ref buffer, value);
         }
 
-        public static void Serialize(T value, Span<byte> buffer)
-        {
-            SpanWriter<byte> bufferWriter = new(buffer);
-            Serialize(value, ref bufferWriter);
-        }
-
         public static void Deserialize(ReadOnlySequence<byte> buffer, T value)
         {
             SequenceReader<byte> bufferReader = new SequenceReader<byte>(buffer);
             Deserialize(ref bufferReader, value);
-        }
-
-        public static void Serialize(T value, byte[] buffer)
-        {
-            SpanWriter<byte> bufferWriter = new(buffer);
-            Serialize(value, ref bufferWriter);
         }
 
         public static void Deserialize(byte[] buffer, T value)

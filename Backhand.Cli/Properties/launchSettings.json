@@ -4,13 +4,10 @@
       "commandName": "WSL2",
       "distributionName": ""
     },
-    "List DB (Network)": {
+    "Run": {
       "commandName": "Project",
-      "commandLineArgs": "db list -d network"
-    },
-    "Pull MemoDB (Network)": {
-      "commandName": "Project",
-      "commandLineArgs": "db pull -d network -n MemoDB"
+      "commandLineArgs": "prompt-mode",
+      "workingDirectory": "C:\\Users\\kfisher\\BackhandTest"
     }
   }
 }

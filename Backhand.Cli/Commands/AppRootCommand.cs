@@ -6,7 +6,9 @@ namespace Backhand.Cli.Commands
     {
         public AppRootCommand() : base("Backhand CLI")
         {
+            AddCommand(new PromptModeCommand() { IsHidden = true });
             AddCommand(new DeviceCommand());
+            AddCommand(new DbCommand());
         }
     }
 }

@@ -9,7 +9,7 @@ namespace Backhand.Cli.Commands
         {
             AddCommand(new SysInfoCommand());
             AddCommand(new UserInfoCommand());
-            AddCommand(new DbCommand());
+            AddCommand(new DeviceCommands.DbCommand());
             AddCommand(new StorageInfoCommand());
             AddCommand(new TimeCommand());
         }
