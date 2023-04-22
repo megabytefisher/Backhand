@@ -1,13 +1,14 @@
-using System;
-using System.CommandLine;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Backhand.Cli.Internal;
-using Backhand.Dlp;
+using Backhand.Cli.Internal.Commands;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
+using System;
+using System.CommandLine;
+using System.CommandLine.Invocation;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands.DeviceCommands.SysInfoCommands
 {
@@ -17,60 +18,60 @@ namespace Backhand.Cli.Commands.DeviceCommands.SysInfoCommands
         {
             this.SetHandler(async (context) =>
             {
-                IConsole console = context.Console;
-
-                ReadSyncHandler syncHandler = new()
-                {
-                    Console = console
-                };
-
-                await RunDlpServerAsync<ReadSyncContext>(context, syncHandler).ConfigureAwait(false);
+                ReadSyncHandler syncHandler = await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class ReadSyncContext
+        public override async Task<ICommandSyncHandler> GetSyncHandlerAsync(InvocationContext context, CancellationToken cancellationToken)
         {
-            public required DlpConnection Connection { get; init; }
-            public required IConsole Console { get; init; }
+            return await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
         }
 
-        private class ReadSyncHandler : ISyncHandler<ReadSyncContext>
+        private Task<ReadSyncHandler> GetSyncHandlerInternalAsync(InvocationContext context)
         {
-            public required IConsole Console { get; init; }
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
 
-            public Task<ReadSyncContext> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            ReadSyncHandler syncHandler = new()
             {
-                return Task.FromResult(new ReadSyncContext
-                {
-                    Connection = connection,
-                    Console = Console
-                });
-            }
+                Console = console
+            };
 
-            public async Task OnSyncAsync(ReadSyncContext context, CancellationToken cancellationToken)
+            return Task.FromResult(syncHandler);
+        }
+
+        private class ReadSyncHandler : CommandSyncHandler
+        {
+            public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                (var sysInfo, var dlpInfo) = await context.Connection.ReadSysInfoAsync(new() {
-                    HostDlpVersionMajor = 1,
-                    HostDlpVersionMinor = 1
-                }, cancellationToken).ConfigureAwait(false);
+                (ReadSysInfoSystemResponse sysInfo, ReadSysInfoDlpResponse dlpInfo) =
+                    await context.Connection.ReadSysInfoAsync(new()
+                    {
+                        HostDlpVersionMajor = 1,
+                        HostDlpVersionMinor = 1
+                    }, cancellationToken).ConfigureAwait(false);
 
-                PrintResult(context.Console, sysInfo, dlpInfo);
+                PrintResult(context.Console, context.Connection, sysInfo, dlpInfo);
             }
         }
 
-        private static void PrintResult(IConsole console, ReadSysInfoSystemResponse systemInfo, ReadSysInfoDlpResponse dlpInfo)
+        private static void PrintResult(IAnsiConsole console, DlpConnection connection, ReadSysInfoSystemResponse systemInfo, ReadSysInfoDlpResponse dlpInfo)
         {
-            StringBuilder sb = new();
-            sb.AppendLine($"RomVersion: {systemInfo.RomVersion}");
-            sb.AppendLine($"Locale: {systemInfo.Locale}");
-            sb.AppendLine($"ProductId: {BitConverter.ToString(systemInfo.ProductId)}");
-            sb.AppendLine($"ClientDlpVersionMajor: {dlpInfo.ClientDlpVersionMajor}");
-            sb.AppendLine($"ClientDlpVersionMinor: {dlpInfo.ClientDlpVersionMinor}");
-            sb.AppendLine($"MinimumDlpVersionMajor: {dlpInfo.MinimumDlpVersionMajor}");
-            sb.AppendLine($"MinimumDlpVersionMinor: {dlpInfo.MinimumDlpVersionMinor}");
-            sb.AppendLine($"MaxRecordSize: {dlpInfo.MaxRecordSize}");
+            Table table = new Table()
+                .Title(Markup.Escape($"{connection} System Info"))
+                .Expand()
+                .AddColumn("Name")
+                .AddColumn("Value")
+                .AddRow("RomVersion", Markup.Escape(systemInfo.RomVersion.ToString()))
+                .AddRow("Locale", Markup.Escape(systemInfo.Locale.ToString()))
+                .AddRow("ProductId", BitConverter.ToString(systemInfo.ProductId))
+                .AddRow("ClientDlpVersionMajor", Markup.Escape(dlpInfo.ClientDlpVersionMajor.ToString()))
+                .AddRow("ClientDlpVersionMinor", Markup.Escape(dlpInfo.ClientDlpVersionMinor.ToString()))
+                .AddRow("MinimumDlpVersionMajor", Markup.Escape(dlpInfo.MinimumDlpVersionMajor.ToString()))
+                .AddRow("MinimumDlpVersionMinor", Markup.Escape(dlpInfo.MinimumDlpVersionMinor.ToString()))
+                .AddRow("MaxRecordSize", Markup.Escape(dlpInfo.MaxRecordSize.ToString()));
 
-            console.WriteLine(sb.ToString());
+            console.Write(table);
         }
     }
 }

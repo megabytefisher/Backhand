@@ -1,7 +1,6 @@
 ﻿using Backhand.Common.BinarySerialization;
 using Backhand.Protocols.Dlp;
 using System;
-using System.Text;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {

@@ -1,7 +1,9 @@
 ﻿using Backhand.Cli.Commands;
+using Backhand.Cli.Internal.Logging;
 using Spectre.Console;
 using System;
 using System.CommandLine;
+using System.CommandLine.Binding;
 using System.CommandLine.Builder;
 using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
@@ -11,25 +13,32 @@ namespace Backhand.Cli
 {
     public static class Program
     {
+        public static readonly AppRootCommand RootCommand = new();
         public static readonly IAnsiConsole Console = AnsiConsole.Console;
-        public static Parser Parser { get; private set; } = null!;
+        internal static readonly AnsiConsoleLoggerProvider ConsoleLoggerProvider = new(Console);
+        public static readonly Parser RootParser = new CommandLineBuilder(RootCommand)
+            .UseDefaults()
+            .AddMiddleware(AddServicesAsync)
+            .Build();
 
         public static async Task<int> Main(string[] args)
         {
-            Parser = new CommandLineBuilder(new AppRootCommand())
-                .UseDefaults()
-                .AddMiddleware(AddServices)
-                .Build();
-
-            return await Parser.InvokeAsync(args);
+            return await RootParser.InvokeAsync(args);
         }
 
-        private static Task AddServices(InvocationContext context, Func<InvocationContext, Task> next)
+        public static async Task AddServicesAsync(InvocationContext context, Func<InvocationContext, Task> next)
         {
-            context.BindingContext.AddService(_ => Console);
-            context.BindingContext.AddService(_ => Parser);
+            await AddServicesAsync(context.BindingContext);
+            await next(context);
+        }
 
-            return next(context);
+        public static Task AddServicesAsync(BindingContext context)
+        {
+            context.AddService(_ => (RootCommand)RootCommand);
+            context.AddService(_ => Console);
+            context.AddService(_ => ConsoleLoggerProvider);
+            context.AddService(_ => RootParser);
+            return Task.CompletedTask;
         }
     }
 }

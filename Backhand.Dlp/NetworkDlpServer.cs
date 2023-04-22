@@ -1,4 +1,5 @@
-﻿using Backhand.Network;
+﻿using Backhand.Common;
+using Backhand.Network;
 using Backhand.Protocols.Dlp;
 using Backhand.Protocols.NetSync;
 using Microsoft.Extensions.Logging;
@@ -8,22 +9,31 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public class NetworkDlpServer<TContext> : DlpServer<TContext>
+    public class NetworkDlpServer : DlpServer
     {
-        public IPEndPoint NetworkEndPoint { get; }
+        public IPEndPoint ServerEndPoint { get; }
+        
+        private readonly ILogger _netSyncInterfaceLogger;
+        private readonly ILogger _netSyncConnectionLogger;
+        private readonly ILogger _dlpConnectionLogger;
 
         private const int DefaultHandshakePort = 14237;
         private const int DefaultMainPort = 14238;
 
-        public NetworkDlpServer(IPEndPoint networkEndPoint, ILoggerFactory? loggerFactory = null)
+        public NetworkDlpServer(IPEndPoint serverEndPoint, ILoggerFactory? loggerFactory = null)
             : base(loggerFactory)
         {
-            NetworkEndPoint = networkEndPoint;
+            ServerEndPoint = serverEndPoint;
+            
+            _netSyncInterfaceLogger = LoggerFactory.CreateLogger(DlpServerLogging.NetSyncInterfaceCategory);
+            _netSyncConnectionLogger = LoggerFactory.CreateLogger(DlpServerLogging.NetSyncConnectionCategory);
+            _dlpConnectionLogger = LoggerFactory.CreateLogger(DlpServerLogging.DlpConnectionCategory);
         }
 
         public NetworkDlpServer(IPAddress bindAddress, ILoggerFactory? loggerFactory = null)
@@ -36,157 +46,169 @@ namespace Backhand.Dlp
         {
         }
 
-        public override async Task RunAsync(ISyncHandler<TContext> context, CancellationToken cancellationToken)
-        {
-            await RunAsync(context, false, cancellationToken).ConfigureAwait(false);
-        }
+        public override string ToString() => $"network[{ServerEndPoint}]";
 
-        public async Task RunAsync(ISyncHandler<TContext> syncHandler, bool singleSync, CancellationToken cancellationToken = default)
+        public override async Task RunAsync(ISyncHandler syncHandler, bool singleSync, CancellationToken cancellationToken = default)
         {
-            TcpListener tcpListener = new(NetworkEndPoint);
-
+            Logger.ServerStarting(this);
+            
+            TcpListener tcpListener = new(ServerEndPoint);
             List<NetworkDlpClient> clients = new();
-
-            using CancellationTokenSource innerCts = new();
-            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
-
-            //using NetworkHandshakeServer handshakeServer = new(14237);
-            //Task handshakeServerTask = handshakeServer.Run(linkedCts.Token);
-
+            using CancellationTokenSource innerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            Exception? exception = null;
+            
             try
             {
                 tcpListener.Start();
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    clients.RemoveAll(c => c.HandlerTask.IsCompleted);
-                    TcpClient client = await tcpListener.AcceptTcpClientAsync(linkedCts.Token).ConfigureAwait(false);
-                    NetworkDlpClient networkDlpClient = new(client, (connection, cancellation) => HandleConnection(connection, syncHandler, cancellationToken), linkedCts.Token, LoggerFactory);
+
+                    ValueTask<TcpClient> acceptTask = tcpListener.AcceptTcpClientAsync(innerCts.Token);
+
+                    List<Task> tasks = new() { acceptTask.AsTask() };
+                    tasks.AddRange(clients.Select(c => c.Task));
+
+                    await Task.WhenAny(tasks).ConfigureAwait(false);
+
+                    List<NetworkDlpClient> completedClients = clients.Where(c => c.Task.IsCompleted).ToList();
+                    foreach (NetworkDlpClient completedClient in completedClients)
+                    {
+                        clients.Remove(completedClient);
+                        await completedClient.DisposeAsync().ConfigureAwait(false);
+                    }
+
+                    if (!acceptTask.IsCompletedSuccessfully) continue;
+                    TcpClient client = await acceptTask.ConfigureAwait(false);
+                    NetworkDlpClient networkDlpClient = StartClient(client, syncHandler, innerCts.Token);
                     clients.Add(networkDlpClient);
 
-                    if (singleSync)
-                    {
-                        break;
-                    }
+                    if (!singleSync) continue;
+                    await networkDlpClient.Task;
+                    break;
                 }
-                tcpListener.Stop();
-                await Task.WhenAll(clients.Select(c => c.HandlerTask)).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+                throw;
             }
             finally
             {
                 tcpListener.Stop();
+                
                 innerCts.Cancel();
                 try
                 {
-                    await Task.WhenAll(clients.Select(c => c.HandlerTask)).ConfigureAwait(false);
+                    await Task.WhenAll(clients.Select(c => c.Task)).ConfigureAwait(false);
                 }
                 catch { /* Swallow */ }
 
                 foreach (NetworkDlpClient client in clients)
                 {
-                    client.Dispose();
+                    await client.DisposeAsync().ConfigureAwait(false);
                 }
+                
+                innerCts.Dispose();
+                
+                Logger.ServerStopped(this, exception);
             }
         }
 
-        public override string ToString()
+        public async Task HandleDeviceAsync(ISyncHandler syncHandler, TcpClient client, CancellationToken cancellationToken)
         {
-            return $"network[{NetworkEndPoint}]";
+            string connectionName = NetworkDlpConnection.GetConnectionName(client);
+            Logger.ConnectionOpened(this, connectionName);
+
+            Exception? exception = null;
+            try
+            {
+                using TcpClient disposingClient = client;
+
+                using CancellationTokenSource
+                    ioCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+                NetworkPipe devicePipe = new(client);
+
+                using NetSyncInterface netSyncInterface = new(devicePipe, logger: _netSyncInterfaceLogger);
+                Task netSyncIoTask = netSyncInterface.RunIOAsync(ioCts.Token);
+                await using ConfiguredAsyncDisposable netSyncIoDispose =
+                    AsyncDisposableCallback.EnsureCompletion(netSyncIoTask, ioCts).ConfigureAwait(false);
+
+                NetSyncConnection netSyncConnection = new(netSyncInterface, logger: _netSyncConnectionLogger);
+                await netSyncConnection.DoHandshakeAsync(cancellationToken).ConfigureAwait(false);
+
+                IPEndPoint remoteEndPoint = (client.Client.RemoteEndPoint as IPEndPoint)!;
+                DlpConnection dlpConnection =
+                    new NetworkDlpConnection(remoteEndPoint, netSyncConnection, logger: _dlpConnectionLogger);
+                await SyncAsync(dlpConnection, syncHandler, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+                throw;
+            }
+            finally
+            {
+                Logger.ConnectionClosed(this, connectionName, exception);
+            }
+        }
+
+        private NetworkDlpClient StartClient(TcpClient client, ISyncHandler syncHandler,
+            CancellationToken cancellationToken)
+        {
+            CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            return new NetworkDlpClient
+            {
+                TcpClient = client,
+                Task = Task.Run(() => HandleDeviceAsync(syncHandler, client, cts.Token), cts.Token),
+                CancellationTokenSource = cts
+            };
+        }
+
+        private class NetworkDlpClient : IAsyncDisposable
+        {
+            public required TcpClient TcpClient { get; init; }
+            public required Task Task { get; init; }
+            public required CancellationTokenSource CancellationTokenSource { get; init; }
+
+            public async ValueTask DisposeAsync()
+            {
+                CancellationTokenSource.Cancel();
+
+                try
+                {
+                    await Task;
+                }
+                catch
+                {
+                    // Swallow
+                }
+                
+                TcpClient.Dispose();
+                CancellationTokenSource.Dispose();
+            }
         }
 
         private class NetworkDlpConnection : DlpConnection
         {
-            public IPEndPoint IPEndPoint { get; }
+            public IPEndPoint RemoteEndPoint { get; }
 
-            public NetworkDlpConnection(IPEndPoint ipEndPoint, NetSyncConnection netSyncConnection, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
+            public NetworkDlpConnection(IPEndPoint remoteEndPoint, NetSyncConnection netSyncConnection, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
                 : base(netSyncConnection, arrayPool, logger)
             {
-                IPEndPoint = ipEndPoint;
+                RemoteEndPoint = remoteEndPoint;
             }
-
-            public override string ToString()
+            
+            public NetworkDlpConnection(TcpClient client, NetSyncConnection netSyncConnection, ArrayPool<byte>? arrayPool = null, ILogger? logger = null)
+                : this((IPEndPoint)client.Client.RemoteEndPoint!, netSyncConnection, arrayPool, logger)
             {
-                return $"network@{IPEndPoint}";
-            }
-        }
-
-        private class NetworkDlpClient : IDisposable
-        {
-            public TcpClient Client { get; }
-            public Func<DlpConnection, CancellationToken, Task> SyncFunc { get; }
-            public Task HandlerTask { get; }
-            public CancellationTokenSource CancellationTokenSource { get; set; }
-
-            private CancellationToken _externalCancellationToken;
-
-            private readonly ILogger _netSyncInterfaceLogger;
-            private readonly ILogger _netSyncConnectionLogger;
-            private readonly ILogger _dlpConnectionLogger;
-
-            public NetworkDlpClient(TcpClient client, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken, ILoggerFactory loggerFactory)
-            {
-                Client = client;
-                SyncFunc = syncFunc;
-                CancellationTokenSource = new CancellationTokenSource();
-                _externalCancellationToken = cancellationToken;
-
-                _netSyncInterfaceLogger = loggerFactory.CreateLogger<NetSyncInterface>();
-                _netSyncConnectionLogger = loggerFactory.CreateLogger<NetSyncConnection>();
-                _dlpConnectionLogger = loggerFactory.CreateLogger<NetworkDlpConnection>();
-
-                HandlerTask = Task.Run(HandleDeviceAsync);
             }
 
-            public void Dispose()
-            {
-                Client.Dispose();
-                CancellationTokenSource.Dispose();
-            }
-
-            private async Task HandleDeviceAsync()
-            {
-                using CancellationTokenSource innerCts = new();
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_externalCancellationToken, CancellationTokenSource.Token, innerCts.Token);
-
-                NetworkPipe pipe = new(Client);
-
-                using NetSyncInterface netSyncInterface = new(pipe, logger: _netSyncInterfaceLogger);
-                NetSyncConnection netSyncConnection = new(netSyncInterface, logger: _netSyncConnectionLogger);
-
-                Task? netSyncHandshakeTask = null;
-                Task? netSyncIoTask = null;
-                List<Task> tasks = new List<Task>(3);
-                try
-                {
-                    // Start the handshake task early enough to see the wakeup packet
-                    netSyncHandshakeTask = netSyncConnection.DoHandshakeAsync(linkedCts.Token);
-                    tasks.Add(netSyncHandshakeTask);
-
-                    // Start IO tasks
-                    netSyncIoTask = netSyncInterface.RunIOAsync(linkedCts.Token);
-                    tasks.Add(netSyncIoTask);
-
-                    // Wait for the handshake task to complete
-                    await netSyncHandshakeTask.ConfigureAwait(false);
-
-                    // Build up the DLP connection
-                    IPEndPoint remoteEndPoint = (Client.Client.RemoteEndPoint as IPEndPoint)!;
-                    NetworkDlpConnection dlpConnection = new(remoteEndPoint, netSyncConnection, logger: _dlpConnectionLogger);
-                    await SyncFunc(dlpConnection, linkedCts.Token);
-                }
-                finally
-                {
-                    innerCts.Cancel();
-                    try
-                    {
-                        await Task.WhenAll(tasks).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // Swallow.
-                    }
-                }
-            }
+            public static string GetConnectionName(IPEndPoint endPoint) => $"network@{endPoint}";
+            public static string GetConnectionName(TcpClient client) => GetConnectionName((IPEndPoint)client.Client.RemoteEndPoint!);
+            public override string ToString() => GetConnectionName(RemoteEndPoint);
         }
     }
 }

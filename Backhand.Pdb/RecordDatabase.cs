@@ -13,7 +13,7 @@ namespace Backhand.Pdb
     {
         public virtual List<TRecord> Records { get; } = new();
 
-        public override async Task SerializeAsync(Stream stream, CancellationToken cancellationToken)
+        public override async Task SerializeAsync(Stream stream, CancellationToken cancellationToken = default)
         {
             uint appInfoOffset =
                 Convert.ToUInt32(PdbSerialization.HeaderSize) +
@@ -79,7 +79,7 @@ namespace Backhand.Pdb
             }
         }
 
-        public override async Task DeserializeAsync(Stream stream, CancellationToken cancellationToken)
+        public override async Task DeserializeAsync(Stream stream, CancellationToken cancellationToken = default)
         {
             PdbHeader header = await PdbSerialization.ReadHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
             ReadFileHeader(header);

@@ -75,7 +75,7 @@ namespace Backhand.Pdb
             }
         }
 
-        public override async Task DeserializeAsync(Stream stream, CancellationToken cancellationToken)
+        public override async Task DeserializeAsync(Stream stream, CancellationToken cancellationToken = default)
         {
             PdbHeader header = await PdbSerialization.ReadHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
             ReadFileHeader(header);

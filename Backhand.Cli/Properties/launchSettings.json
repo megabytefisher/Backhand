@@ -1,12 +1,18 @@
 {
   "profiles": {
-    "WSL": {
-      "commandName": "WSL2",
-      "distributionName": ""
-    },
-    "Run": {
+    "prompt-mode": {
       "commandName": "Project",
       "commandLineArgs": "prompt-mode",
+      "workingDirectory": "C:\\Users\\kfisher\\BackhandTest"
+    },
+    "prompt-mode (device)": {
+      "commandName": "Project",
+      "commandLineArgs": "device prompt-mode -s network usb serial:COM4 -D",
+      "workingDirectory": "C:\\Users\\kfisher\\BackhandTest"
+    },
+    "db list (network)": {
+      "commandName": "Project",
+      "commandLineArgs": "device db list -s network --log-dlp trace",
       "workingDirectory": "C:\\Users\\kfisher\\BackhandTest"
     }
   }

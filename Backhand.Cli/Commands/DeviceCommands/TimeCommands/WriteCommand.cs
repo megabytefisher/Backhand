@@ -1,11 +1,12 @@
+using Backhand.Cli.Internal.Commands;
+using Backhand.Dlp.Commands.v1_0;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
 using System;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using System.Threading;
 using System.Threading.Tasks;
-using Backhand.Cli.Internal;
-using Backhand.Dlp;
-using Backhand.Dlp.Commands.v1_0;
-using Backhand.Protocols.Dlp;
 
 namespace Backhand.Cli.Commands.DeviceCommands.TimeCommands
 {
@@ -17,51 +18,49 @@ namespace Backhand.Cli.Commands.DeviceCommands.TimeCommands
         public WriteCommand()
             : base("write", "Writes time and date to a device")
         {
-            this.AddOption(TimeOption);
+            Add(TimeOption);
 
             this.SetHandler(async (context) =>
             {
-                DateTime? time = context.ParseResult.GetValueForOption(TimeOption);
-
-                IConsole console = context.Console;
-
-                WriteSyncHandler syncHandler = new()
-                {
-                    Time = time,
-                    Console = console
-                };
-
-                await RunDlpServerAsync<WriteSyncContext>(context, syncHandler).ConfigureAwait(false);
+                WriteSyncHandler syncHandler = await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class WriteSyncContext
+        public override async Task<ICommandSyncHandler> GetSyncHandlerAsync(InvocationContext context, CancellationToken cancellationToken)
         {
-            public required DlpConnection Connection { get; init; }
-            public required DateTime? Time { get; init; }
-            public required IConsole Console { get; init; }
+            return await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
         }
 
-        private class WriteSyncHandler : ISyncHandler<WriteSyncContext>
+        private Task<WriteSyncHandler> GetSyncHandlerInternalAsync(InvocationContext context)
+        {
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
+
+            DateTime? time = context.ParseResult.GetValueForOption(TimeOption);
+
+            WriteSyncHandler syncHandler = new()
+            {
+                Console = console,
+                Time = time
+            };
+
+            return Task.FromResult(syncHandler);
+        }
+
+        private class WriteSyncHandler : CommandSyncHandler
         {
             public required DateTime? Time { get; init; }
-            public required IConsole Console { get; init; }
 
-            public Task<WriteSyncContext> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                return Task.FromResult(new WriteSyncContext
+                DateTime writeTime = Time ?? DateTime.Now;
+                
+                await context.Connection.WriteSysDateTimeAsync(new()
                 {
-                    Connection = connection,
-                    Time = Time,
-                    Console = Console
-                });
-            }
-
-            public async Task OnSyncAsync(WriteSyncContext context, CancellationToken cancellationToken)
-            {
-                await context.Connection.WriteSysDateTimeAsync(new() {
-                    DateTime = context.Time ?? DateTime.Now
+                    DateTime = writeTime
                 }, cancellationToken).ConfigureAwait(false);
+                
+                context.Console.MarkupLineInterpolated($"[green]Wrote device date: {writeTime:s}[/]");
             }
         }
     }

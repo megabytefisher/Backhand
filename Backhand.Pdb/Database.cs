@@ -22,8 +22,8 @@ namespace Backhand.Pdb
         public byte[]? AppInfo { get; set; }
         public byte[]? SortInfo { get; set; }
 
-        public abstract Task SerializeAsync(Stream stream, CancellationToken cancellationToken);
-        public abstract Task DeserializeAsync(Stream stream, CancellationToken cancellationToken);
+        public abstract Task SerializeAsync(Stream stream, CancellationToken cancellationToken = default);
+        public abstract Task DeserializeAsync(Stream stream, CancellationToken cancellationToken = default);
 
         internal void WriteFileHeader(PdbHeader header, uint appInfoId, uint sortInfoId)
         {

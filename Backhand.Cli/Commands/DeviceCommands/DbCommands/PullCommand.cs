@@ -1,29 +1,30 @@
-using System;
-using System.Collections.Generic;
-using System.CommandLine;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using Backhand.Cli.Internal.Commands;
 using Backhand.Dlp.Commands;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Pdb;
 using Backhand.Protocols.Dlp;
-using Backhand.Cli.Internal;
-using Spectre.Console;
 using Microsoft.Extensions.DependencyInjection;
-using OpenDbMode = Backhand.Dlp.Commands.v1_0.Arguments.OpenDbRequest.OpenDbMode;
+using Spectre.Console;
+using System;
+using System.Collections.Generic;
+using System.CommandLine;
+using System.CommandLine.Invocation;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using DatabaseMetadata = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListResponse.DatabaseMetadata;
+using OpenDbMode = Backhand.Dlp.Commands.v1_0.Arguments.OpenDbRequest.OpenDbMode;
 using ReadDbListMode = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListRequest.ReadDbListMode;
 
 namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 {
     public class PullCommand : BaseSyncCommand
     {
-        private readonly Option<bool> RomOption = new(new[] { "--rom", "-r" }, "Pulls databases from ROM rather than RAM.");
+        private static readonly Option<bool> RomOption = new(new[] { "--rom", "-r" }, "Pulls databases from ROM rather than RAM.");
 
-        private readonly Option<IEnumerable<DlpDatabaseAttributes>> AttributesOption =
+        private static readonly Option<IEnumerable<DlpDatabaseAttributes>> AttributesOption =
             new(new[] { "--attributes", "-a" }, () => new[] { DlpDatabaseAttributes.Backup }, "Only pulls databases with the specified attribute(s).");
 
         private static readonly Argument<string[]> NamesArgument =
@@ -38,55 +39,47 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 
             this.SetHandler(async (context) =>
             {
-                bool rom = context.ParseResult.GetValueForOption(RomOption)!;
-                DlpDatabaseAttributes attributes = context.ParseResult.GetValueForOption(AttributesOption)!.Aggregate(DlpDatabaseAttributes.None, (acc, cur) => acc | cur);
-                string[]? names = context.ParseResult.GetValueForArgument(NamesArgument);
-                names = names?.Length == 0 ? null : names;
-
-                IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
-
-                PullSyncHandler syncHandler = new()
-                {
-                    Console = console,
-                    Rom = rom,
-                    Attributes = attributes,
-                    Names = names
-                };
-
+                PullSyncHandler syncHandler = await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
                 await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class PullSyncContext : SyncContext
+        public override async Task<ICommandSyncHandler> GetSyncHandlerAsync(InvocationContext context, CancellationToken cancellationToken)
         {
-            public required bool Rom { get; init; }
-            public required DlpDatabaseAttributes Attributes { get; init; }
-            public required string[]? Names { get; init; }
+            return await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
         }
 
-        private class PullSyncHandler : SyncHandler<PullSyncContext>
+        private Task<PullSyncHandler> GetSyncHandlerInternalAsync(InvocationContext context)
+        {
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
+
+            bool rom = context.ParseResult.GetValueForOption(RomOption);
+            DlpDatabaseAttributes attributes = context.ParseResult.GetValueForOption(AttributesOption)!.Aggregate(DlpDatabaseAttributes.None, (acc, cur) => acc | cur);
+            string[]? names = context.ParseResult.GetValueForArgument(NamesArgument);
+            names = names.Length == 0 ? null : names;
+
+            PullSyncHandler syncHandler = new()
+            {
+                Console = console,
+                Rom = rom,
+                Attributes = attributes,
+                Names = names
+            };
+
+            return Task.FromResult(syncHandler);
+        }
+
+        private class PullSyncHandler : CommandSyncHandler
         {
             public required bool Rom { get; init; }
             public required DlpDatabaseAttributes Attributes { get; init; }
             public required string[]? Names { get; init; }
 
-            protected override Task<PullSyncContext> GetContextAsync(DlpConnection connection, CancellationToken cancellationToken)
-            {
-                return Task.FromResult(new PullSyncContext
-                {
-                    Connection = connection,
-                    Console = Console,
-                    Rom = Rom,
-                    Attributes = Attributes,
-                    Names = Names
-                });
-            }
-        
-            public override async Task OnSyncAsync(PullSyncContext context, CancellationToken cancellationToken)
+            public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
                 await context.Connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
 
-                List<DatabaseMetadata> dbResults = new List<DatabaseMetadata>();
+                List<DatabaseMetadata> dbResults = new();
                 ushort startIndex = 0;
                 while (true)
                 {
@@ -119,7 +112,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                         }
                         else
                         {
-                            context.Console.MarkupLineInterpolated($"[green]Pulling database: {name}[/]");
+                            context.Console.MarkupLineInterpolated($"[grey]Pulling database: {name}[/]");
                             Database database = await PullDatabaseAsync(context.Connection, databaseMetadata, cancellationToken).ConfigureAwait(false);
 
                             FileInfo outputFile = new(GetFileName(database));
@@ -138,11 +131,11 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 
                     DatabaseMetadata[] pullDatabases = pullDatabasesEnumerable.ToArray();
 
-                    context.Console.MarkupLineInterpolated($"[green]Pulling {pullDatabases.Length} databases[/]");
+                    context.Console.MarkupLineInterpolated($"[grey]Pulling {pullDatabases.Length} databases[/]");
 
                     foreach (DatabaseMetadata dbMetadata in pullDatabases)
                     {
-                        context.Console.MarkupLineInterpolated($"[green]Pulling database: {dbMetadata.Name}[/]");
+                        context.Console.MarkupLineInterpolated($"[silver]Pulling database: {dbMetadata.Name}[/]");
                         Database database = await PullDatabaseAsync(context.Connection, dbMetadata, cancellationToken).ConfigureAwait(false);
 
                         FileInfo outputFile = new(GetFileName(database));
@@ -154,7 +147,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                 }
             }
 
-            private async Task<Database> PullDatabaseAsync(DlpConnection connection, DatabaseMetadata databaseMetadata, CancellationToken cancellationToken)
+            private static async Task<Database> PullDatabaseAsync(DlpConnection connection, DatabaseMetadata databaseMetadata, CancellationToken cancellationToken)
             {
                 bool isResource = databaseMetadata.Attributes.HasFlag(DlpDatabaseAttributes.ResourceDb);
                 Database database = isResource ? new ResourceDatabase() : new RecordDatabase();
@@ -248,7 +241,8 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                             Offset = 0
                         }, cancellationToken).ConfigureAwait(false);
 
-                        database.Resources.Add(new() {
+                        database.Resources.Add(new()
+                        {
                             ResourceId = resourceResponse.ResourceId,
                             Type = resourceResponse.Type,
                             Data = resourceResponse.Data
@@ -303,7 +297,8 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                         Offset = 0
                     }, cancellationToken).ConfigureAwait(false);
 
-                    database.Records.Add(new() {
+                    database.Records.Add(new()
+                    {
                         UniqueId = recordResponse.RecordId,
                         Attributes = (DatabaseRecordAttributes)recordResponse.Attributes,
                         Category = recordResponse.Category,

@@ -1,3 +1,4 @@
+using System;
 using Backhand.Cli.Internal.DatabaseDisassembly;
 using Backhand.Common.Buffers;
 using Backhand.Pdb;
@@ -25,7 +26,7 @@ namespace Backhand.Cli.Commands.DbCommands
 
             this.SetHandler(async (context) =>
             {
-                DirectoryInfo input = context.ParseResult.GetValueForArgument(InputArgument)!;
+                DirectoryInfo input = context.ParseResult.GetValueForArgument(InputArgument);
                 FileInfo? output = context.ParseResult.GetValueForOption(OutputOption);
 
                 IConsole console = context.Console;
@@ -86,6 +87,10 @@ namespace Backhand.Cli.Commands.DbCommands
             {
                 outputFile = outputFile ?? new FileInfo(Path.ChangeExtension(inputDirectory.Name, ".prc"));
                 await AssembleResourceDatabaseAsync(resourceDatabase, inputDirectory, console, cancellationToken);
+            }
+            else
+            {
+                throw new InvalidOperationException();
             }
 
             await using FileStream outputStream = outputFile.OpenWrite();

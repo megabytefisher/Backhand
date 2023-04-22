@@ -24,10 +24,9 @@ namespace Backhand.Cli.Commands.DbCommands
 
             this.SetHandler(async (context) =>
             {
-                FileInfo input = context.ParseResult.GetValueForArgument(InputArgument)!;
+                FileInfo input = context.ParseResult.GetValueForArgument(InputArgument);
                 DirectoryInfo? output = context.ParseResult.GetValueForOption(OutputOption);
 
-                IConsole console = context.Console;
                 CancellationToken cancellationToken = context.GetCancellationToken();
 
                 if (output == null)
@@ -36,11 +35,11 @@ namespace Backhand.Cli.Commands.DbCommands
                     output.Create();
                 }
 
-                await DisassembleFileAsync(input, output, console, cancellationToken);
+                await DisassembleFileAsync(input, output, cancellationToken);
             });
         }
 
-        private static async Task DisassembleFileAsync(FileInfo inputFile, DirectoryInfo outputDirectory, IConsole console, CancellationToken cancellationToken)
+        private static async Task DisassembleFileAsync(FileInfo inputFile, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
         {
             await using FileStream fileStream = inputFile.OpenRead();
 
@@ -87,15 +86,15 @@ namespace Backhand.Cli.Commands.DbCommands
 
             if (database is ResourceDatabase resourceDatabase)
             {
-                await DisassembleResourceDatabaseAsync(resourceDatabase, outputDirectory, console, cancellationToken);
+                await DisassembleResourceDatabaseAsync(resourceDatabase, outputDirectory, cancellationToken);
             }
             else if (database is RecordDatabase recordDatabase)
             {
-                await DisassembleRecordDatabaseAsync(recordDatabase, outputDirectory, console, cancellationToken);
+                await DisassembleRecordDatabaseAsync(recordDatabase, outputDirectory, cancellationToken);
             }
         }
 
-        private static async Task DisassembleRecordDatabaseAsync(RecordDatabase database, DirectoryInfo outputDirectory, IConsole console, CancellationToken cancellationToken)
+        private static async Task DisassembleRecordDatabaseAsync(RecordDatabase database, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
         {
             int i = 0;
             foreach (RawDatabaseRecord record in database.Records)
@@ -118,8 +117,7 @@ namespace Backhand.Cli.Commands.DbCommands
                 await JsonSerializer.SerializeAsync(recordInfoFileStream, recordInfo, cancellationToken: cancellationToken);
                 await recordInfoFileStream.DisposeAsync();
 
-                FileInfo recordFile = new(Path.Combine(recordDirectory.FullName, "record.bin"));
-                using FileStream recordFileStream = recordFile.OpenWrite();
+                await using FileStream recordFileStream = recordDataFile.OpenWrite();
                 await recordFileStream.WriteAsync(record.Data, cancellationToken);
                 await recordFileStream.DisposeAsync();
 
@@ -127,7 +125,7 @@ namespace Backhand.Cli.Commands.DbCommands
             }
         }
 
-        private static async Task DisassembleResourceDatabaseAsync(ResourceDatabase database, DirectoryInfo outputDirectory, IConsole console, CancellationToken cancellationToken)
+        private static async Task DisassembleResourceDatabaseAsync(ResourceDatabase database, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
         {
             foreach (DatabaseResource resource in database.Resources)
             {

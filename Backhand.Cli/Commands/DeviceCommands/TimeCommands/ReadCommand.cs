@@ -1,11 +1,12 @@
-using System;
+using Backhand.Cli.Internal.Commands;
+using Backhand.Dlp.Commands.v1_0;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using System.Threading;
 using System.Threading.Tasks;
-using Backhand.Cli.Internal;
-using Backhand.Dlp;
-using Backhand.Dlp.Commands.v1_0;
-using Backhand.Protocols.Dlp;
+using Backhand.Dlp.Commands.v1_0.Arguments;
 
 namespace Backhand.Cli.Commands.DeviceCommands.TimeCommands
 {
@@ -16,40 +17,34 @@ namespace Backhand.Cli.Commands.DeviceCommands.TimeCommands
         {
             this.SetHandler(async (context) =>
             {
-                IConsole console = context.Console;
-
-                ReadSyncHandler syncHandler = new()
-                {
-                    Console = console
-                };
-
-                await RunDlpServerAsync<ReadSyncContext>(context, syncHandler).ConfigureAwait(false);
+                ReadSyncHandler syncHandler = await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class ReadSyncContext
+        public override async Task<ICommandSyncHandler> GetSyncHandlerAsync(InvocationContext context, CancellationToken cancellationToken)
         {
-            public required DlpConnection Connection { get; init; }
-            public required IConsole Console { get; init; }
+            return await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
         }
 
-        private class ReadSyncHandler : ISyncHandler<ReadSyncContext>
+        private Task<ReadSyncHandler> GetSyncHandlerInternalAsync(InvocationContext context)
         {
-            public required IConsole Console { get; init; }
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
 
-            public Task<ReadSyncContext> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            ReadSyncHandler syncHandler = new()
             {
-                return Task.FromResult(new ReadSyncContext
-                {
-                    Connection = connection,
-                    Console = Console
-                });
-            }
+                Console = console
+            };
 
-            public async Task OnSyncAsync(ReadSyncContext context, CancellationToken cancellationToken)
+            return Task.FromResult(syncHandler);
+        }
+
+        private class ReadSyncHandler : CommandSyncHandler
+        {
+            public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                var systemDate = await context.Connection.ReadSysDateTimeAsync(cancellationToken).ConfigureAwait(false);
-                context.Console.WriteLine($"Got device date: {systemDate.DateTime}");
+                ReadSysDateTimeResponse systemDateResponse = await context.Connection.ReadSysDateTimeAsync(cancellationToken).ConfigureAwait(false);
+                context.Console.MarkupLineInterpolated($"[green]Got device date: {systemDateResponse.DateTime:s}[/]");
             }
         }
     }

@@ -1,6 +1,5 @@
 using System.Buffers;
 using Backhand.Common.BinarySerialization;
-using LibUsbDotNet;
 using LibUsbDotNet.Main;
 
 namespace Backhand.Usb
@@ -49,10 +48,6 @@ namespace Backhand.Usb
             private const int ExtConnectionInEndpointShift = 4;
             private const int ExtConnectionOutEndpointBitmask = 0b00001111;
             private const int ExtConnectionOutEndpointShift = 0;
-
-            public ExtConnectionPortInfo()
-            {
-            }
         }
         
         // Device-to-host, Vendor, Endpoint
@@ -62,13 +57,13 @@ namespace Backhand.Usb
         {
             return mode switch
             {
-                UsbHandshakeMode.None => DoNoneHandshake(deviceConnection),
+                UsbHandshakeMode.None => DoNoneHandshake(),
                 UsbHandshakeMode.New => DoNewHandshake(deviceConnection),
                 _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
             };
         }
 
-        private static (ReadEndpointID, WriteEndpointID) DoNoneHandshake(UsbDeviceConnection deviceConnection)
+        private static (ReadEndpointID, WriteEndpointID) DoNoneHandshake()
         {
             return (ReadEndpointID.Ep02, WriteEndpointID.Ep02);
         }

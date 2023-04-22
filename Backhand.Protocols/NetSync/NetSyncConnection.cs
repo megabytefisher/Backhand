@@ -155,7 +155,7 @@ namespace Backhand.Protocols.NetSync
 
         private void SendPayload(byte transactionId, ReadOnlySequence<byte> buffer)
         {
-            NetSyncPacket payloadPacket = new NetSyncPacket(transactionId, buffer);
+            NetSyncPacket payloadPacket = new(transactionId, buffer);
             _logger.SendingPayload(payloadPacket);
             _interface.EnqueuePacket(payloadPacket);
         }

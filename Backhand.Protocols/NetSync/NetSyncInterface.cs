@@ -12,13 +12,24 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Backhand.Protocols.NetSync
 {
-    public class NetSyncInterface : IDisposable
+    public sealed class NetSyncInterface : IDisposable
     {
-        public event EventHandler<NetSyncTransmissionEventArgs>? PacketReceived;
+        public event EventHandler<NetSyncTransmissionEventArgs>? PacketReceived
+        {
+            add
+            {
+                PacketReceivedInternal += value;
+                _packetReceivedSubscribed.TrySetResult();
+            }
+            remove => PacketReceivedInternal -= value;
+        }
 
         private readonly IDuplexPipe _pipe;
         private readonly ArrayPool<byte> _arrayPool;
         private readonly BufferBlock<SendJob> _sendQueue;
+        
+        private event EventHandler<NetSyncTransmissionEventArgs>? PacketReceivedInternal;
+        private readonly TaskCompletionSource _packetReceivedSubscribed = new();
 
         private readonly ILogger _logger;
 
@@ -37,12 +48,10 @@ namespace Backhand.Protocols.NetSync
         {
             _sendQueue.Complete();
 
-            if (_sendQueue.TryReceiveAll(out IList<SendJob>? sendJob))
+            if (!_sendQueue.TryReceiveAll(out IList<SendJob>? sendJob)) return;
+            foreach (SendJob job in sendJob)
             {
-                foreach (SendJob job in sendJob)
-                {
-                    job.Dispose();
-                }
+                job.Dispose();
             }
         }
 
@@ -80,6 +89,9 @@ namespace Backhand.Protocols.NetSync
 
         private async Task RunReadLoopAsync(CancellationToken cancellationToken)
         {
+            // Wait for subscription to start reading from pipe.
+            await Task.WhenAny(_packetReceivedSubscribed.Task, Task.Delay(Timeout.Infinite, cancellationToken)).ConfigureAwait(false);
+            
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -140,7 +152,7 @@ namespace Backhand.Protocols.NetSync
 
                 NetSyncPacket packet = new(transactionId, packetData);
                 _logger.ReceivedPacket(packet);
-                PacketReceived?.Invoke(this, new NetSyncTransmissionEventArgs(packet));
+                PacketReceivedInternal?.Invoke(this, new NetSyncTransmissionEventArgs(packet));
             }
 
             return bufferReader.Position;

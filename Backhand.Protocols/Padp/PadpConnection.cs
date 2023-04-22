@@ -101,7 +101,7 @@ namespace Backhand.Protocols.Padp
             _logger.WaitingForPayload(transactionId);
 
             TaskCompletionSource receiveTcs = new();
-            SegmentBuffer<byte> payloadBuffer = new(_arrayPool);
+            using SegmentBuffer<byte> payloadBuffer = new(_arrayPool);
 
             void OnSlpPacketReceived(object? sender, SlpTransmissionEventArgs e)
             {
@@ -171,7 +171,6 @@ namespace Backhand.Protocols.Padp
             finally
             {
                 _slpInterface.PacketReceived -= OnSlpPacketReceived;
-                payloadBuffer.Dispose();
             }
         }
 

@@ -1,5 +1,4 @@
 ﻿using Backhand.Common.Buffers;
-using Backhand.Protocols.Dlp.Internal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
@@ -43,7 +42,7 @@ namespace Backhand.Protocols.Dlp
 
         public async Task<DlpArgumentMap> ExecuteTransactionAsync(DlpCommandDefinition commandDefinition, DlpArgumentMap? requestArguments = null, CancellationToken cancellationToken = default)
         {
-            requestArguments = requestArguments ?? new DlpArgumentMap();
+            requestArguments ??= new DlpArgumentMap();
             DlpArgumentMap? responseArguments = null;
 
             _logger.ExecutingTransaction(commandDefinition, requestArguments);
@@ -57,7 +56,7 @@ namespace Backhand.Protocols.Dlp
                 (responseData) =>
                 {
                     responseArguments = ReadDlpResponse(commandDefinition, responseData);
-                    _logger.ReceivedTransactionResponse(commandDefinition, responseArguments!);
+                    _logger.ReceivedTransactionResponse(commandDefinition, responseArguments);
                 },
                 cancellationToken).ConfigureAwait(false);
 

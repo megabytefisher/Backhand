@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using Backhand.Common.BinarySerialization;
 
 namespace Backhand.Protocols.Dlp

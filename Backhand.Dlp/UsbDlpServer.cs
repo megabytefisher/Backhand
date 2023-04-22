@@ -1,8 +1,12 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Common;
+using Backhand.Protocols;
 using Backhand.Protocols.Cmp;
 using Backhand.Protocols.Dlp;
 using Backhand.Protocols.NetSync;
@@ -14,38 +18,50 @@ using Microsoft.Extensions.Logging;
 
 namespace Backhand.Dlp
 {
-    public class UsbDlpServer<TContext> : DlpServer<TContext>
+    public class UsbDlpServer : DlpServer
     {
-        private static readonly TimeSpan PollDelay = TimeSpan.FromMilliseconds(1000);
+        public TimeSpan PollDelay { get; init; } = TimeSpan.FromMilliseconds(1000);
+
+        private readonly ILogger _netSyncInterfaceLogger;
+        private readonly ILogger _netSyncConnectionLogger;
+        private readonly ILogger _slpInterfaceLogger;
+        private readonly ILogger _padpConnectionLogger;
+        private readonly ILogger _cmpConnectionLogger;
+        private readonly ILogger _dlpConnectionLogger;
 
         public UsbDlpServer(ILoggerFactory? loggerFactory = null)
             : base(loggerFactory)
         {
+            _netSyncInterfaceLogger = LoggerFactory.CreateLogger(DlpServerLogging.NetSyncInterfaceCategory);
+            _netSyncConnectionLogger = LoggerFactory.CreateLogger(DlpServerLogging.NetSyncConnectionCategory);
+            _slpInterfaceLogger = LoggerFactory.CreateLogger(DlpServerLogging.SlpInterfaceCategory);
+            _padpConnectionLogger = LoggerFactory.CreateLogger(DlpServerLogging.PadpConnectionCategory);
+            _cmpConnectionLogger = LoggerFactory.CreateLogger(DlpServerLogging.CmpConnectionCategory);
+            _dlpConnectionLogger = LoggerFactory.CreateLogger(DlpServerLogging.DlpConnectionCategory);
         }
 
-        public override async Task RunAsync(ISyncHandler<TContext> syncHandler, CancellationToken cancellationToken)
-        {
-            await RunAsync(syncHandler, false, cancellationToken).ConfigureAwait(false);
-        }
+        public override string ToString() => "usb";
 
-        public async Task RunAsync(ISyncHandler<TContext> syncHandler, bool singleSync, CancellationToken cancellationToken = default)
+        public override async Task RunAsync(ISyncHandler syncHandler, bool singleSync, CancellationToken cancellationToken = default)
         {
+            Logger.ServerStarting(this);
+            
             Dictionary<string, UsbDlpClient> clients = new();
-
-            using CancellationTokenSource innerCts = new();
-            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
-
+            
+            using CancellationTokenSource innerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            Exception? exception = null;
+            
             try
             {
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    foreach (string path in clients.Keys.ToList())
+                    foreach (KeyValuePair<string, UsbDlpClient> kvp in clients.ToArray())
                     {
-                        if (clients[path].HandlerTask.IsCompleted)
+                        if (kvp.Value.Task.IsCompleted)
                         {
-                            clients.Remove(path);
+                            clients.Remove(kvp.Key);
                         }
                     }
 
@@ -56,208 +72,174 @@ namespace Backhand.Dlp
                             continue;
                         }
 
-                        UsbDlpClient client = new(device.Open(), config, (connection, cancellation) => HandleConnection(connection, syncHandler, cancellation), innerCts.Token, LoggerFactory);
+                        UsbDlpClient client = await StartClientAsync(device, config, syncHandler, innerCts.Token).ConfigureAwait(false);
                         clients.Add(device.DevicePath, client);
 
                         if (singleSync)
                         {
                             break;
-                        }    
+                        }
                     }
 
                     if (singleSync && clients.Any())
                     {
-                        await Task.WhenAll(clients.Values.Select(c => c.HandlerTask)).ConfigureAwait(false);
+                        await Task.WhenAll(clients.Values.Select(c => c.Task)).ConfigureAwait(false);
                         break;
                     }
 
                     await Task.Delay(PollDelay, cancellationToken).ConfigureAwait(false);
                 }
             }
+            catch (Exception ex)
+            {
+                exception = ex;
+                throw;
+            }
             finally
             {
                 innerCts.Cancel();
                 try
                 {
-                    await Task.WhenAll(clients.Values.Select(c => c.HandlerTask)).ConfigureAwait(false);
+                    await Task.WhenAll(clients.Values.Select(c => c.Task)).ConfigureAwait(false);
                 }
                 catch { /* Swallow */ }
 
                 foreach (UsbDlpClient client in clients.Values)
                 {
-                    client.Dispose();
+                    await client.DisposeAsync().ConfigureAwait(false);
                 }
+                clients.Clear();
+
+                innerCts.Dispose();
+                
+                Logger.ServerStopped(this, exception);
+            }
+        }
+        
+        private async Task HandleDeviceAsync(ISyncHandler syncHandler, UsbDeviceConnection deviceConnection, UsbDeviceConfig config, CancellationToken cancellationToken)
+        {
+            string connectionName = UsbDlpConnection.GetConnectionName(deviceConnection.DeviceDescriptor);
+            Logger.ConnectionOpened(this, connectionName);
+
+            Exception? exception = null;
+            try
+            {
+                using CancellationTokenSource ioCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+                (ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint) = UsbHandshake.DoHandshake(deviceConnection, config.HandshakeMode);
+
+                await using UsbDevicePipe pipe = new(deviceConnection, readEndpoint, writeEndpoint, cancellationToken: ioCts.Token);
+                Task pipeIoTask = pipe.RunIOAsync(ioCts.Token);
+                await using ConfiguredAsyncDisposable pipeIoDispose =
+                    AsyncDisposableCallback.EnsureCompletion(pipeIoTask, ioCts).ConfigureAwait(false);
+            
+                switch (config.ProtocolType)
+                {
+                    case UsbProtocolType.NetSync:
+                        await HandleNetSyncDeviceAsync(pipe, syncHandler, cancellationToken).ConfigureAwait(false);
+                        break;
+                    case UsbProtocolType.Slp:
+                        await HandleSlpDeviceAsync(pipe, syncHandler, cancellationToken).ConfigureAwait(false);
+                        break;
+                    default:
+                        throw new NotImplementedException();
+                }
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+                throw;
+            }
+            finally
+            {
+                Logger.ConnectionClosed(this, connectionName, exception);
+            }
+        }
+        
+        private async Task HandleNetSyncDeviceAsync(UsbDevicePipe pipe, ISyncHandler syncHandler, CancellationToken cancellationToken)
+        {
+            using CancellationTokenSource ioCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            
+            using NetSyncInterface netSyncInterface = new(pipe, logger: _netSyncInterfaceLogger);
+            Task netSyncIoTask = netSyncInterface.RunIOAsync(ioCts.Token);
+            await using ConfiguredAsyncDisposable netSyncIoDispose =
+                AsyncDisposableCallback.EnsureCompletion(netSyncIoTask, ioCts).ConfigureAwait(false);
+            
+            NetSyncConnection netSyncConnection = new(netSyncInterface, logger: _netSyncConnectionLogger);
+            await netSyncConnection.DoHandshakeAsync(cancellationToken).ConfigureAwait(false);
+            
+            DlpConnection dlpConnection = new UsbDlpConnection(pipe.Connection.DeviceDescriptor, netSyncConnection, logger: _dlpConnectionLogger);
+            await SyncAsync(dlpConnection, syncHandler, cancellationToken).ConfigureAwait(false);
+        }
+        
+        private async Task HandleSlpDeviceAsync(UsbDevicePipe pipe, ISyncHandler syncHandler, CancellationToken cancellationToken)
+        {
+            using CancellationTokenSource ioCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            
+            using SlpInterface slpInterface = new(pipe, logger: _slpInterfaceLogger);
+            Task slpIoTask = slpInterface.RunIOAsync(ioCts.Token);
+            await using ConfiguredAsyncDisposable slpIoDispose =
+                AsyncDisposableCallback.EnsureCompletion(slpIoTask, ioCts).ConfigureAwait(false);
+            
+            PadpConnection padpConnection = new(slpInterface, 3, 3, logger: _padpConnectionLogger);
+            
+            CmpConnection cmpConnection = new(padpConnection, logger: _cmpConnectionLogger);
+            await cmpConnection.DoHandshakeAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            
+            DlpConnection dlpConnection = new UsbDlpConnection(pipe.Connection.DeviceDescriptor, padpConnection, logger: _dlpConnectionLogger);
+            await SyncAsync(dlpConnection, syncHandler, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<UsbDlpClient> StartClientAsync(UsbDeviceDescriptor device, UsbDeviceConfig config, ISyncHandler syncHandler, CancellationToken cancellationToken)
+        {
+            CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            UsbDeviceConnection connection = await Task.Run(() => UsbDeviceConnection.Open(device), cancellationToken);
+
+            return new UsbDlpClient
+            {
+                Device = device,
+                Connection = connection,
+                Task = Task.Run(() => HandleDeviceAsync(syncHandler, connection, config, cts.Token), cts.Token),
+                CancellationTokenSource = cts
+            };
+        }
+
+        private sealed class UsbDlpClient : IAsyncDisposable
+        {
+            public required UsbDeviceDescriptor Device { get; init; }
+            public required UsbDeviceConnection Connection { get; init; }
+            public required Task Task { get; init; }
+            public required CancellationTokenSource CancellationTokenSource { get; init; }
+
+            public async ValueTask DisposeAsync()
+            {
+                CancellationTokenSource.Cancel();
+
+                try
+                {
+                    await Task;
+                }
+                catch
+                {
+                    // Swallow
+                }
+
+                Connection.Dispose();
+                CancellationTokenSource.Dispose();
             }
         }
 
-        private class UsbDlpClient : IDisposable
+        private class UsbDlpConnection : DlpConnection
         {
-            public UsbDeviceConnection Device { get; }
-            public UsbDeviceConfig Config { get; }
-            public Func<DlpConnection, CancellationToken, Task> SyncFunc { get; }
-            public Task HandlerTask { get; }
-            public CancellationTokenSource CancellationTokenSource { get; }
+            public UsbDeviceDescriptor RemoteDevice { get; }
 
-            private CancellationToken _externalCancellationToken;
-
-            private readonly ILogger _netSyncInterfaceLogger;
-            private readonly ILogger _netSyncConnectionLogger;
-            private readonly ILogger _slpInterfaceLogger;
-            private readonly ILogger _padpConnectionLogger;
-            private readonly ILogger _cmpConnectionLogger;
-            private readonly ILogger _dlpConnectionLogger;
-
-            public UsbDlpClient(UsbDeviceConnection device, UsbDeviceConfig config, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken, ILoggerFactory loggerFactory)
+            public UsbDlpConnection(UsbDeviceDescriptor remoteDevice, IDlpTransport dlpTransport, ArrayPool<byte>? arrayPool = null, ILogger? logger = null) : base(dlpTransport, arrayPool, logger)
             {
-                Device = device;
-                Config = config;
-                SyncFunc = syncFunc;
-                CancellationTokenSource = new CancellationTokenSource();
-                _externalCancellationToken = cancellationToken;
-
-                HandlerTask = Task.Run(HandleDeviceAsync);
-
-                _netSyncInterfaceLogger = loggerFactory.CreateLogger<NetSyncInterface>();
-                _netSyncConnectionLogger = loggerFactory.CreateLogger<NetSyncConnection>();
-                _slpInterfaceLogger = loggerFactory.CreateLogger<SlpInterface>();
-                _padpConnectionLogger = loggerFactory.CreateLogger<PadpConnection>();
-                _cmpConnectionLogger = loggerFactory.CreateLogger<CmpConnection>();
-                _dlpConnectionLogger = loggerFactory.CreateLogger<DlpConnection>();
+                RemoteDevice = remoteDevice;
             }
 
-            public void Dispose()
-            {
-                Device.Dispose();
-                CancellationTokenSource.Cancel();
-                CancellationTokenSource.Dispose();
-            }
-
-            private async Task HandleDeviceAsync()
-            {
-                using CancellationTokenSource innerCts = new();
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_externalCancellationToken, CancellationTokenSource.Token, innerCts.Token);
-
-                (ReadEndpointID readEndpoint, WriteEndpointID writeEndpoint) = UsbHandshake.DoHandshake(Device, Config.HandshakeMode);
-
-                using UsbDevicePipe pipe = new(Device, readEndpoint, writeEndpoint);
-                Task pipeTask = pipe.RunIOAsync(linkedCts.Token);
-
-                try
-                {
-                    switch (Config.ProtocolType)
-                    {
-                        case UsbProtocolType.NetSync:
-                            await HandleNetSyncDeviceAsync(pipe, SyncFunc, linkedCts.Token).ConfigureAwait(false);
-                            break;
-                        case UsbProtocolType.Slp:
-                            await HandleSlpDeviceAsync(pipe, SyncFunc, linkedCts.Token).ConfigureAwait(false);
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-                }
-                finally
-                {
-                    innerCts.Cancel();
-                    try
-                    {
-                        await pipeTask.ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // Swallow.
-                    }
-                }
-            }
-
-            private async Task HandleNetSyncDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
-            {
-                using CancellationTokenSource innerCts = new();
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
-
-                using NetSyncInterface netSyncInterface = new(devicePipe, logger: _netSyncInterfaceLogger);
-                NetSyncConnection netSyncConnection = new(netSyncInterface, logger: _netSyncConnectionLogger);
-
-                Task? netSyncHandshakeTask = null;
-                Task? netSyncIoTask = null;
-                List<Task> tasks = new List<Task>(3);
-                try
-                {
-                    // Start the handshake task early enough to see the wakeup packet
-                    netSyncHandshakeTask = netSyncConnection.DoHandshakeAsync(linkedCts.Token);
-                    tasks.Add(netSyncHandshakeTask);
-                    
-                    // Start IO tasks
-                    netSyncIoTask = netSyncInterface.RunIOAsync(linkedCts.Token);
-                    tasks.Add(netSyncIoTask);
-
-                    // Wait for the handshake task to complete
-                    await netSyncHandshakeTask.ConfigureAwait(false);
-
-                    // Build up the DLP connection
-                    DlpConnection dlpConnection = new(netSyncConnection, logger: _dlpConnectionLogger);
-                    await syncFunc(dlpConnection, linkedCts.Token);
-                }
-                finally
-                {
-                    innerCts.Cancel();
-                    try
-                    {
-                        await Task.WhenAll(tasks).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // Ignore
-                    }
-                }
-            }
-
-            private async Task HandleSlpDeviceAsync(UsbDevicePipe devicePipe, Func<DlpConnection, CancellationToken, Task> syncFunc, CancellationToken cancellationToken)
-            {
-                using CancellationTokenSource innerCts = new CancellationTokenSource();
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
-
-                using SlpInterface slpInterface = new(devicePipe, logger: _slpInterfaceLogger);
-                PadpConnection padpConnection = new(slpInterface, 3, 3, logger: _padpConnectionLogger);
-
-                Task? waitForWakeUpTask = null;
-                Task? ioTask = null;
-                List<Task> tasks = new List<Task>(3);
-                try
-                {
-                    CmpConnection cmpConnection = new(padpConnection, logger: _cmpConnectionLogger);
-
-                    // Watch for wakeup
-                    waitForWakeUpTask = cmpConnection.WaitForWakeUpAsync(linkedCts.Token);
-                    tasks.Add(waitForWakeUpTask);
-
-                    // Run SLP IO
-                    ioTask = slpInterface.RunIOAsync(linkedCts.Token);
-                    tasks.Add(ioTask);
-
-                    // Wait for wakeup + do handshake
-                    await waitForWakeUpTask.ConfigureAwait(false);
-                    await cmpConnection.DoHandshakeAsync(cancellationToken: linkedCts.Token).ConfigureAwait(false);
-
-                    // Build up the DLP connection
-                    DlpConnection dlpConnection = new(padpConnection, logger: _dlpConnectionLogger);
-
-                    // Run the sync function
-                    await syncFunc(dlpConnection, linkedCts.Token).ConfigureAwait(false);
-                }
-                finally
-                {
-                    innerCts.Cancel();
-                    try
-                    {
-                        await Task.WhenAll(tasks).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // Swallow
-                    }
-                }
-            }
+            public static string GetConnectionName(UsbDeviceDescriptor device) => $"usb@{device.DevicePath}";
+            public override string ToString() => GetConnectionName(RemoteDevice);
         }
     }
 }

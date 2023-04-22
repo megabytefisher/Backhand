@@ -1,8 +1,8 @@
-﻿using Backhand.Protocols.Dlp;
-using Backhand.Dlp.Commands.v1_0.Arguments;
-using System.Threading.Tasks;
+﻿using System;
 using System.Threading;
-using System;
+using System.Threading.Tasks;
+using Backhand.Dlp.Commands.v1_0.Arguments;
+using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0
 {
@@ -16,7 +16,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadUserInfoResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadUserInfo = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadUserInfo = new(
             DlpOpcodes.ReadUserInfo,
             new DlpArgumentDefinition[] { },
             new DlpArgumentDefinition[] { ReadUserInfoArguments.Response }
@@ -24,9 +24,9 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadUserInfoResponse> ReadUserInfoAsync(this DlpConnection connection, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadUserInfo, cancellationToken: cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadUserInfo, cancellationToken: cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadUserInfoArguments.Response) ?? throw new Exception("Failed to get ReadUserInfoResult");
+            return responseArguments.GetValue(ReadUserInfoArguments.Response) ?? throw new Exception("Failed to get ReadUserInfoResult");
         }
 
         /************************************/
@@ -37,7 +37,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<WriteUserInfoRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition WriteUserInfo = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition WriteUserInfo = new(
             DlpOpcodes.WriteUserInfo,
             new DlpArgumentDefinition[] { WriteUserInfoArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -45,10 +45,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task WriteUserInfoAsync(this DlpConnection connection, WriteUserInfoRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.WriteUserInfoArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(WriteUserInfoArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.WriteUserInfo, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(WriteUserInfo, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -61,7 +61,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadSysInfoDlpResponse> DlpResponse = new();
         }
 
-        public static readonly DlpCommandDefinition ReadSysInfo = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadSysInfo = new(
             DlpOpcodes.ReadSysInfo,
             new DlpArgumentDefinition[] { ReadSysInfoArguments.Request },
             new DlpArgumentDefinition[] { ReadSysInfoArguments.SystemResponse, ReadSysInfoArguments.DlpResponse }
@@ -69,14 +69,14 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<(ReadSysInfoSystemResponse, ReadSysInfoDlpResponse)> ReadSysInfoAsync(this DlpConnection connection, ReadSysInfoRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadSysInfoArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadSysInfoArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadSysInfo, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadSysInfo, requestArguments, cancellationToken);
 
             return (
-                responseArguments.GetValue(DlpCommands.ReadSysInfoArguments.SystemResponse) ?? throw new Exception("Failed to get ReadSysInfoSystemResult"),
-                responseArguments.GetValue(DlpCommands.ReadSysInfoArguments.DlpResponse) ?? throw new Exception("Failed to get ReadSysInfoDlpResult")
+                responseArguments.GetValue(ReadSysInfoArguments.SystemResponse) ?? throw new Exception("Failed to get ReadSysInfoSystemResult"),
+                responseArguments.GetValue(ReadSysInfoArguments.DlpResponse) ?? throw new Exception("Failed to get ReadSysInfoDlpResult")
             );
         }
 
@@ -88,7 +88,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadSysDateTimeResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadSysDateTime = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadSysDateTime = new(
             DlpOpcodes.ReadSysDateTime,
             new DlpArgumentDefinition[] { },
             new DlpArgumentDefinition[] { ReadSysDateTimeArguments.Response }
@@ -96,9 +96,9 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadSysDateTimeResponse> ReadSysDateTimeAsync(this DlpConnection connection, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadSysDateTime, cancellationToken: cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadSysDateTime, cancellationToken: cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadSysDateTimeArguments.Response) ?? throw new Exception("Failed to get ReadSysDateTimeResult");
+            return responseArguments.GetValue(ReadSysDateTimeArguments.Response) ?? throw new Exception("Failed to get ReadSysDateTimeResult");
         }
 
         /************************************/
@@ -109,7 +109,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<WriteSysDateTimeRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition WriteSysDateTime = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition WriteSysDateTime = new(
             DlpOpcodes.WriteSysDateTime,
             new DlpArgumentDefinition[] { WriteSysDateTimeArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -117,10 +117,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task WriteSysDateTimeAsync(this DlpConnection connection, WriteSysDateTimeRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.WriteSysDateTimeArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(WriteSysDateTimeArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.WriteSysDateTime, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(WriteSysDateTime, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -133,7 +133,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadStorageInfoExtResponse> ExtResponse = new();
         }
 
-        public static readonly DlpCommandDefinition ReadStorageInfo = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadStorageInfo = new(
             DlpOpcodes.ReadStorageInfo,
             new DlpArgumentDefinition[] { ReadStorageInfoArguments.Request },
             new DlpArgumentDefinition[] { ReadStorageInfoArguments.MainResponse, ReadStorageInfoArguments.ExtResponse }
@@ -141,14 +141,14 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<(ReadStorageInfoMainResponse, ReadStorageInfoExtResponse)> ReadStorageInfoAsync(this DlpConnection connection, ReadStorageInfoRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadStorageInfoArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadStorageInfoArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadStorageInfo, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadStorageInfo, requestArguments, cancellationToken);
 
             return (
-                responseArguments.GetValue(DlpCommands.ReadStorageInfoArguments.MainResponse) ?? throw new Exception("Failed to get ReadStorageInfoMainResult"),
-                responseArguments.GetValue(DlpCommands.ReadStorageInfoArguments.ExtResponse) ?? throw new Exception("Failed to get ReadStorageInfoExtResult")
+                responseArguments.GetValue(ReadStorageInfoArguments.MainResponse) ?? throw new Exception("Failed to get ReadStorageInfoMainResult"),
+                responseArguments.GetValue(ReadStorageInfoArguments.ExtResponse) ?? throw new Exception("Failed to get ReadStorageInfoExtResult")
             );
         }
 
@@ -161,7 +161,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadDbListResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadDbList = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadDbList = new(
             DlpOpcodes.ReadDbList,
             new DlpArgumentDefinition[] { ReadDbListArguments.Request },
             new DlpArgumentDefinition[] { ReadDbListArguments.Response }
@@ -169,12 +169,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadDbListResponse> ReadDbListAsync(this DlpConnection connection, ReadDbListRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadDbListArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadDbListArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadDbList, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadDbList, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadDbListArguments.Response) ?? throw new Exception("Failed to get ReadDbListResult");
+            return responseArguments.GetValue(ReadDbListArguments.Response) ?? throw new Exception("Failed to get ReadDbListResult");
         }
 
         /************************************/
@@ -186,7 +186,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<OpenDbResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition OpenDb = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition OpenDb = new(
             DlpOpcodes.OpenDb,
             new DlpArgumentDefinition[] { OpenDbArguments.Request },
             new DlpArgumentDefinition[] { OpenDbArguments.Response }
@@ -194,12 +194,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<OpenDbResponse> OpenDbAsync(this DlpConnection connection, OpenDbRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.OpenDbArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(OpenDbArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.OpenDb, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(OpenDb, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.OpenDbArguments.Response) ?? throw new Exception("Failed to get OpenDbResult");
+            return responseArguments.GetValue(OpenDbArguments.Response) ?? throw new Exception("Failed to get OpenDbResult");
         }
 
         /************************************/
@@ -211,7 +211,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<CreateDbResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition CreateDb = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition CreateDb = new(
             DlpOpcodes.CreateDb,
             new DlpArgumentDefinition[] { CreateDbArguments.Request },
             new DlpArgumentDefinition[] { CreateDbArguments.Response }
@@ -219,12 +219,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<CreateDbResponse> CreateDbAsync(this DlpConnection connection, CreateDbRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.CreateDbArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(CreateDbArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.CreateDb, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(CreateDb, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.CreateDbArguments.Response) ?? throw new Exception("Failed to get CreateDbResult");
+            return responseArguments.GetValue(CreateDbArguments.Response) ?? throw new Exception("Failed to get CreateDbResult");
         }
 
         /************************************/
@@ -235,7 +235,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<CloseDbRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition CloseDb = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition CloseDb = new(
             DlpOpcodes.CloseDb,
             new DlpArgumentDefinition[] { CloseDbArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -243,10 +243,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task CloseDbAsync(this DlpConnection connection, CloseDbRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.CloseDbArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(CloseDbArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.CloseDb, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(CloseDb, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -257,7 +257,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<DeleteDbRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition DeleteDb = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition DeleteDb = new(
             DlpOpcodes.DeleteDb,
             new DlpArgumentDefinition[] { DeleteDbArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -265,10 +265,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task DeleteDbAsync(this DlpConnection connection, DeleteDbRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.DeleteDbArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(DeleteDbArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.DeleteDb, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(DeleteDb, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -280,7 +280,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadAppBlockResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadAppBlock = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadAppBlock = new(
             DlpOpcodes.ReadAppBlock,
             new DlpArgumentDefinition[] { ReadAppBlockArguments.Request },
             new DlpArgumentDefinition[] { ReadAppBlockArguments.Response }
@@ -288,12 +288,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadAppBlockResponse> ReadAppBlockAsync(this DlpConnection connection, ReadAppBlockRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadAppBlockArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadAppBlockArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadAppBlock, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadAppBlock, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadAppBlockArguments.Response) ?? throw new Exception("Failed to get ReadAppBlockResult");
+            return responseArguments.GetValue(ReadAppBlockArguments.Response) ?? throw new Exception("Failed to get ReadAppBlockResult");
         }
 
         /************************************/
@@ -304,7 +304,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<WriteAppBlockRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition WriteAppBlock = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition WriteAppBlock = new(
             DlpOpcodes.WriteAppBlock,
             new DlpArgumentDefinition[] { WriteAppBlockArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -312,10 +312,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task WriteAppBlockAsync(this DlpConnection connection, WriteAppBlockRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.WriteAppBlockArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(WriteAppBlockArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.WriteAppBlock, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(WriteAppBlock, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -327,7 +327,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadSortBlockResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadSortBlock = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadSortBlock = new(
             DlpOpcodes.ReadSortBlock,
             new DlpArgumentDefinition[] { ReadSortBlockArguments.Request },
             new DlpArgumentDefinition[] { ReadSortBlockArguments.Response }
@@ -335,12 +335,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadSortBlockResponse> ReadSortBlockAsync(this DlpConnection connection, ReadSortBlockRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadSortBlockArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadSortBlockArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadSortBlock, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadSortBlock, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadSortBlockArguments.Response) ?? throw new Exception("Failed to get ReadSortBlockResult");
+            return responseArguments.GetValue(ReadSortBlockArguments.Response) ?? throw new Exception("Failed to get ReadSortBlockResult");
         }
 
         /************************************/
@@ -351,7 +351,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<WriteSortBlockRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition WriteSortBlock = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition WriteSortBlock = new(
             DlpOpcodes.WriteSortBlock,
             new DlpArgumentDefinition[] { WriteSortBlockArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -359,10 +359,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task WriteSortBlockAsync(this DlpConnection connection, WriteSortBlockRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.WriteSortBlockArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(WriteSortBlockArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.WriteSortBlock, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(WriteSortBlock, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -374,7 +374,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadNextModifiedRecordResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadNextModifiedRecord = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadNextModifiedRecord = new(
             DlpOpcodes.ReadNextModifiedRecord,
             new DlpArgumentDefinition[] { ReadNextModifiedRecordArguments.Request },
             new DlpArgumentDefinition[] { ReadNextModifiedRecordArguments.Response }
@@ -382,12 +382,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadNextModifiedRecordResponse> ReadNextModifiedRecordAsync(this DlpConnection connection, ReadNextModifiedRecordRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadNextModifiedRecordArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadNextModifiedRecordArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadNextModifiedRecord, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadNextModifiedRecord, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadNextModifiedRecordArguments.Response) ?? throw new Exception("Failed to get ReadNextModifiedRecordResult");
+            return responseArguments.GetValue(ReadNextModifiedRecordArguments.Response) ?? throw new Exception("Failed to get ReadNextModifiedRecordResult");
         }
 
         /************************************/
@@ -399,7 +399,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadRecordByIdResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadRecordById = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadRecordById = new(
             DlpOpcodes.ReadRecord,
             new DlpArgumentDefinition[] { ReadRecordByIdArguments.Request },
             new DlpArgumentDefinition[] { ReadRecordByIdArguments.Response }
@@ -407,12 +407,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadRecordByIdResponse> ReadRecordByIdAsync(this DlpConnection connection, ReadRecordByIdRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadRecordByIdArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadRecordByIdArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadRecordById, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadRecordById, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadRecordByIdArguments.Response) ?? throw new Exception("Failed to get ReadRecordByIdResult");
+            return responseArguments.GetValue(ReadRecordByIdArguments.Response) ?? throw new Exception("Failed to get ReadRecordByIdResult");
         }
 
         /************************************/
@@ -424,7 +424,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<WriteRecordResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition WriteRecord = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition WriteRecord = new(
             DlpOpcodes.WriteRecord,
             new DlpArgumentDefinition[] { WriteRecordArguments.Request },
             new DlpArgumentDefinition[] { WriteRecordArguments.Response }
@@ -432,12 +432,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<WriteRecordResponse> WriteRecordAsync(this DlpConnection connection, WriteRecordRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.WriteRecordArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(WriteRecordArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.WriteRecord, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(WriteRecord, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.WriteRecordArguments.Response) ?? throw new Exception("Failed to get WriteRecordResult");
+            return responseArguments.GetValue(WriteRecordArguments.Response) ?? throw new Exception("Failed to get WriteRecordResult");
         }
 
         /************************************/
@@ -448,7 +448,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<DeleteRecordRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition DeleteRecord = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition DeleteRecord = new(
             DlpOpcodes.DeleteRecord,
             new DlpArgumentDefinition[] { DeleteRecordArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -456,10 +456,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task DeleteRecordAsync(this DlpConnection connection, DeleteRecordRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.DeleteRecordArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(DeleteRecordArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.DeleteRecord, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(DeleteRecord, requestArguments, cancellationToken);
         }
         
         /************************************/
@@ -471,7 +471,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadResourceByIndexResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadResource = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadResource = new(
             DlpOpcodes.ReadResource,
             new DlpArgumentDefinition[] { ReadResourceArguments.Request },
             new DlpArgumentDefinition[] { ReadResourceArguments.Response }
@@ -479,12 +479,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadResourceByIndexResponse> ReadResourceAsync(this DlpConnection connection, ReadResourceByIndexRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadResourceArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadResourceArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadResource, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadResource, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadResourceArguments.Response) ?? throw new Exception("Failed to get ReadResourceResult");
+            return responseArguments.GetValue(ReadResourceArguments.Response) ?? throw new Exception("Failed to get ReadResourceResult");
         }
 
         /************************************/
@@ -495,7 +495,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<WriteResourceRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition WriteResource = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition WriteResource = new(
             DlpOpcodes.WriteResource,
             new DlpArgumentDefinition[] { WriteResourceArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -503,10 +503,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task WriteResourceAsync(this DlpConnection connection, WriteResourceRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.WriteResourceArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(WriteResourceArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.WriteResource, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(WriteResource, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -517,7 +517,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<DeleteResourceRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition DeleteResource = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition DeleteResource = new(
             DlpOpcodes.DeleteResource,
             new DlpArgumentDefinition[] { DeleteResourceArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -525,10 +525,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task DeleteResourceAsync(this DlpConnection connection, DeleteResourceRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.DeleteResourceArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(DeleteResourceArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.DeleteResource, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(DeleteResource, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -539,7 +539,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<CleanUpDatabaseRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition CleanUpDatabase = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition CleanUpDatabase = new(
             DlpOpcodes.CleanUpDatabase,
             new DlpArgumentDefinition[] { CleanUpDatabaseArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -547,10 +547,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task CleanUpDatabaseAsync(this DlpConnection connection, CleanUpDatabaseRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.CleanUpDatabaseArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(CleanUpDatabaseArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.CleanUpDatabase, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(CleanUpDatabase, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -561,7 +561,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ResetSyncFlagsRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition ResetSyncFlags = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ResetSyncFlags = new(
             DlpOpcodes.ResetSyncFlags,
             new DlpArgumentDefinition[] { ResetSyncFlagsArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -569,10 +569,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task ResetSyncFlagsAsync(this DlpConnection connection, ResetSyncFlagsRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ResetSyncFlagsArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ResetSyncFlagsArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.ResetSyncFlags, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(ResetSyncFlags, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -584,7 +584,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<CallApplicationResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition CallApplication = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition CallApplication = new(
             DlpOpcodes.CallApplication,
             new DlpArgumentDefinition[] { CallApplicationArguments.Request },
             new DlpArgumentDefinition[] { CallApplicationArguments.Response }
@@ -592,18 +592,18 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<CallApplicationResponse> CallApplicationAsync(this DlpConnection connection, CallApplicationRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.CallApplicationArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(CallApplicationArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.CallApplication, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(CallApplication, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.CallApplicationArguments.Response) ?? throw new Exception("Failed to get CallApplicationResult");
+            return responseArguments.GetValue(CallApplicationArguments.Response) ?? throw new Exception("Failed to get CallApplicationResult");
         }
 
         /************************************/
         /* ResetSystem                      */
         /************************************/
-        public static readonly DlpCommandDefinition ResetSystem = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ResetSystem = new(
             DlpOpcodes.ResetSystem,
             new DlpArgumentDefinition[] { },
             new DlpArgumentDefinition[] { }
@@ -611,7 +611,7 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task ResetSystemAsync(this DlpConnection connection, CancellationToken cancellationToken = default)
         {
-            await connection.ExecuteTransactionAsync(DlpCommands.ResetSystem, cancellationToken: cancellationToken);
+            await connection.ExecuteTransactionAsync(ResetSystem, cancellationToken: cancellationToken);
         }
 
         /************************************/
@@ -622,7 +622,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<AddSyncLogEntryRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition AddSyncLogEntry = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition AddSyncLogEntry = new(
             DlpOpcodes.AddSyncLogEntry,
             new DlpArgumentDefinition[] { AddSyncLogEntryArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -630,10 +630,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task AddSyncLogEntryAsync(this DlpConnection connection, AddSyncLogEntryRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.AddSyncLogEntryArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(AddSyncLogEntryArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.AddSyncLogEntry, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(AddSyncLogEntry, requestArguments, cancellationToken);
         }
         
         /************************************/
@@ -645,7 +645,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadOpenDbInfoResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadOpenDbInfo = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadOpenDbInfo = new(
             DlpOpcodes.ReadOpenDbInfo,
             new DlpArgumentDefinition[] { ReadOpenDbInfoArguments.Request },
             new DlpArgumentDefinition[] { ReadOpenDbInfoArguments.Response }
@@ -653,12 +653,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadOpenDbInfoResponse> ReadOpenDbInfoAsync(this DlpConnection connection, ReadOpenDbInfoRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadOpenDbInfoArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadOpenDbInfoArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadOpenDbInfo, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadOpenDbInfo, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadOpenDbInfoArguments.Response) ?? throw new Exception("Failed to get ReadOpenDbInfoResult");
+            return responseArguments.GetValue(ReadOpenDbInfoArguments.Response) ?? throw new Exception("Failed to get ReadOpenDbInfoResult");
         }
 
         /************************************/
@@ -669,7 +669,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<MoveCategoryRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition MoveCategory = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition MoveCategory = new(
             DlpOpcodes.MoveCategory,
             new DlpArgumentDefinition[] { MoveCategoryArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -677,16 +677,16 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task MoveCategoryAsync(this DlpConnection connection, MoveCategoryRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.MoveCategoryArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(MoveCategoryArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.MoveCategory, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(MoveCategory, requestArguments, cancellationToken);
         }
 
         /************************************/
         /* OpenConduit                      */
         /************************************/
-        public static readonly DlpCommandDefinition OpenConduit = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition OpenConduit = new(
             DlpOpcodes.OpenConduit,
             new DlpArgumentDefinition[] { },
             new DlpArgumentDefinition[] { }
@@ -694,7 +694,7 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task OpenConduitAsync(this DlpConnection connection, CancellationToken cancellationToken = default)
         {
-            await connection.ExecuteTransactionAsync(DlpCommands.OpenConduit, cancellationToken: cancellationToken);
+            await connection.ExecuteTransactionAsync(OpenConduit, cancellationToken: cancellationToken);
         }
 
         /************************************/
@@ -705,7 +705,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<EndSyncRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition EndSync = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition EndSync = new(
             DlpOpcodes.EndSync,
             new DlpArgumentDefinition[] { EndSyncArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -713,10 +713,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task EndSyncAsync(this DlpConnection connection, EndSyncRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.EndSyncArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(EndSyncArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.EndSync, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(EndSync, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -727,7 +727,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ResetRecordIndexRequest> Request = new();
         }
 
-        public static readonly DlpCommandDefinition ResetRecordIndex = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ResetRecordIndex = new(
             DlpOpcodes.ResetRecordIndex,
             new DlpArgumentDefinition[] { ResetRecordIndexArguments.Request },
             new DlpArgumentDefinition[] { }
@@ -735,10 +735,10 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task ResetRecordIndexAsync(this DlpConnection connection, ResetRecordIndexRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ResetRecordIndexArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ResetRecordIndexArguments.Request, request);
 
-            await connection.ExecuteTransactionAsync(DlpCommands.ResetRecordIndex, requestArguments, cancellationToken);
+            await connection.ExecuteTransactionAsync(ResetRecordIndex, requestArguments, cancellationToken);
         }
 
         /************************************/
@@ -750,7 +750,7 @@ namespace Backhand.Dlp.Commands.v1_0
             public static readonly DlpArgumentDefinition<ReadRecordIdListResponse> Response = new();
         }
 
-        public static readonly DlpCommandDefinition ReadRecordIdList = new DlpCommandDefinition(
+        public static readonly DlpCommandDefinition ReadRecordIdList = new(
             DlpOpcodes.ReadRecordIdList,
             new DlpArgumentDefinition[] { ReadRecordIdListArguments.Request },
             new DlpArgumentDefinition[] { ReadRecordIdListArguments.Response }
@@ -758,12 +758,12 @@ namespace Backhand.Dlp.Commands.v1_0
 
         public static async Task<ReadRecordIdListResponse> ReadRecordIdListAsync(this DlpConnection connection, ReadRecordIdListRequest request, CancellationToken cancellationToken = default)
         {
-            DlpArgumentMap requestArguments = new DlpArgumentMap();
-            requestArguments.SetValue(DlpCommands.ReadRecordIdListArguments.Request, request);
+            DlpArgumentMap requestArguments = new();
+            requestArguments.SetValue(ReadRecordIdListArguments.Request, request);
 
-            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(DlpCommands.ReadRecordIdList, requestArguments, cancellationToken);
+            DlpArgumentMap responseArguments = await connection.ExecuteTransactionAsync(ReadRecordIdList, requestArguments, cancellationToken);
 
-            return responseArguments.GetValue(DlpCommands.ReadRecordIdListArguments.Response) ?? throw new Exception("Failed to get ReadRecordIdListResult");
+            return responseArguments.GetValue(ReadRecordIdListArguments.Response) ?? throw new Exception("Failed to get ReadRecordIdListResult");
         }
     }
 }

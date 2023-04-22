@@ -34,7 +34,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             set => UsernameString.Value = value;
         }
 
-        public DateTime LastSuccessfulSyncDate
+        public DateTime LastSyncDate
         {
             get => LastSuccessfulSyncDlpDate.AsDateTime;
             set => LastSuccessfulSyncDlpDate.AsDateTime = value;

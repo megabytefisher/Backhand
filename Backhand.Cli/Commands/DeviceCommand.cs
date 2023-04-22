@@ -5,13 +5,20 @@ namespace Backhand.Cli.Commands
 {
     internal class DeviceCommand : Command
     {
-        public DeviceCommand() : base("device", "Commands for manipulating connected devices")
+        public const string CommandName = "device";
+
+        public DeviceCommand(bool interactive = false) : base(CommandName, "Commands for manipulating connected devices")
         {
             AddCommand(new SysInfoCommand());
             AddCommand(new UserInfoCommand());
             AddCommand(new DeviceCommands.DbCommand());
             AddCommand(new StorageInfoCommand());
             AddCommand(new TimeCommand());
+
+            if (!interactive)
+            {
+                AddCommand(new DeviceCommands.PromptModeCommand());
+            }
         }
     }
 }

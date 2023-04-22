@@ -18,7 +18,7 @@ namespace Backhand.Common.BinarySerialization
         private static readonly Lazy<GetSizeImplementation> _getSize = new(BuildGetSize);
         private static readonly Lazy<SerializeImplementation> _serialize = new(BuildSerialize);
         private static readonly Lazy<DeserializeImplementation> _deserialize = new(BuildDeserialize);
-        private static T? _defaultInstance = null;
+        private static T? _defaultInstance;
 
         private const BindingFlags DefaultPropertyFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
@@ -115,12 +115,12 @@ namespace Backhand.Common.BinarySerialization
 
                     result = Expression.IfThenElse(
                         Expression.IsTrue(Expression.Property(value, conditionProperty)),
-                        Expression.Add(result, GetSizeExpression(value, propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo))),
+                        Expression.Add(result, GetSizeExpression(propertyInfo.PropertyType, Expression.Property(value, propertyInfo))),
                         result);
                 }
                 else
                 {
-                    result = Expression.Add(result, GetSizeExpression(value, propertyInfo.PropertyType, propertyOptions, Expression.Property(value, propertyInfo)));
+                    result = Expression.Add(result, GetSizeExpression(propertyInfo.PropertyType, Expression.Property(value, propertyInfo)));
                 }
             }
 
@@ -135,8 +135,6 @@ namespace Backhand.Common.BinarySerialization
                     result
                 );
             }
-
-            Expression myExp = Expression.Lambda<GetSizeImplementation>(result, value);
 
             return Expression.Lambda<GetSizeImplementation>(result, value).Compile();
         }
@@ -180,11 +178,11 @@ namespace Backhand.Common.BinarySerialization
 
                     bodyItems.Add(Expression.IfThen(
                         Expression.IsTrue(Expression.Property(value, conditionProperty)),
-                        GetWriteExpression(value, propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo))));
+                        GetWriteExpression(propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo))));
                 }
                 else
                 {
-                    bodyItems.Add(GetWriteExpression(value, propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo)));
+                    bodyItems.Add(GetWriteExpression(propertyInfo.PropertyType, bufferWriter, propertyOptions, Expression.Property(value, propertyInfo)));
                 }
             }
 
@@ -210,8 +208,6 @@ namespace Backhand.Common.BinarySerialization
             }
 
             BlockExpression body = Expression.Block(new[] { startIndex }, bodyItems);
-
-            Expression myExp = Expression.Lambda<SerializeImplementation>(body, value, bufferWriter);
 
             return Expression.Lambda<SerializeImplementation>(body, value, bufferWriter).Compile();
         }
@@ -258,11 +254,11 @@ namespace Backhand.Common.BinarySerialization
 
                     bodyItems.Add(Expression.IfThen(
                         Expression.IsTrue(Expression.Property(value, conditionProperty)),
-                        GetReadExpression(value, Expression.Property(value, propertyInfo), propertyInfo.PropertyType, bufferReader, propertyOptions)));
+                        GetReadExpression(Expression.Property(value, propertyInfo), propertyInfo.PropertyType, bufferReader, propertyOptions)));
                 }
                 else
                 {
-                    bodyItems.Add(GetReadExpression(value, Expression.Property(value, propertyInfo), propertyInfo.PropertyType, bufferReader, propertyOptions));
+                    bodyItems.Add(GetReadExpression(Expression.Property(value, propertyInfo), propertyInfo.PropertyType, bufferReader, propertyOptions));
                 }
             }
 
@@ -298,12 +294,10 @@ namespace Backhand.Common.BinarySerialization
                 bodyItems
             );
 
-            Expression myExp = Expression.Lambda<DeserializeImplementation>(body, bufferReader, value);
-
             return Expression.Lambda<DeserializeImplementation>(body, bufferReader, value).Compile();
         }
 
-        private static Expression GetSizeExpression(Expression containerObject, Type type, SerializerOptions options, Expression value)
+        private static Expression GetSizeExpression(Type type, Expression value)
         {
             Expression? primitiveSize = GetPrimitiveSizeExpression(type);
 
@@ -326,7 +320,7 @@ namespace Backhand.Common.BinarySerialization
                         Expression.IfThenElse(
                             Expression.LessThan(i, Expression.ArrayLength(value)),
                             Expression.Block(
-                                Expression.AddAssign(result, GetSizeExpression(containerObject, elementType, options, Expression.ArrayAccess(value, i))),
+                                Expression.AddAssign(result, GetSizeExpression(elementType, Expression.ArrayAccess(value, i))),
                                 Expression.PostIncrementAssign(i)
                             ),
                             Expression.Break(loopEnd, result)
@@ -347,7 +341,7 @@ namespace Backhand.Common.BinarySerialization
             }
         }
 
-        private static Expression GetWriteExpression(Expression containerObject, Type writeType, ParameterExpression bufferWriter, SerializerOptions options, Expression value)
+        private static Expression GetWriteExpression(Type writeType, ParameterExpression bufferWriter, SerializerOptions options, Expression value)
         {
             Expression? primitiveWrite = GetPrimitiveWriteExpression(writeType, value, bufferWriter, options);
 
@@ -378,7 +372,7 @@ namespace Backhand.Common.BinarySerialization
                         Expression.IfThenElse(
                             Expression.LessThan(i, arrayLength),
                             Expression.Block(
-                                GetWriteExpression(containerObject, elementType, bufferWriter, options, Expression.ArrayAccess(value, i)),
+                                GetWriteExpression(elementType, bufferWriter, options, Expression.ArrayAccess(value, i)),
                                 Expression.PostIncrementAssign(i)
                             ),
                             Expression.Break(loopEnd)
@@ -400,7 +394,7 @@ namespace Backhand.Common.BinarySerialization
             }
         }
 
-        private static Expression GetReadExpression(Expression containerObject, Expression value, Type readType, ParameterExpression bufferReader, SerializerOptions options)
+        private static Expression GetReadExpression(Expression value, Type readType, ParameterExpression bufferReader, SerializerOptions options)
         {
             Expression? primitiveRead = GetPrimitiveReadExpression(readType, bufferReader, options);
 
@@ -422,7 +416,7 @@ namespace Backhand.Common.BinarySerialization
                         Expression.IfThenElse(
                             Expression.LessThan(i, Expression.ArrayLength(value)),
                             Expression.Block(
-                                GetReadExpression(containerObject, Expression.ArrayAccess(value, i), elementType, bufferReader, options),
+                                GetReadExpression(Expression.ArrayAccess(value, i), elementType, bufferReader, options),
                                 Expression.PostIncrementAssign(i)
                             ),
                             Expression.Break(loopEnd)

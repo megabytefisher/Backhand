@@ -1,11 +1,12 @@
-﻿using Backhand.Cli.Internal;
+﻿using Backhand.Cli.Internal.Commands;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
-using Spectre.Console;
 using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,7 +17,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 {
     public class ListCommand : BaseSyncCommand
     {
-        private readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption =
+        private static readonly Option<IEnumerable<ReadDbListMode>> ReadModesOption =
             new(new[] { "--read-modes", "-m" }, () => new[] { ReadDbListMode.ListMultiple | ReadDbListMode.ListRam })
             {
                 AllowMultipleArgumentsPerToken = true
@@ -29,44 +30,40 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 
             this.SetHandler(async (context) =>
             {
-                ReadDbListMode readMode = context.ParseResult.GetValueForOption(ReadModesOption)!.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
-
-                IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
-
-                ListSyncHandler syncHandler = new()
-                {
-                    ReadMode = readMode,
-                    Console = console
-                };
-
+                ListSyncHandler syncHandler = await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
                 await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class ListSyncContext : SyncContext
+        public override async Task<ICommandSyncHandler> GetSyncHandlerAsync(InvocationContext context, CancellationToken cancellationToken)
         {
-            public required ReadDbListMode ReadMode { get; init; }
+            return await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
         }
 
-        private class ListSyncHandler : SyncHandler<ListSyncContext>
+        private Task<ListSyncHandler> GetSyncHandlerInternalAsync(InvocationContext context)
+        {
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
+
+            ReadDbListMode readMode = context.ParseResult.GetValueForOption(ReadModesOption)!.Aggregate(ReadDbListMode.None, (acc, cur) => acc | cur);
+
+            ListSyncHandler syncHandler = new()
+            {
+                ReadMode = readMode,
+                Console = console
+            };
+
+            return Task.FromResult(syncHandler);
+        }
+
+        private class ListSyncHandler : CommandSyncHandler
         {
             public required ReadDbListMode ReadMode { get; init; }
 
-            protected override Task<ListSyncContext> GetContextAsync(DlpConnection connection, CancellationToken cancellationToken)
-            {
-                return Task.FromResult(new ListSyncContext
-                {
-                    Connection = connection,
-                    Console = Console,
-                    ReadMode = ReadMode,
-                });
-            }
-
-            public override async Task OnSyncAsync(ListSyncContext context, CancellationToken cancellationToken)
+            public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
                 await context.Connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
 
-                List<DatabaseMetadata> dbResults = new List<DatabaseMetadata>();
+                List<DatabaseMetadata> dbResults = new();
                 ushort startIndex = 0;
                 while (true)
                 {
@@ -74,7 +71,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                     {
                         ReadDbListResponse response = await context.Connection.ReadDbListAsync(new ReadDbListRequest
                         {
-                            Mode = context.ReadMode,
+                            Mode = ReadMode,
                             StartIndex = startIndex
                         }, cancellationToken).ConfigureAwait(false);
 
@@ -91,38 +88,35 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
             }
         }
 
-        private static void PrintResults(IAnsiConsole console, DlpConnection connection, ICollection<DatabaseMetadata> metadataList)
+        private static void PrintResults(IAnsiConsole console, DlpConnection connection, IEnumerable<DatabaseMetadata> metadataList)
         {
             Table table = new Table()
-            {
-                Title = new TableTitle($"{connection.ToString()} Database Listing"),
-                Expand = true
-            };
-
-            table.AddColumn(new TableColumn(new Markup("[bold]Name[/]")));
-            table.AddColumn("MiscFlags");
-            table.AddColumn("Attributes");
-            table.AddColumn("Type");
-            table.AddColumn("Creator");
-            table.AddColumn("Version", c => c.RightAligned());
-            table.AddColumn("ModificationNumber", c => c.RightAligned());
-            table.AddColumn("CreationDate", c => c.RightAligned());
-            table.AddColumn("ModificationDate", c => c.RightAligned());
-            table.AddColumn("LastBackupDate", c => c.RightAligned());
+                .Title(Markup.Escape($"{connection} Database List"))
+                .Expand()
+                .AddColumn("Name")
+                .AddColumn("MiscFlags")
+                .AddColumn("Attributes")
+                .AddColumn("Type")
+                .AddColumn("Creator")
+                .AddColumn("Version", c => c.RightAligned())
+                .AddColumn("ModificationNumber", c => c.RightAligned())
+                .AddColumn("CreationDate", c => c.RightAligned())
+                .AddColumn("ModificationDate", c => c.RightAligned())
+                .AddColumn("LastBackupDate", c => c.RightAligned());
 
             foreach (DatabaseMetadata metadata in metadataList)
             {
                 table.AddRow(
-                    Markup.FromInterpolated($"[bold]{metadata.Name}[/]"),
-                    Markup.FromInterpolated($"{metadata.MiscFlags}"),
-                    Markup.FromInterpolated($"{metadata.Attributes}"),
-                    Markup.FromInterpolated($"{metadata.Type}"),
-                    Markup.FromInterpolated($"{metadata.Creator}"),
-                    Markup.FromInterpolated($"{metadata.Version}"),
-                    Markup.FromInterpolated($"{metadata.ModificationNumber}"),
-                    Markup.FromInterpolated($"{metadata.CreationDate:s}"),
-                    Markup.FromInterpolated($"{metadata.ModificationDate:s}"),
-                    Markup.FromInterpolated($"{metadata.LastBackupDate:s}")
+                    Markup.Escape(metadata.Name),
+                    Markup.Escape(metadata.MiscFlags.ToString()),
+                    Markup.Escape(metadata.Attributes.ToString()),
+                    Markup.Escape(metadata.Type),
+                    Markup.Escape(metadata.Creator),
+                    Markup.Escape(metadata.Version.ToString()),
+                    Markup.Escape(metadata.ModificationNumber.ToString()),
+                    Markup.Escape(metadata.CreationDate.ToString("s")),
+                    Markup.Escape(metadata.ModificationDate.ToString("s")),
+                    Markup.Escape(metadata.LastBackupDate.ToString("s"))
                 );
             }
 

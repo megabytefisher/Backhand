@@ -1,6 +1,5 @@
 ﻿using Backhand.Common.BinarySerialization;
 using Backhand.Common.Buffers;
-using System;
 using System.Buffers;
 using System.IO;
 using System.Threading;

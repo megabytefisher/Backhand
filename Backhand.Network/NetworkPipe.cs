@@ -10,9 +10,9 @@ namespace Backhand.Network
 
         public NetworkPipe(TcpClient client)
         {
-            Stream steam = client.GetStream();
-            Input = PipeReader.Create(client.GetStream());
-            Output = PipeWriter.Create(client.GetStream());
+            Stream stream = client.GetStream();
+            Input = PipeReader.Create(stream);
+            Output = PipeWriter.Create(stream);
         }
     }
 }

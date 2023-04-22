@@ -1,71 +1,52 @@
-using System;
+using Backhand.Cli.Internal.Commands;
+using Backhand.Dlp.Commands.v1_0;
+using Backhand.Protocols.Dlp;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Backhand.Cli.Internal;
-using Backhand.Dlp;
-using Backhand.Dlp.Commands.v1_0;
-using Backhand.Dlp.Commands.v1_0.Arguments;
-using Backhand.Protocols.Dlp;
+using StorageInfo = Backhand.Dlp.Commands.v1_0.Arguments.ReadStorageInfoMainResponse.StorageInfo;
 
 namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
 {
     public class ReadCommand : BaseSyncCommand
     {
-        public readonly Option<IEnumerable<string>> ColumnsOption =
-            new Option<IEnumerable<string>>(new[] { "--columns", "-c" }, () => new[] { "CardNo", "CardName", "RomSize", "RamSize", "FreeRam" })
-            {
-                AllowMultipleArgumentsPerToken = true
-            }.FromAmong(StorageInfoColumns.Select(c => c.Header).ToArray());
-
         public ReadCommand()
             : base("read", "Reads storage info from a device")
         {
-            AddOption(ColumnsOption);
-
             this.SetHandler(async (context) =>
             {
-                IEnumerable<string> columnNames = context.ParseResult.GetValueForOption<IEnumerable<string>>(ColumnsOption)!;
-
-                IConsole console = context.Console;
-
-                ReadSyncHandler syncHandler = new()
-                {
-                    Columns = columnNames,
-                    Console = console
-                };
-
-                await RunDlpServerAsync<ReadSyncContext>(context, syncHandler).ConfigureAwait(false);
+                ReadSyncHandler syncHandler = await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
+                await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class ReadSyncContext
+        public override async Task<ICommandSyncHandler> GetSyncHandlerAsync(InvocationContext context, CancellationToken cancellationToken)
         {
-            public required DlpConnection Connection { get; init; }
-            public required IEnumerable<string> Columns { get; init; }
-            public required IConsole Console { get; init; }
+            return await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
         }
 
-        private class ReadSyncHandler : ISyncHandler<ReadSyncContext>
+        private Task<ReadSyncHandler> GetSyncHandlerInternalAsync(InvocationContext context)
         {
-            public required IEnumerable<string> Columns { get; init; }
-            public required IConsole Console { get; init; }
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
 
-            public Task<ReadSyncContext> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            ReadSyncHandler syncHandler = new()
             {
-                return Task.FromResult(new ReadSyncContext
-                {
-                    Connection = connection,
-                    Columns = Columns,
-                    Console = Console
-                });
-            }
+                Console = console
+            };
 
-            public async Task OnSyncAsync(ReadSyncContext context, CancellationToken cancellationToken)
+            return Task.FromResult(syncHandler);
+        }
+
+        private class ReadSyncHandler : CommandSyncHandler
+        {
+            public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                List<ReadStorageInfoMainResponse.StorageInfo> infos = new List<ReadStorageInfoMainResponse.StorageInfo>();
+                List<StorageInfo> infos = new();
 
                 await context.Connection.OpenConduitAsync().ConfigureAwait(false);
 
@@ -75,7 +56,8 @@ namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
                 {
                     try
                     {
-                        (var mainInfo, var extInfo) = await context.Connection.ReadStorageInfoAsync(new() {
+                        (var mainInfo, _) = await context.Connection.ReadStorageInfoAsync(new()
+                        {
                             CardNo = cardNo
                         }, cancellationToken).ConfigureAwait(false);
 
@@ -90,57 +72,39 @@ namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
                     cardNo++;
                 } while (cardNo < lastCard);
 
-                PrintResults(context.Console, context.Columns, infos.ToList());
+                PrintResults(context.Console, context.Connection, infos.ToList());
             }
         }
 
-        private static void PrintResults(IConsole console, IEnumerable<string> columnNames, ICollection<ReadStorageInfoMainResponse.StorageInfo> infos)
+        private static void PrintResults(IAnsiConsole console, DlpConnection connection, IEnumerable<StorageInfo> infos)
         {
-            console.WriteTable(columnNames.Select(n => StorageInfoColumns.Single(c => c.Header == n)).ToList(), infos);
-        }
-        
-        private static readonly IReadOnlyCollection<ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>> StorageInfoColumns = new[]
-        {
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
+            Table table = new Table()
+                .Title(Markup.Escape($"{connection} Storage Info"))
+                .Expand()
+                .AddColumn("CardNo")
+                .AddColumn("CardVersion")
+                .AddColumn("CardDate")
+                .AddColumn("RomSize")
+                .AddColumn("RamSize")
+                .AddColumn("FreeRam")
+                .AddColumn("CardName")
+                .AddColumn("ManufacturerName");
+
+            foreach (StorageInfo info in infos)
             {
-                Header = "CardNo",
-                GetText = (info) => info.CardNo.ToString()
-            },
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
-            {
-                Header = "CardVersion",
-                GetText = (info) => info.CardVersion.ToString()
-            },
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
-            {
-                Header = "CardDate",
-                GetText = (info) => info.CardDate.ToString()
-            },
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
-            {
-                Header = "RomSize",
-                GetText = (info) => info.RomSize.ToString()
-            },
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
-            {
-                Header = "RamSize",
-                GetText = (info) => info.RamSize.ToString()
-            },
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
-            {
-                Header = "FreeRam",
-                GetText = (info) => info.FreeRam.ToString()
-            },
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
-            {
-                Header = "CardName",
-                GetText = (info) => info.CardName
-            },
-            new ConsoleTableColumn<ReadStorageInfoMainResponse.StorageInfo>
-            {
-                Header = "ManufacturerName",
-                GetText = (info) => info.ManufacturerName
+                table.AddRow(
+                    Markup.Escape(info.CardNo.ToString()),
+                    Markup.Escape(info.CardVersion.ToString()),
+                    Markup.Escape(info.CardDate.ToString("s")),
+                    Markup.Escape(info.RomSize.ToString()),
+                    Markup.Escape(info.RamSize.ToString()),
+                    Markup.Escape(info.FreeRam.ToString()),
+                    Markup.Escape(info.CardName),
+                    Markup.Escape(info.ManufacturerName)
+                );
             }
-        };
+
+            console.Write(table);
+        }
     }
 }

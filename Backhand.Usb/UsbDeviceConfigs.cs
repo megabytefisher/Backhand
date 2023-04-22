@@ -21,7 +21,7 @@ namespace Backhand.Usb
             {
                 if (Devices.TryGetValue((Convert.ToUInt16(usbDevice.Vid), Convert.ToUInt16(usbDevice.Pid)), out var config))
                 {
-                    compatibleDevices.Add((new UsbDeviceDescriptor(usbDevice.DevicePath), config));
+                    compatibleDevices.Add((new UsbDeviceDescriptor(usbDevice), config));
                 }
             }
 

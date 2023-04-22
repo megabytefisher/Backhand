@@ -1,4 +1,3 @@
-using System;
 using Backhand.Pdb;
 
 namespace Backhand.Cli.Internal.DatabaseDisassembly

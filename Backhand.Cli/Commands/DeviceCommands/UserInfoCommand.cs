@@ -1,7 +1,7 @@
 using System.CommandLine;
 using Backhand.Cli.Commands.DeviceCommands.UserInfoCommands;
 
-namespace Backhand.Cli.Commands
+namespace Backhand.Cli.Commands.DeviceCommands
 {
     public class UserInfoCommand : Command
     {

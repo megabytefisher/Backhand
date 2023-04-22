@@ -15,11 +15,22 @@ namespace Backhand.Protocols.Slp
 {
     public class SlpInterface : IDisposable
     {
-        public event EventHandler<SlpTransmissionEventArgs>? PacketReceived;
+        public event EventHandler<SlpTransmissionEventArgs>? PacketReceived
+        {
+            add
+            {
+                PacketReceivedInternal += value;
+                _packetReceivedSubscribed.TrySetResult();
+            }
+            remove => PacketReceivedInternal -= value;
+        }
 
         private readonly IDuplexPipe _pipe;
         private readonly ArrayPool<byte> _arrayPool;
         private readonly BufferBlock<SendJob> _sendQueue;
+        
+        private event EventHandler<SlpTransmissionEventArgs>? PacketReceivedInternal;
+        private readonly TaskCompletionSource _packetReceivedSubscribed = new();
 
         private readonly ILogger _logger;
 
@@ -65,15 +76,12 @@ namespace Backhand.Protocols.Slp
 
         public async Task RunIOAsync(CancellationToken cancellationToken = default)
         {
-            using CancellationTokenSource innerCts = new();
-            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, innerCts.Token);
+            using CancellationTokenSource innerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-            Task readTask = RunReadLoopAsync(linkedCts.Token);
-            Task writeTask = RunWriteLoopAsync(linkedCts.Token);
+            Task readTask = RunReadLoopAsync(innerCts.Token);
+            Task writeTask = RunWriteLoopAsync(innerCts.Token);
 
             await Task.WhenAny(readTask, writeTask).ConfigureAwait(false);
-
-            // When either task completes (in any state), make sure to cancel the other.
             innerCts.Cancel();
             await Task.WhenAll(readTask, writeTask).ConfigureAwait(false);
         }
@@ -99,6 +107,9 @@ namespace Backhand.Protocols.Slp
         private async Task RunReadLoopAsync(CancellationToken cancellationToken)
         {
             bool firstPacket = true;
+
+            // Wait for subscription to start reading from pipe.
+            await Task.WhenAny(_packetReceivedSubscribed.Task, Task.Delay(Timeout.Infinite, cancellationToken)).ConfigureAwait(false);
 
             while (true)
             {
@@ -252,7 +263,7 @@ namespace Backhand.Protocols.Slp
                 };
 
                 _logger.ReceivedPacket(receivedPacket);
-                PacketReceived?.Invoke(this, new SlpTransmissionEventArgs(receivedPacket));
+                PacketReceivedInternal?.Invoke(this, new SlpTransmissionEventArgs(receivedPacket));
             }
 
             return bufferReader.Position;

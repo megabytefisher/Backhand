@@ -1,11 +1,10 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 
 namespace Backhand.Dlp
 {
-    public interface IDlpServer<TContext>
+    public interface IDlpServer
     {
-        Task RunAsync(ISyncHandler<TContext> syncHandler, CancellationToken cancellationToken = default);
+        Task RunAsync(ISyncHandler syncHandler, bool singleSync = false, CancellationToken cancellationToken = default);
     }
 }

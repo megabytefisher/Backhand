@@ -2,13 +2,13 @@
 
 namespace Backhand.Cli.Commands
 {
-    internal class AppRootCommand : RootCommand
+    public class AppRootCommand : RootCommand
     {
         public AppRootCommand() : base("Backhand CLI")
         {
-            AddCommand(new PromptModeCommand() { IsHidden = true });
             AddCommand(new DeviceCommand());
             AddCommand(new DbCommand());
+            AddCommand(new PromptModeCommand());
         }
     }
 }

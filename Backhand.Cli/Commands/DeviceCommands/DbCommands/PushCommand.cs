@@ -1,15 +1,17 @@
-using System;
-using System.CommandLine;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using Backhand.Cli.Internal;
-using Backhand.Dlp;
+using Backhand.Cli.Internal.Commands;
 using Backhand.Dlp.Commands;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Pdb;
 using Backhand.Protocols.Dlp;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
+using System;
+using System.CommandLine;
+using System.CommandLine.Invocation;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 {
@@ -24,94 +26,86 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
         public PushCommand()
             : base("push", "Push a database file to the device.")
         {
-            AddOption(FileOption);
-            AddOption(DirectoryOption);
+            Add(FileOption);
+            Add(DirectoryOption);
 
             this.SetHandler(async (context) =>
             {
-                FileInfo? file = context.ParseResult.GetValueForOption(FileOption)!;
-                DirectoryInfo directory = context.ParseResult.GetValueForOption(DirectoryOption)!;
-
-                IConsole console = context.Console;
-
-                PushSyncHandler syncHandler = new()
-                {
-                    File = file,
-                    Directory = directory,
-                    Console = console
-                };
-
+                PushSyncHandler syncHandler = await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
                 await RunDlpServerAsync(context, syncHandler).ConfigureAwait(false);
             });
         }
 
-        private class PushSyncContext
+        public override async Task<ICommandSyncHandler> GetSyncHandlerAsync(InvocationContext context, CancellationToken cancellationToken)
         {
-            public required DlpConnection Connection { get; init; }
-            public required FileInfo? File { get; init; }
-            public required DirectoryInfo Directory { get; init; }
-            public required IConsole Console { get; init; }
+            return await GetSyncHandlerInternalAsync(context).ConfigureAwait(false);
         }
 
-        private class PushSyncHandler : ISyncHandler<PushSyncContext>
+        private Task<PushSyncHandler> GetSyncHandlerInternalAsync(InvocationContext context)
+        {
+            IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
+
+            FileInfo? file = context.ParseResult.GetValueForOption(FileOption);
+            DirectoryInfo directory = context.ParseResult.GetValueForOption(DirectoryOption)!;
+
+            PushSyncHandler syncHandler = new()
+            {
+                Console = console,
+                File = file,
+                Directory = directory
+            };
+
+            return Task.FromResult(syncHandler);
+        }
+
+        private class PushSyncHandler : CommandSyncHandler
         {
             public required FileInfo? File { get; init; }
-            public required IConsole Console { get; init; }
             public required DirectoryInfo Directory { get; init; }
 
-            public Task<PushSyncContext> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
-            {
-                return Task.FromResult(new PushSyncContext {
-                    Connection = connection,
-                    File = File,
-                    Directory = Directory,
-                    Console = Console
-                });
-            }
-
-            public async Task OnSyncAsync(PushSyncContext context, CancellationToken cancellationToken)
+            public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
                 await context.Connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
 
-                if (context.File != null)
+                if (File != null)
                 {
-                    await PushDatabaseAsync(context.Connection, context.File, cancellationToken).ConfigureAwait(false);
+                    context.Console.MarkupLineInterpolated($"[grey]Pushing {File.FullName}[/]");
+                    await PushDatabaseAsync(context.Connection, File, cancellationToken).ConfigureAwait(false);
+                    context.Console.MarkupLineInterpolated($"[green]Wrote database {File.FullName} to device[/]");
                 }
                 else
                 {
-                    foreach (FileInfo file in context.Directory.EnumerateFiles("*.pdb", SearchOption.TopDirectoryOnly))
+                    foreach (FileInfo file in Directory.EnumerateFiles("*.pdb", SearchOption.TopDirectoryOnly))
                     {
+                        context.Console.MarkupLineInterpolated($"[grey]Pushing {file.FullName}[/]");
                         await PushDatabaseAsync(context.Connection, file, cancellationToken).ConfigureAwait(false);
+                        context.Console.MarkupLineInterpolated($"[green]Wrote database {file.FullName} to device[/]");
                     }
 
-                    foreach (FileInfo file in context.Directory.EnumerateFiles("*.prc", SearchOption.TopDirectoryOnly))
+                    foreach (FileInfo file in Directory.EnumerateFiles("*.prc", SearchOption.TopDirectoryOnly))
                     {
+                        context.Console.MarkupLineInterpolated($"[grey]Pushing {file.FullName}[/]");
                         await PushDatabaseAsync(context.Connection, file, cancellationToken).ConfigureAwait(false);
+                        context.Console.MarkupLineInterpolated($"[green]Wrote database {file.FullName} to device[/]");
                     }
                 }
             }
 
             public async Task PushDatabaseAsync(DlpConnection connection, FileInfo file, CancellationToken cancellationToken)
             {
-                using var fileStream = file.OpenRead();
+                await using var fileStream = file.OpenRead();
                 Database fileDb =
                     file.Extension.ToLower() == ".prc" ? new ResourceDatabase() :
                     file.Extension.ToLower() == ".pdb" ? new RecordDatabase() :
                     null!;
 
-                using (FileStream dbStream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
+                await using (FileStream dbStream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
                     await fileDb.DeserializeAsync(dbStream, cancellationToken).ConfigureAwait(false);
                 }
 
-                try
+                CreateDbResponse createDbResult = await connection.CreateDbAsync(new()
                 {
-                    await connection.DeleteDbAsync(new() {
-                        Name = fileDb.Name
-                    }, cancellationToken).ConfigureAwait(false);
-                } catch { }
-
-                CreateDbResponse createDbResult = await connection.CreateDbAsync(new() {
                     Creator = fileDb.Creator,
                     Type = fileDb.Type,
                     CardId = 0,
@@ -125,7 +119,8 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                 // Write AppInfo
                 if (fileDb.AppInfo is { Length: > 0 })
                 {
-                    await connection.WriteAppBlockAsync(new() {
+                    await connection.WriteAppBlockAsync(new()
+                    {
                         DbHandle = dbHandle,
                         Data = fileDb.AppInfo
                     }, cancellationToken).ConfigureAwait(false);
@@ -134,44 +129,53 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
                 // Write SortInfo
                 if (fileDb.SortInfo is { Length: > 0 })
                 {
-                    await connection.WriteSortBlockAsync(new() {
+                    await connection.WriteSortBlockAsync(new()
+                    {
                         DbHandle = dbHandle,
                         Data = fileDb.SortInfo
                     }, cancellationToken).ConfigureAwait(false);
                 }
 
-                // Write entries
-                if (fileDb is ResourceDatabase resourceDb)
+                switch (fileDb)
                 {
-                    foreach (DatabaseResource resource in resourceDb.Resources)
+                    // Write entries
+                    case ResourceDatabase resourceDb:
                     {
-                        await connection.WriteResourceAsync(new() {
-                            DbHandle = dbHandle,
-                            Type = resource.Type,
-                            ResourceId = resource.ResourceId,
-                            Data = resource.Data
-                        }, cancellationToken).ConfigureAwait(false);
+                        foreach (DatabaseResource resource in resourceDb.Resources)
+                        {
+                            await connection.WriteResourceAsync(new()
+                            {
+                                DbHandle = dbHandle,
+                                Type = resource.Type,
+                                ResourceId = resource.ResourceId,
+                                Data = resource.Data
+                            }, cancellationToken).ConfigureAwait(false);
+                        }
+
+                        break;
                     }
-                }
-                else if (fileDb is RecordDatabase recordDb)
-                {
-                    foreach (RawDatabaseRecord record in recordDb.Records)
+                    case RecordDatabase recordDb:
                     {
-                        await connection.WriteRecordAsync(new() {
-                            DbHandle = dbHandle,
-                            RecordId = record.UniqueId,
-                            Attributes = (DlpRecordAttributes)record.Attributes,
-                            Category = record.Category,
-                            Data = record.Data
-                        }, cancellationToken).ConfigureAwait(false);
+                        foreach (RawDatabaseRecord record in recordDb.Records)
+                        {
+                            await connection.WriteRecordAsync(new()
+                            {
+                                DbHandle = dbHandle,
+                                RecordId = record.UniqueId,
+                                Attributes = (DlpRecordAttributes)record.Attributes,
+                                Category = record.Category,
+                                Data = record.Data
+                            }, cancellationToken).ConfigureAwait(false);
+                        }
+
+                        break;
                     }
-                }
-                else
-                {
-                    throw new NotImplementedException();
+                    default:
+                        throw new NotImplementedException();
                 }
 
-                await connection.CloseDbAsync(new() {
+                await connection.CloseDbAsync(new()
+                {
                     DbHandle = dbHandle
                 }, cancellationToken).ConfigureAwait(false);
             }

@@ -1,4 +1,3 @@
-using System;
 using Backhand.Common.BinarySerialization;
 using Backhand.Protocols.Dlp;
 
