@@ -3,8 +3,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class AddSyncLogEntryRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class AddSyncLogEntryRequest : IBinarySerializable
     {
         [BinarySerialize]
         private NullTerminatedBinaryString MessageString { get; } = new();

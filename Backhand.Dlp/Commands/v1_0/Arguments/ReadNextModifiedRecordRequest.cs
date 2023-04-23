@@ -3,8 +3,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadNextModifiedRecordRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadNextModifiedRecordRequest : IBinarySerializable
     {
         [BinarySerialize]
         public byte DbHandle { get; set; }

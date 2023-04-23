@@ -3,8 +3,8 @@ using Backhand.Common.BinarySerialization;
 
 namespace Backhand.Pdb.FileSerialization
 {
-    [BinarySerializable]
-    internal class PdbRecordMetadata
+    [GenerateBinarySerialization]
+    internal partial class PdbRecordMetadata : IBinarySerializable
     {
         [BinarySerialize]
         public uint LocalChunkId { get; set; }

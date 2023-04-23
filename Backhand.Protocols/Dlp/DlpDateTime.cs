@@ -3,8 +3,8 @@ using Backhand.Common.BinarySerialization;
 
 namespace Backhand.Protocols.Dlp
 {
-    [BinarySerializable]
-    public class DlpDateTime
+    [GenerateBinarySerialization]
+    public partial class DlpDateTime : IBinarySerializable
     {
         [BinarySerialize]
         public ushort Year { get; set; }

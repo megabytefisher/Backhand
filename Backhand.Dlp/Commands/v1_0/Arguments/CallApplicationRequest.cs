@@ -4,8 +4,8 @@ using System;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class CallApplicationRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class CallApplicationRequest : IBinarySerializable
     {
         [BinarySerialize]
         private FixedSizeBinaryString CreatorString { get; } = new(4);

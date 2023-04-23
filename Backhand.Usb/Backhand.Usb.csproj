@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
@@ -12,6 +12,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Backhand.Common\Backhand.Common.csproj" />
+    <ProjectReference Include="..\Backhand.Generators.BinarySerialization\Backhand.Generators.BinarySerialization.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Internal\ControlTransfers\" />
   </ItemGroup>
 
 </Project>

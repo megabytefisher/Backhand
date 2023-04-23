@@ -4,8 +4,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class WriteUserInfoRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class WriteUserInfoRequest : IBinarySerializable
     {
         [BinarySerialize]
         public uint UserId { get; set; }
@@ -23,7 +23,11 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
         private byte Padding { get; set; } = 0xff;
 
         [BinarySerialize]
-        public byte UsernameByteLength => Convert.ToByte(UsernameString.GetSize());
+        public byte UsernameByteLength
+        {
+            get => (byte)UsernameString.Value.Length;
+            set => UsernameString.Value = UsernameString.Value[..value];
+        }
 
         [BinarySerialize]
         private NullTerminatedBinaryString UsernameString { get; set; } = new();

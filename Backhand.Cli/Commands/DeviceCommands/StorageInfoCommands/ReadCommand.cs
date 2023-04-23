@@ -9,7 +9,7 @@ using System.CommandLine.Invocation;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using StorageInfo = Backhand.Dlp.Commands.v1_0.Arguments.ReadStorageInfoMainResponse.StorageInfo;
+using Backhand.Dlp.Commands.v1_0.Data;
 
 namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
 {

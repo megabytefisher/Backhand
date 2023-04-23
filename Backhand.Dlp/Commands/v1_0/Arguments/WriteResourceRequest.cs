@@ -4,8 +4,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class WriteResourceRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class WriteResourceRequest : IBinarySerializable
     {
         [BinarySerialize]
         public byte DbHandle { get; set; }

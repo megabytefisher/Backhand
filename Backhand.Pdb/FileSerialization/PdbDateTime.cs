@@ -3,15 +3,9 @@ using Backhand.Common.BinarySerialization;
 
 namespace Backhand.Pdb.FileSerialization
 {
-    [BinarySerializable]
-    internal class PdbDateTime
+    [GenerateBinarySerialization]
+    internal partial class PdbDateTime : IBinarySerializable
     {
-        public enum EpochType
-        {
-            Palm,
-            Unix
-        }
-
         [BinarySerialize]
         public uint Offset { get; set; }
 

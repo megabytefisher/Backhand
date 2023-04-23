@@ -2,8 +2,8 @@
 
 namespace Backhand.Pdb.FileSerialization
 {
-    [BinarySerializable]
-    internal class PdbResourceMetadata
+    [GenerateBinarySerialization]
+    internal partial class PdbResourceMetadata : IBinarySerializable
     {
         [BinarySerialize]
         private FixedSizeBinaryString TypeString { get; set; } = new(4);

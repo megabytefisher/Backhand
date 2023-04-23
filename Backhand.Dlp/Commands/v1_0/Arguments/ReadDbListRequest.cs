@@ -4,8 +4,8 @@ using System;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadDbListRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadDbListRequest : IBinarySerializable
     {
         [Flags]
         public enum ReadDbListMode : byte

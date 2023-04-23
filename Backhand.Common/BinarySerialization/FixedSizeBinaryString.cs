@@ -3,8 +3,8 @@ using System.Text;
 
 namespace Backhand.Common.BinarySerialization
 {
-    [BinarySerializable]
-    public class FixedSizeBinaryString
+    [GenerateBinarySerialization]
+    public partial class FixedSizeBinaryString : IBinarySerializable
     {
         [BinarySerialize]
         public byte[] Bytes { get; set; }

@@ -3,8 +3,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadStorageInfoExtResponse : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadStorageInfoExtResponse : IBinarySerializable
     {
         [BinarySerialize]
         public ushort RomDatabaseCount { get; set; }

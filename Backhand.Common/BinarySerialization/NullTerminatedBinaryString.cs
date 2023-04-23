@@ -5,8 +5,7 @@ using Backhand.Common.Buffers;
 
 namespace Backhand.Common.BinarySerialization
 {
-    [BinarySerializable]
-    public class NullTerminatedBinaryString : ICustomBinarySerializable
+    public class NullTerminatedBinaryString : IBinarySerializable
     {
         public Encoding Encoding { get; init; } = Encoding.ASCII;
         public byte[] Bytes { get; set; } = Array.Empty<byte>();
@@ -30,7 +29,7 @@ namespace Backhand.Common.BinarySerialization
             return Encoding.GetByteCount(Value) + Encoding.GetByteCount("\0");
         }
 
-        public void Deserialize(ref SequenceReader<byte> bufferReader)
+        public void Read(ref SequenceReader<byte> bufferReader)
         {
             if (bufferReader.TryReadTo(out ReadOnlySequence<byte> sequence, NullBytes, advancePastDelimiter: true))
             {
@@ -42,7 +41,7 @@ namespace Backhand.Common.BinarySerialization
             }
         }
 
-        public void Serialize(ref SpanWriter<byte> bufferWriter)
+        public void Write(ref SpanWriter<byte> bufferWriter)
         {
             Span<byte> remainingBytes = bufferWriter.RemainingSpan;
             int bytesWritten = Encoding.GetBytes(Value, remainingBytes);

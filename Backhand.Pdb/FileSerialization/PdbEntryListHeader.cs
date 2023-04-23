@@ -2,8 +2,8 @@
 
 namespace Backhand.Pdb.FileSerialization
 {
-    [BinarySerializable]
-    public class PdbEntryListHeader
+    [GenerateBinarySerialization]
+    internal partial class PdbEntryListHeader : IBinarySerializable
     {
         [BinarySerialize]
         public uint NextListId { get; set; }

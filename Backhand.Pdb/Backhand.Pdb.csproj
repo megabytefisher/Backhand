@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Backhand.Common\Backhand.Common.csproj" />
+    <ProjectReference Include="..\Backhand.Generators.BinarySerialization\Backhand.Generators.BinarySerialization.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

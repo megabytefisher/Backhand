@@ -4,8 +4,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadRecordIdListRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadRecordIdListRequest : IBinarySerializable
     {
         [Flags]
         public enum ReadRecordIdListFlags : byte

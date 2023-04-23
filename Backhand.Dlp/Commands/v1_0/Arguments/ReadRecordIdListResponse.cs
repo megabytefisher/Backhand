@@ -4,8 +4,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadRecordIdListResponse : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadRecordIdListResponse : IBinarySerializable
     {
         [BinarySerialize]
         public ushort Count

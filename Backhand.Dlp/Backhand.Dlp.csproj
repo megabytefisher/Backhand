@@ -10,6 +10,11 @@
     <ProjectReference Include="..\Backhand.Network\Backhand.Network.csproj" />
     <ProjectReference Include="..\Backhand.Protocols\Backhand.Protocols.csproj" />
     <ProjectReference Include="..\Backhand.Usb\Backhand.Usb.csproj" />
+    <ProjectReference Include="..\Backhand.Generators.BinarySerialization\Backhand.Generators.BinarySerialization.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Commands\v1_0\Data\" />
   </ItemGroup>
 
 </Project>

@@ -5,6 +5,7 @@ using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Common.BinarySerialization;
 
 namespace Backhand.Protocols.Dlp
 {
@@ -73,7 +74,7 @@ namespace Backhand.Protocols.Dlp
             int size = DlpRequestHeaderSize;
             foreach (DlpArgumentDefinition argumentDefinition in commandDefinition.RequestArguments)
             {
-                DlpArgument? argument = arguments.GetValue(argumentDefinition);
+                IBinarySerializable? argument = arguments.GetValue(argumentDefinition);
                 if (argument == null)
                 {
                     if (argumentDefinition.IsOptional)
@@ -109,7 +110,7 @@ namespace Backhand.Protocols.Dlp
             {
                 DlpArgumentDefinition argumentDefinition = commandDefinition.RequestArguments[i];
 
-                DlpArgument? argument = arguments.GetValue(argumentDefinition);
+                IBinarySerializable? argument = arguments.GetValue(argumentDefinition);
                 if (argument == null)
                 {
                     if (argumentDefinition.IsOptional)
@@ -188,7 +189,7 @@ namespace Backhand.Protocols.Dlp
                 long argumentStart = bufferReader.Consumed;
 
                 DlpArgumentDefinition argumentDefinition = commandDefinition.ResponseArguments[argumentIndex];
-                DlpArgument argument = Activator.CreateInstance(argumentDefinition.Type) as DlpArgument ?? throw new Exception("Failed to instantiate argument type");
+                IBinarySerializable argument = Activator.CreateInstance(argumentDefinition.Type) as IBinarySerializable ?? throw new Exception("Failed to instantiate argument type");
                 argumentDefinition.Deserialize(ref bufferReader, argument);
 
                 long readLength = bufferReader.Consumed - argumentStart;

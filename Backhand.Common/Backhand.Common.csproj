@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="System.IO.Pipelines" Version="7.0.0" />
     <PackageReference Include="System.IO.Ports" Version="7.0.0" />
+    <ProjectReference Include="..\Backhand.Generators.BinarySerialization\Backhand.Generators.BinarySerialization.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

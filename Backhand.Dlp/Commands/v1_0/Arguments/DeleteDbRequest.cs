@@ -3,8 +3,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class DeleteDbRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class DeleteDbRequest : IBinarySerializable
     {
         [BinarySerialize]
         public byte CardId { get; set; }

@@ -83,30 +83,5 @@ namespace Backhand.Protocols.Cmp
                 _arrayPool.Return(initPacketBuffer);
             }
         }
-
-        [BinarySerializable]
-        internal class CmpInitPacket
-        {
-            [BinarySerialize]
-            public CmpPacketType Type { get; set; } = CmpPacketType.Init;
-
-            [BinarySerialize]
-            public CmpInitPacketFlags Flags { get; set; }
-
-            [BinarySerialize]
-            public byte MajorVersion { get; set; }
-
-            [BinarySerialize]
-            public byte MinorVersion { get; set; }
-
-            [BinarySerialize]
-            private byte Padding1 { get; set; }
-
-            [BinarySerialize]
-            private byte Padding2 { get; set; }
-
-            [BinarySerialize]
-            public uint NewBaudRate { get; set; }
-        }
     }
 }

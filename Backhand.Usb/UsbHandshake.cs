@@ -1,55 +1,12 @@
 using System.Buffers;
 using Backhand.Common.BinarySerialization;
+using Backhand.Usb.Internal.ControlTransfers;
 using LibUsbDotNet.Main;
 
 namespace Backhand.Usb
 {
     public static class UsbHandshake
     {
-        [BinarySerializable]
-        private class GetExtConnectionInfoResponse
-        {
-            [BinarySerialize]
-            public byte PortCount
-            {
-                get => (byte)Ports.Length;
-                set => Ports = Enumerable.Range(1, value).Select(_ => new ExtConnectionPortInfo()).ToArray();
-            }
-
-            [BinarySerialize]
-            public bool HasDifferentEndpoints { get; set; }
-
-            [BinarySerialize]
-            public byte[] Padding {get; set; } = new byte[2];
-
-            [BinarySerialize]
-            public ExtConnectionPortInfo[] Ports { get; private set; } = Array.Empty<ExtConnectionPortInfo>();
-        }
-
-        [BinarySerializable]
-        private class ExtConnectionPortInfo
-        {
-            [BinarySerialize]
-            public FixedSizeBinaryString Type { get; set; } = new(4);
-
-            [BinarySerialize]
-            public byte PortNumber { get; set; }
-
-            [BinarySerialize]
-            public byte Endpoints { get; set; }
-
-            [BinarySerialize]
-            public byte[] Padding { get; set; } = new byte[2];
-
-            public byte InEndpoint => (byte)((Endpoints & ExtConnectionInEndpointBitmask) >> ExtConnectionInEndpointShift);
-            public byte OutEndpoint => (byte)((Endpoints & ExtConnectionOutEndpointBitmask) >> ExtConnectionOutEndpointShift);
-
-            private const int ExtConnectionInEndpointBitmask = 0b11110000;
-            private const int ExtConnectionInEndpointShift = 4;
-            private const int ExtConnectionOutEndpointBitmask = 0b00001111;
-            private const int ExtConnectionOutEndpointShift = 0;
-        }
-        
         // Device-to-host, Vendor, Endpoint
         private const byte UsbControlTransferRequestType = 0xC2;
 

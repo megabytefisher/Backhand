@@ -4,8 +4,8 @@ using System;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadSysInfoSystemResponse : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadSysInfoSystemResponse : IBinarySerializable
     {
         [BinarySerialize]
         public uint RomVersion { get; set; }

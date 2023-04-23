@@ -19,7 +19,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Network", "Backhan
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Pdb.Memo", "Backhand.Pdb.Memo\Backhand.Pdb.Memo.csproj", "{D2729D6C-D3B0-4909-BBEA-9B11239F2935}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.Pdb.Stream", "Backhand.Pdb.Stream\Backhand.Pdb.Stream.csproj", "{0AB39FC2-EACC-4E24-AF85-858E61D5506F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Pdb.Stream", "Backhand.Pdb.Stream\Backhand.Pdb.Stream.csproj", "{0AB39FC2-EACC-4E24-AF85-858E61D5506F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Generators.BinarySerialization", "Backhand.Generators.BinarySerialization\Backhand.Generators.BinarySerialization.csproj", "{881F56B8-3FA1-4857-99D9-174F1F28EBA3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -63,6 +65,10 @@ Global
 		{0AB39FC2-EACC-4E24-AF85-858E61D5506F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0AB39FC2-EACC-4E24-AF85-858E61D5506F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0AB39FC2-EACC-4E24-AF85-858E61D5506F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{881F56B8-3FA1-4857-99D9-174F1F28EBA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{881F56B8-3FA1-4857-99D9-174F1F28EBA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{881F56B8-3FA1-4857-99D9-174F1F28EBA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{881F56B8-3FA1-4857-99D9-174F1F28EBA3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

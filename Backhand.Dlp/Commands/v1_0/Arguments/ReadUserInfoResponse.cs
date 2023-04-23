@@ -4,8 +4,8 @@ using System;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadUserInfoResponse : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadUserInfoResponse : IBinarySerializable
     {
         [BinarySerialize]
         public uint UserId { get; set; }

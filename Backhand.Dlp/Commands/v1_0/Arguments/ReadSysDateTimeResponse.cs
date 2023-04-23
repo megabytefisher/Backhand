@@ -4,8 +4,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadSysDateTimeResponse : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadSysDateTimeResponse : IBinarySerializable
     {
         [BinarySerialize]
         private DlpDateTime DlpDateTime { get; set; } = new();

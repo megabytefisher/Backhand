@@ -3,8 +3,8 @@ using System;
 
 namespace Backhand.Pdb.FileSerialization
 {
-    [BinarySerializable]
-    internal class PdbHeader
+    [GenerateBinarySerialization]
+    internal partial class PdbHeader : IBinarySerializable
     {
         [BinarySerialize]
         private FixedSizeBinaryString NameString { get; set; } = new(32)

@@ -4,8 +4,8 @@ using System;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadSortBlockResponse : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadSortBlockResponse : IBinarySerializable
     {
         [BinarySerialize]
         public ushort Size

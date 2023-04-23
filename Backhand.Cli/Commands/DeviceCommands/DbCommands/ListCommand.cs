@@ -10,7 +10,7 @@ using System.CommandLine.Invocation;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using DatabaseMetadata = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListResponse.DatabaseMetadata;
+using Backhand.Dlp.Commands.v1_0.Data;
 using ReadDbListMode = Backhand.Dlp.Commands.v1_0.Arguments.ReadDbListRequest.ReadDbListMode;
 
 namespace Backhand.Cli.Commands.DeviceCommands.DbCommands

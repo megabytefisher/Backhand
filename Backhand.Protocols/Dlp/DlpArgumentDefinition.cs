@@ -21,7 +21,7 @@ namespace Backhand.Protocols.Dlp
         public abstract void Deserialize(ref SequenceReader<byte> reader, object value);
     }
 
-    public class DlpArgumentDefinition<T> : DlpArgumentDefinition where T : DlpArgument, new()
+    public class DlpArgumentDefinition<T> : DlpArgumentDefinition where T : IBinarySerializable, new()
     {
         public DlpArgumentDefinition(bool isOptional = false) : base(typeof(T), isOptional)
         {

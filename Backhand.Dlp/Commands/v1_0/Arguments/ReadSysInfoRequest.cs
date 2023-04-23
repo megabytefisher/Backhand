@@ -3,8 +3,8 @@ using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {
-    [BinarySerializable]
-    public class ReadSysInfoRequest : DlpArgument
+    [GenerateBinarySerialization]
+    public partial class ReadSysInfoRequest : IBinarySerializable
     {
         [BinarySerialize]
         public ushort HostDlpVersionMajor { get; set; }
