@@ -1,6 +1,6 @@
 using Backhand.Common.BinarySerialization;
-using Backhand.Protocols.Dlp;
 using System;
+using Backhand.Common.BinarySerialization.Generation;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {

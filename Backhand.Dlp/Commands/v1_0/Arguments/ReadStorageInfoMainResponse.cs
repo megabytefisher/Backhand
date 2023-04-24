@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using Backhand.Common.BinarySerialization;
+using Backhand.Common.BinarySerialization.Generation;
 using Backhand.Dlp.Commands.v1_0.Data;
-using Backhand.Protocols.Dlp;
 
 namespace Backhand.Dlp.Commands.v1_0.Arguments
 {

@@ -1,4 +1,4 @@
-﻿namespace Backhand.Common.BinarySerialization
+﻿namespace Backhand.Common.BinarySerialization.Generation
 {
     public enum Endian
     {

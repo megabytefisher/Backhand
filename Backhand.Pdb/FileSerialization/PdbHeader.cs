@@ -1,5 +1,6 @@
 ﻿using Backhand.Common.BinarySerialization;
 using System;
+using Backhand.Common.BinarySerialization.Generation;
 
 namespace Backhand.Pdb.FileSerialization
 {

@@ -1,12 +1,12 @@
 using System;
+using System.Buffers;
 using System.Text;
+using Backhand.Common.Buffers;
 
 namespace Backhand.Common.BinarySerialization
 {
-    [GenerateBinarySerialization]
-    public partial class FixedSizeBinaryString : IBinarySerializable
+    public class FixedSizeBinaryString : IBinarySerializable
     {
-        [BinarySerialize]
         public byte[] Bytes { get; set; }
 
         public int Size
@@ -84,6 +84,21 @@ namespace Backhand.Common.BinarySerialization
         public static implicit operator string(FixedSizeBinaryString fixedSizeBinaryString)
         {
             return fixedSizeBinaryString.Value;
+        }
+
+        public int GetSize()
+        {
+            return Size;
+        }
+
+        public void Write(ref SpanWriter<byte> bufferWriter)
+        {
+            bufferWriter.Write(Bytes);
+        }
+
+        public void Read(ref SequenceReader<byte> bufferReader)
+        {
+            bufferReader.ReadExact(Size).CopyTo(Bytes);
         }
     }
 }
