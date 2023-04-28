@@ -1,13 +1,6 @@
-﻿using Backhand.Pdb.Stream;
-using System;
-using System.CommandLine;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Backhand.Cli.Commands.DbCommands
+﻿namespace Backhand.Cli.Commands.DbCommands
 {
-    public class ConvertCommand : Command
+    /*public class ConvertCommand : Command
     {
         public enum ConvertMode
         {
@@ -97,5 +90,5 @@ namespace Backhand.Cli.Commands.DbCommands
             await database.ReadInnerFileFromAsync(inputStream, cancellationToken).ConfigureAwait(false);
             await database.SerializeAsync(outputStream, cancellationToken).ConfigureAwait(false);
         }
-    }
+    }*/
 }

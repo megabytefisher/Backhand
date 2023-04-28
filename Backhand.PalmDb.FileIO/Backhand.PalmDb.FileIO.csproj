@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net7.0</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Backhand.Common\Backhand.Common.csproj" />
+        <ProjectReference Include="..\Backhand.Common.BinarySerialization.Generation\Backhand.Common.BinarySerialization.Generation.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+        <ProjectReference Include="..\Backhand.PalmDb\Backhand.PalmDb.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -1,16 +1,6 @@
-using System;
-using Backhand.Cli.Internal.DatabaseDisassembly;
-using Backhand.Common.Buffers;
-using Backhand.Pdb;
-using System.CommandLine;
-using System.IO;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Backhand.Cli.Commands.DbCommands
 {
-    public class AssembleCommand : Command
+    /*public class AssembleCommand : Command
     {
         public readonly Argument<DirectoryInfo> InputArgument =
             new("input", "The input directory to assemble");
@@ -159,5 +149,5 @@ namespace Backhand.Cli.Commands.DbCommands
                 }
             }
         }
-    }
+    }*/
 }

@@ -7,9 +7,9 @@ namespace Backhand.Cli.Commands
     {
         public DbCommand() : base("db", "Commands for manipulating database files")
         {
-            AddCommand(new ConvertCommand());
+            //AddCommand(new ConvertCommand());
             AddCommand(new DisassembleCommand());
-            AddCommand(new AssembleCommand());
+            //AddCommand(new AssembleCommand());
         }
     }
 }

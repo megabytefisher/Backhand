@@ -8,12 +8,12 @@ namespace Backhand.Usb
         public UsbHandshakeMode HandshakeMode { get; }
         public UsbProtocolType ProtocolType { get; }
 
-        public UsbDeviceConfig(ushort vendorId, ushort productId, string description, UsbHandshakeMode handhsakeMode, UsbProtocolType protocolType = UsbProtocolType.NetSync)
+        public UsbDeviceConfig(ushort vendorId, ushort productId, string description, UsbHandshakeMode handshakeMode, UsbProtocolType protocolType = UsbProtocolType.NetSync)
         {
             VendorId = vendorId;
             ProductId = productId;
             Description = description;
-            HandshakeMode = handhsakeMode;
+            HandshakeMode = handshakeMode;
             ProtocolType = protocolType;
         }
     }

@@ -77,14 +77,7 @@ namespace Backhand.Protocols.Dlp
                 IBinarySerializable? argument = arguments.GetValue(argumentDefinition);
                 if (argument == null)
                 {
-                    if (argumentDefinition.IsOptional)
-                    {
-                        continue;
-                    }
-                    else
-                    {
-                        throw new DlpException("Non-optional DLP argument is missing");
-                    }
+                    continue;
                 }
 
                 int argumentSize = argumentDefinition.GetSerializedSize(argument);
@@ -113,14 +106,7 @@ namespace Backhand.Protocols.Dlp
                 IBinarySerializable? argument = arguments.GetValue(argumentDefinition);
                 if (argument == null)
                 {
-                    if (argumentDefinition.IsOptional)
-                    {
-                        continue;
-                    }
-                    else
-                    {
-                        throw new DlpException("Non-optional DLP argument is missing");
-                    }
+                    continue;
                 }
 
                 int argumentSize = argumentDefinition.GetSerializedSize(argument);

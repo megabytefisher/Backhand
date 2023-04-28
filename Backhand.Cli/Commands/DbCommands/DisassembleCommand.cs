@@ -1,143 +1,126 @@
-using Backhand.Cli.Internal.DatabaseDisassembly;
-using Backhand.Pdb;
+using System.Collections.Generic;
 using System.CommandLine;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Cli.Internal.DatabaseDisassembly;
+using Backhand.PalmDb;
+using Backhand.PalmDb.FileIO;
+using Backhand.PalmDb.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
 
 namespace Backhand.Cli.Commands.DbCommands
 {
     public class DisassembleCommand : Command
     {
         public readonly Argument<FileInfo> InputArgument =
-            new("input", "The input file to disassemble");
-
-        public readonly Option<DirectoryInfo?> OutputOption =
-            new(new[] { "--output", "-o" }, "The output directory to disassemble to");
+            new("input", "Path to database file to disassemble");
 
         public DisassembleCommand()
             : base("disassemble", "Disassembles a Palm database file into its constituent parts")
         {
             AddArgument(InputArgument);
-            AddOption(OutputOption);
 
             this.SetHandler(async (context) =>
             {
+                IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
+                
                 FileInfo input = context.ParseResult.GetValueForArgument(InputArgument);
-                DirectoryInfo? output = context.ParseResult.GetValueForOption(OutputOption);
 
                 CancellationToken cancellationToken = context.GetCancellationToken();
 
-                if (output == null)
-                {
-                    output = new DirectoryInfo(Path.GetFileNameWithoutExtension(input.Name));
-                    output.Create();
-                }
-
-                await DisassembleFileAsync(input, output, cancellationToken);
+                DirectoryInfo outputDirectory = new(Path.GetFileNameWithoutExtension(input.Name));
+                outputDirectory.Create();
+                
+                await DisassembleDatabaseAsync(input, outputDirectory, cancellationToken);
+                
+                console.MarkupLine($"[green]Disassembled database to {outputDirectory.FullName}[/]");
             });
         }
 
-        private static async Task DisassembleFileAsync(FileInfo inputFile, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
+        private static async Task DisassembleDatabaseAsync(FileInfo inputFile, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
         {
-            await using FileStream fileStream = inputFile.OpenRead();
+            IPalmDb inputDb = await PalmDbFile.ReadAsync(inputFile, cancellationToken);
 
-            DatabaseHeader header = new();
-            await header.DeserializeAsync(fileStream, cancellationToken);
-
-            fileStream.Seek(0, SeekOrigin.Begin);
-
-            Database database = header.Attributes.HasFlag(DatabaseAttributes.ResourceDb)
-                ? new ResourceDatabase()
-                : new RecordDatabase();
-            await database.DeserializeAsync(fileStream, cancellationToken);
-
-            DatabaseHeaderInfo headerInfo = new()
+            if (inputDb is IPalmRecordDb recordDb)
             {
-                Name = header.Name,
-                Attributes = header.Attributes,
-                Version = header.Version,
-                CreationDate = header.CreationDate,
-                ModificationDate = header.ModificationDate,
-                LastBackupDate = header.LastBackupDate,
-                ModificationNumber = header.ModificationNumber,
-                Type = header.Type,
-                Creator = header.Creator,
-                UniqueIdSeed = header.UniqueIdSeed
-            };
-
-            FileInfo headerFile = new(Path.Combine(outputDirectory.FullName, "header.json"));
-            await using FileStream headerFileStream = headerFile.OpenWrite();
-            await JsonSerializer.SerializeAsync(headerFileStream, headerInfo, cancellationToken: cancellationToken);
-            await headerFileStream.DisposeAsync();
-
-            if (database.AppInfo is { Length: > 0 })
-            {
-                await using FileStream appInfoFileStream = new(Path.Combine(outputDirectory.FullName, "appinfo.bin"), FileMode.Create);
-                await appInfoFileStream.WriteAsync(database.AppInfo, cancellationToken);
+                await DisassembleDatabaseAsync(recordDb, outputDirectory, cancellationToken);
             }
-
-            if (database.SortInfo is { Length: > 0 })
-            {
-                await using FileStream sortInfoFileStream = new(Path.Combine(outputDirectory.FullName, "sortinfo.bin"), FileMode.Create);
-                await sortInfoFileStream.WriteAsync(database.SortInfo, cancellationToken);
-            }
-
-            if (database is ResourceDatabase resourceDatabase)
-            {
-                await DisassembleResourceDatabaseAsync(resourceDatabase, outputDirectory, cancellationToken);
-            }
-            else if (database is RecordDatabase recordDatabase)
-            {
-                await DisassembleRecordDatabaseAsync(recordDatabase, outputDirectory, cancellationToken);
-            }
+            
+            
         }
 
-        private static async Task DisassembleRecordDatabaseAsync(RecordDatabase database, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
+        private static async Task DisassembleDatabaseAsync(IPalmRecordDb recordDb, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
         {
-            int i = 0;
-            foreach (RawDatabaseRecord record in database.Records)
+            using MemoryStream bufferStream = new();
+            
+            // Read and output AppInfo
+            FileInfo? appInfoFile = null;
+            await recordDb.ReadAppInfoAsync(bufferStream, cancellationToken);
+            if (bufferStream.Length > 0)
             {
-                DatabaseRecordInfo recordInfo = new()
+                appInfoFile = new(Path.Combine(outputDirectory.FullName, "_appinfo.bin"));
+                await using FileStream appInfoFileStream = appInfoFile.OpenWrite();
+                
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                await bufferStream.CopyToAsync(appInfoFileStream, cancellationToken);
+            }
+            
+            bufferStream.Seek(0, SeekOrigin.Begin);
+            bufferStream.SetLength(0);
+            
+            // Read and output SortInfo
+            FileInfo? sortInfoFile = null;
+            await recordDb.ReadSortInfoAsync(bufferStream, cancellationToken);
+            if (bufferStream.Length > 0)
+            {
+                sortInfoFile = new(Path.Combine(outputDirectory.FullName, "_sortinfo.bin"));
+                await using FileStream sortInfoFileStream = sortInfoFile.OpenWrite();
+                
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                await bufferStream.CopyToAsync(sortInfoFileStream, cancellationToken);
+            }
+            
+            // Read and output records
+            List<(PalmDbRecordHeader Header, FileInfo Path)> records = new();
+            for (ushort index = 0;; index++)
+            {
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                bufferStream.SetLength(0);
+                
+                PalmDbRecordHeader? recordHeader = await recordDb.ReadRecordByIndexAsync(index, bufferStream, cancellationToken);
+                if (recordHeader is null)
                 {
-                    Attributes = record.Attributes,
-                    Category = record.Category,
-                    Archive = record.Archive,
-                    UniqueId = record.UniqueId,
-                };
+                    break;
+                }
 
-                DirectoryInfo recordDirectory = new(Path.Combine(outputDirectory.FullName, $"{i}"));
-                recordDirectory.Create();
+                FileInfo recordFile = new(Path.Combine(outputDirectory.FullName, $"{recordHeader.Id}.bin"));
+                await using FileStream recordFileStream = recordFile.OpenWrite();
 
-                FileInfo recordInfoFile = new(Path.Combine(recordDirectory.FullName, "record.json"));
-                FileInfo recordDataFile = new(Path.Combine(recordDirectory.FullName, "record.bin"));
-
-                await using FileStream recordInfoFileStream = recordInfoFile.OpenWrite();
-                await JsonSerializer.SerializeAsync(recordInfoFileStream, recordInfo, cancellationToken: cancellationToken);
-                await recordInfoFileStream.DisposeAsync();
-
-                await using FileStream recordFileStream = recordDataFile.OpenWrite();
-                await recordFileStream.WriteAsync(record.Data, cancellationToken);
-                await recordFileStream.DisposeAsync();
-
-                i++;
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                await bufferStream.CopyToAsync(recordFileStream, cancellationToken);
+                
+                records.Add((recordHeader, recordFile));
             }
-        }
-
-        private static async Task DisassembleResourceDatabaseAsync(ResourceDatabase database, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
-        {
-            foreach (DatabaseResource resource in database.Resources)
-            {
-                DirectoryInfo typeDirectory = new(Path.Combine(outputDirectory.FullName, resource.Type));
-                typeDirectory.Create();
-
-                FileInfo resourceFile = new(Path.Combine(typeDirectory.FullName, $"{resource.ResourceId}.bin"));
-
-                using FileStream resourceFileStream = resourceFile.OpenWrite();
-                await resourceFileStream.WriteAsync(resource.Data, cancellationToken);
-                await resourceFileStream.DisposeAsync();
-            }
+            
+            // Read header
+            PalmDbHeader header = await recordDb.ReadHeaderAsync(cancellationToken);
+            
+            // Write manifest
+            RecordDbManifest manifest = new(
+                header,
+                appInfoFile?.Name ?? string.Empty,
+                sortInfoFile?.Name ?? string.Empty,
+                records.Select(h => new RecordManifest(h.Header, h.Path.Name))
+            );
+            
+            // Write manifest as json
+            FileInfo manifestFile = new(Path.Combine(outputDirectory.FullName, "__manifest.json"));
+            await using FileStream manifestFileStream = manifestFile.OpenWrite();
+            await JsonSerializer.SerializeAsync(manifestFileStream, manifest, cancellationToken: cancellationToken);
         }
     }
 }

@@ -8,12 +8,10 @@ namespace Backhand.Protocols.Dlp
     public abstract class DlpArgumentDefinition
     {
         public Type Type { get; set; }
-        public bool IsOptional { get; set; }
 
-        protected DlpArgumentDefinition(Type type, bool isOptional = false)
+        protected DlpArgumentDefinition(Type type)
         {
             Type = type;
-            IsOptional = isOptional;
         }
 
         public abstract int GetSerializedSize(object value);
@@ -23,7 +21,7 @@ namespace Backhand.Protocols.Dlp
 
     public class DlpArgumentDefinition<T> : DlpArgumentDefinition where T : IBinarySerializable, new()
     {
-        public DlpArgumentDefinition(bool isOptional = false) : base(typeof(T), isOptional)
+        public DlpArgumentDefinition() : base(typeof(T))
         {
         }
 

@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-namespace Backhand.Common.BinarySerialization.Generation
+﻿namespace Backhand.Common.BinarySerialization.Generation
 {
     internal static class Names
     {

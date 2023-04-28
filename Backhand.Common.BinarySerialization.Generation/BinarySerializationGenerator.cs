@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -30,13 +29,14 @@ namespace Backhand.Common.BinarySerialization.Generation
             IncrementalValueProvider<(Compilation, ImmutableArray<ClassDeclarationSyntax>)> compilationAndClasses
                 = context.CompilationProvider.Combine(classDeclarations.Collect());
 
-            context.RegisterSourceOutput(compilationAndClasses,
+            context.RegisterSourceOutput(
+                compilationAndClasses,
                 (spc, source) => Execute(source.Item1, source.Item2, spc));
         }
 
         static bool IsSyntaxTargetForGeneration(SyntaxNode node)
         {
-            return node is ClassDeclarationSyntax c && c.AttributeLists.Count > 0 &&
+            return node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } c &&
                    c.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword));
         }
 
@@ -76,12 +76,13 @@ namespace Backhand.Common.BinarySerialization.Generation
                 {
                     CompilationUnitSyntax generatedClass = GenerateSerializationPartialClass(
                         compilation.GetSemanticModel(classDeclarationSyntax.SyntaxTree), classDeclarationSyntax);
-                    context.AddSource($"{classDeclarationSyntax.Identifier}.generated.cs",
+                    context.AddSource(
+                        $"{classDeclarationSyntax.Identifier}.BinarySerialization.g.cs",
                         generatedClass.NormalizeWhitespace().ToFullString());
                 }
                 catch (Exception ex)
                 {
-                    Debugger.Launch();
+                    //Debugger.Launch();
                 }
             }
         }
@@ -90,8 +91,8 @@ namespace Backhand.Common.BinarySerialization.Generation
             SemanticModel semanticModel,
             ClassDeclarationSyntax sourceClassDeclaration)
         {
-            NamespaceDeclarationSyntax? sourceNamespace =
-                GetParentSyntax<NamespaceDeclarationSyntax>(sourceClassDeclaration);
+            BaseNamespaceDeclarationSyntax? sourceNamespace =
+                GetParentSyntax<BaseNamespaceDeclarationSyntax>(sourceClassDeclaration);
 
             if (sourceNamespace == null)
             {
@@ -100,7 +101,7 @@ namespace Backhand.Common.BinarySerialization.Generation
 
             BinarySerializationGeneratorContext context = new();
             GenerateBinarySerializationAttribute sourceClassAttribute = ParseAttribute<GenerateBinarySerializationAttribute>(semanticModel, sourceClassDeclaration) ??
-                                                                         throw new InvalidOperationException("Source class did not have GenerateBinarySerializationAttribute");
+                                                                        throw new InvalidOperationException("Source class did not have GenerateBinarySerializationAttribute");
 
             context.Endian = sourceClassAttribute.Endian;
             if (!string.IsNullOrEmpty(sourceClassAttribute.MinimumLengthProperty)) context.MinimumLengthExpression = IdentifierName(sourceClassAttribute.MinimumLengthProperty);

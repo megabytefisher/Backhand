@@ -10,6 +10,7 @@ namespace Backhand.Cli.Commands.DeviceCommands
             AddCommand(new ListCommand());
             AddCommand(new PushCommand());
             AddCommand(new PullCommand());
+            AddCommand(new DeleteCommand());
         }
     }
 }

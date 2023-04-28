@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Dlp", "Backhand.Dl
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Protocols", "Backhand.Protocols\Backhand.Protocols.csproj", "{11225A05-AFC0-4154-8EC7-AFFFAD7E1F73}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Pdb", "Backhand.Pdb\Backhand.Pdb.csproj", "{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.PalmDb", "Backhand.PalmDb\Backhand.PalmDb.csproj", "{A5EE7202-DDE2-4CB4-9CE4-CAA63E6E4EAD}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Cli", "Backhand.Cli\Backhand.Cli.csproj", "{3C8576FD-3E97-4D4B-B3D8-79C5F2A4BD45}"
 EndProject
@@ -17,11 +17,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Usb", "Backhand.Us
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Network", "Backhand.Network\Backhand.Network.csproj", "{FAC6829A-7738-4BB6-B34F-8F7249F7D7A8}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Pdb.Memo", "Backhand.Pdb.Memo\Backhand.Pdb.Memo.csproj", "{D2729D6C-D3B0-4909-BBEA-9B11239F2935}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.PalmDb.Databases.Memo", "Backhand.PalmDb.Databases.Memo\Backhand.PalmDb.Databases.Memo.csproj", "{D2729D6C-D3B0-4909-BBEA-9B11239F2935}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Pdb.Stream", "Backhand.Pdb.Stream\Backhand.Pdb.Stream.csproj", "{0AB39FC2-EACC-4E24-AF85-858E61D5506F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.PalmDb.Databases.Stream", "Backhand.PalmDb.Databases.Stream\Backhand.PalmDb.Databases.Stream.csproj", "{0AB39FC2-EACC-4E24-AF85-858E61D5506F}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Backhand.Common.BinarySerialization.Generation", "Backhand.Common.BinarySerialization.Generation\Backhand.Common.BinarySerialization.Generation.csproj", "{A95732B5-4FE8-4E8C-9393-78B3D5C39E47}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.PalmDb.FileIO", "Backhand.PalmDb.FileIO\Backhand.PalmDb.FileIO.csproj", "{2C345B24-BDC0-49EC-806B-A4F4B80A07F9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Backhand.PalmDb.Dlp", "Backhand.PalmDb.Dlp\Backhand.PalmDb.Dlp.csproj", "{3F963E68-1FEC-4260-BA75-669EB3E7EF65}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,6 +73,14 @@ Global
 		{A95732B5-4FE8-4E8C-9393-78B3D5C39E47}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A95732B5-4FE8-4E8C-9393-78B3D5C39E47}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A95732B5-4FE8-4E8C-9393-78B3D5C39E47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2C345B24-BDC0-49EC-806B-A4F4B80A07F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C345B24-BDC0-49EC-806B-A4F4B80A07F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C345B24-BDC0-49EC-806B-A4F4B80A07F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C345B24-BDC0-49EC-806B-A4F4B80A07F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3F963E68-1FEC-4260-BA75-669EB3E7EF65}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3F963E68-1FEC-4260-BA75-669EB3E7EF65}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3F963E68-1FEC-4260-BA75-669EB3E7EF65}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3F963E68-1FEC-4260-BA75-669EB3E7EF65}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

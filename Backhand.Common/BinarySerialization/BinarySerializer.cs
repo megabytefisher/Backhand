@@ -13,13 +13,9 @@ namespace Backhand.Common.BinarySerialization
             return value.GetSize();
         }
 
-        public static int GetMinimumSize<TItem>() where TItem : T, new()
+        public static int GetDefaultSize<TItem>() where TItem : T, new()
         {
-            if (_defaultInstance == null)
-            {
-                _defaultInstance = new TItem();
-            }
-
+            _defaultInstance ??= new TItem();
             return GetSize(_defaultInstance);
         }
 
