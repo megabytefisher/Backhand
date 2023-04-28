@@ -7,7 +7,7 @@
     },
     "prompt-mode (device)": {
       "commandName": "Project",
-      "commandLineArgs": "device prompt-mode -s network usb serial:COM4 -D",
+      "commandLineArgs": "device prompt-mode -s network usb serial:COM4 -D --log-console --log-slp trace",
       "workingDirectory": "C:\\Users\\kfisher\\BackhandTest"
     },
     "db list (network)": {

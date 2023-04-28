@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Backhand.Cli.Internal.DatabaseDisassembly;
 using Backhand.PalmDb;
 using Backhand.PalmDb.FileIO;
-using Backhand.PalmDb.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
@@ -36,7 +35,6 @@ namespace Backhand.Cli.Commands.DbCommands
                 outputDirectory.Create();
                 
                 await DisassembleDatabaseAsync(input, outputDirectory, cancellationToken);
-                
                 console.MarkupLine($"[green]Disassembled database to {outputDirectory.FullName}[/]");
             });
         }
@@ -47,13 +45,19 @@ namespace Backhand.Cli.Commands.DbCommands
 
             if (inputDb is IPalmRecordDb recordDb)
             {
-                await DisassembleDatabaseAsync(recordDb, outputDirectory, cancellationToken);
+                await DisassembleRecordDatabaseAsync(recordDb, outputDirectory, cancellationToken);
             }
-            
-            
+            else if (inputDb is IPalmResourceDb resourceDb)
+            {
+                await DisassembleResourceDatabaseAsync(resourceDb, outputDirectory, cancellationToken);
+            }
+            else
+            {
+                throw new InvalidDataException("The input file is not a valid Palm database file");
+            }
         }
 
-        private static async Task DisassembleDatabaseAsync(IPalmRecordDb recordDb, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
+        private static async Task DisassembleRecordDatabaseAsync(IPalmRecordDb recordDb, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
         {
             using MemoryStream bufferStream = new();
             
@@ -62,7 +66,7 @@ namespace Backhand.Cli.Commands.DbCommands
             await recordDb.ReadAppInfoAsync(bufferStream, cancellationToken);
             if (bufferStream.Length > 0)
             {
-                appInfoFile = new(Path.Combine(outputDirectory.FullName, "_appinfo.bin"));
+                appInfoFile = new(Path.Combine(outputDirectory.FullName, "_appInfo.bin"));
                 await using FileStream appInfoFileStream = appInfoFile.OpenWrite();
                 
                 bufferStream.Seek(0, SeekOrigin.Begin);
@@ -77,7 +81,7 @@ namespace Backhand.Cli.Commands.DbCommands
             await recordDb.ReadSortInfoAsync(bufferStream, cancellationToken);
             if (bufferStream.Length > 0)
             {
-                sortInfoFile = new(Path.Combine(outputDirectory.FullName, "_sortinfo.bin"));
+                sortInfoFile = new(Path.Combine(outputDirectory.FullName, "_sortInfo.bin"));
                 await using FileStream sortInfoFileStream = sortInfoFile.OpenWrite();
                 
                 bufferStream.Seek(0, SeekOrigin.Begin);
@@ -115,6 +119,76 @@ namespace Backhand.Cli.Commands.DbCommands
                 appInfoFile?.Name ?? string.Empty,
                 sortInfoFile?.Name ?? string.Empty,
                 records.Select(h => new RecordManifest(h.Header, h.Path.Name))
+            );
+            
+            // Write manifest as json
+            FileInfo manifestFile = new(Path.Combine(outputDirectory.FullName, "__manifest.json"));
+            await using FileStream manifestFileStream = manifestFile.OpenWrite();
+            await JsonSerializer.SerializeAsync(manifestFileStream, manifest, cancellationToken: cancellationToken);
+        }
+
+        private static async Task DisassembleResourceDatabaseAsync(IPalmResourceDb resourceDb, DirectoryInfo outputDirectory, CancellationToken cancellationToken)
+        {
+            using MemoryStream bufferStream = new();
+            
+            // Read and output AppInfo
+            FileInfo? appInfoFile = null;
+            await resourceDb.ReadAppInfoAsync(bufferStream, cancellationToken);
+            if (bufferStream.Length > 0)
+            {
+                appInfoFile = new(Path.Combine(outputDirectory.FullName, "_appInfo.bin"));
+                await using FileStream appInfoFileStream = appInfoFile.OpenWrite();
+                
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                await bufferStream.CopyToAsync(appInfoFileStream, cancellationToken);
+            }
+            
+            bufferStream.Seek(0, SeekOrigin.Begin);
+            bufferStream.SetLength(0);
+            
+            // Read and output SortInfo
+            FileInfo? sortInfoFile = null;
+            await resourceDb.ReadSortInfoAsync(bufferStream, cancellationToken);
+            if (bufferStream.Length > 0)
+            {
+                sortInfoFile = new(Path.Combine(outputDirectory.FullName, "_sortInfo.bin"));
+                await using FileStream sortInfoFileStream = sortInfoFile.OpenWrite();
+                
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                await bufferStream.CopyToAsync(sortInfoFileStream, cancellationToken);
+            }
+            
+            // Read and output records
+            List<(PalmDbResourceHeader Header, FileInfo Path)> records = new();
+            for (ushort index = 0;; index++)
+            {
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                bufferStream.SetLength(0);
+                
+                PalmDbResourceHeader? resourceHeader = await resourceDb.ReadResourceByIndexAsync(index, bufferStream, cancellationToken);
+                if (resourceHeader is null)
+                {
+                    break;
+                }
+
+                FileInfo recordFile = new(Path.Combine(outputDirectory.FullName, $"{resourceHeader.Id}.bin"));
+                await using FileStream recordFileStream = recordFile.OpenWrite();
+
+                bufferStream.Seek(0, SeekOrigin.Begin);
+                await bufferStream.CopyToAsync(recordFileStream, cancellationToken);
+                
+                records.Add((resourceHeader, recordFile));
+            }
+            
+            // Read header
+            PalmDbHeader header = await resourceDb.ReadHeaderAsync(cancellationToken);
+            
+            // Write manifest
+            ResourceDbManifest manifest = new(
+                header,
+                appInfoFile?.Name ?? string.Empty,
+                sortInfoFile?.Name ?? string.Empty,
+                records.Select(h => new ResourceManifest(h.Header, h.Path.Name))
             );
             
             // Write manifest as json

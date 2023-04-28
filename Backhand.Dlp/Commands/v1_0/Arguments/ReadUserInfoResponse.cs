@@ -8,43 +8,15 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
     [GenerateBinarySerialization]
     public partial class ReadUserInfoResponse : IBinarySerializable
     {
-        [BinarySerialize]
-        public uint UserId { get; set; }
-
-        [BinarySerialize]
-        public uint ViewerId { get; set; }
-
-        [BinarySerialize]
-        public uint LastSyncPcId { get; set; }
-
-        [BinarySerialize]
-        private DlpDateTime LastSuccessfulSyncDlpDate { get; } = new();
-
-        [BinarySerialize]
-        private DlpDateTime LastSyncDlpDate { get; } = new();
-
-        [BinarySerialize]
-        private byte UsernameSize
-        {
-            get => Convert.ToByte(UsernameString.Size);
-            set => UsernameString.Size = value;
-        }
-
-        [BinarySerialize]
-        public byte PasswordByteLength
-        {
-            get => Convert.ToByte(Password.Length);
-            set => Password = new byte[value];
-        }
-
-        [BinarySerialize]
-        private FixedSizeBinaryString UsernameString { get; set; } = new()
-        {
-            NullTerminated = true
-        };
-
-        [BinarySerialize]
-        public byte[] Password { get; private set; } = Array.Empty<byte>();
+        [BinarySerialize] public uint UserId { get; set; }
+        [BinarySerialize] public uint ViewerId { get; set; }
+        [BinarySerialize] public uint LastSyncPcId { get; set; }
+        [BinarySerialize] private DlpDateTime LastSuccessfulSyncDlpDate { get; } = new();
+        [BinarySerialize] private DlpDateTime LastSyncDlpDate { get; } = new();
+        [BinarySerialize] private byte UsernameSize { get => Convert.ToByte(UsernameString.Size); set => UsernameString.Size = value; }
+        [BinarySerialize] public byte PasswordByteLength { get => Convert.ToByte(Password.Length); set => Password = new byte[value]; }
+        [BinarySerialize] private FixedSizeBinaryString UsernameString { get; set; } = new() { NullTerminated = true };
+        [BinarySerialize] public byte[] Password { get; private set; } = Array.Empty<byte>();
 
         public string Username
         {

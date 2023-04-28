@@ -14,7 +14,6 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             UnknownError = 0x03,
         }
 
-        [BinarySerialize]
-        public EndOfSyncStatus Status { get; set; }
+        [BinarySerialize] public EndOfSyncStatus Status { get; set; }
     }
 }

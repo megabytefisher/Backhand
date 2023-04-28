@@ -1,5 +1,4 @@
 using Backhand.Cli.Internal.Commands;
-using Backhand.Dlp.Commands.v1_0;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using System.CommandLine;
@@ -43,7 +42,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.TimeCommands
         {
             public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                ReadSysDateTimeResponse systemDateResponse = await context.Connection.ReadSysDateTimeAsync(cancellationToken).ConfigureAwait(false);
+                ReadSysDateTimeResponse systemDateResponse = await context.Client.ReadSysDateTimeAsync(cancellationToken).ConfigureAwait(false);
                 context.Console.MarkupLineInterpolated($"[green]Got device date: {systemDateResponse.DateTime:s}[/]");
             }
         }

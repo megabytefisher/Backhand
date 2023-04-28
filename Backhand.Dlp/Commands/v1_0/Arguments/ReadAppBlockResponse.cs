@@ -7,14 +7,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
     [GenerateBinarySerialization]
     public partial class ReadAppBlockResponse : IBinarySerializable
     {
-        [BinarySerialize]
-        public ushort Size
-        {
-            get => (byte)Data.Length;
-            set => Data = new byte[value];
-        }
-
-        [BinarySerialize]
-        public byte[] Data { get; private set; } = Array.Empty<byte>();
+        [BinarySerialize] public ushort Size { get => Convert.ToUInt16(Data.Length); set => Data = new byte[value]; }
+        [BinarySerialize] public byte[] Data { get; set; } = Array.Empty<byte>();
     }
 }

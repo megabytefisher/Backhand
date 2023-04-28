@@ -1,5 +1,4 @@
 ﻿using Backhand.Cli.Internal.Commands;
-using Backhand.Dlp.Commands.v1_0;
 using Backhand.Protocols.Dlp;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -8,6 +7,7 @@ using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Dlp.Commands.v1_0;
 using Backhand.PalmDb;
 using Backhand.PalmDb.Dlp;
 
@@ -45,20 +45,20 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
         {
             public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                await context.Connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
+                await context.Client.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
                 
-                DlpDatabaseRepository deviceDbRepository = new(context.Connection);
+                DlpDatabaseRepository deviceDbRepository = new(context.Client);
                 ICollection<PalmDbHeader> deviceDbHeaders =
                     await deviceDbRepository.GetHeadersAsync(cancellationToken);
 
-                PrintResults(context.Console, context.Connection, deviceDbHeaders);
+                PrintResults(context.Console, context.Client, deviceDbHeaders);
             }
         }
 
-        private static void PrintResults(IAnsiConsole console, DlpConnection connection, IEnumerable<PalmDbHeader> headers)
+        private static void PrintResults(IAnsiConsole console, DlpClient client, IEnumerable<PalmDbHeader> headers)
         {
             Table table = new Table()
-                .Title(Markup.Escape($"{connection} Database List"))
+                .Title(Markup.Escape($"{client} Database List"))
                 .Expand()
                 .AddColumn("Name")
                 //.AddColumn("MiscFlags")

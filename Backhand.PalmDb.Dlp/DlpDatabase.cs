@@ -1,19 +1,19 @@
-using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
+using Backhand.Dlp.Commands.v1_0;
 using Backhand.Protocols.Dlp;
 
 namespace Backhand.PalmDb.Dlp
 {
     public class DlpDatabase : IPalmDb
     {
-        public DlpConnection Connection { get; }
+        public DlpClient Client { get; }
         public byte DbHandle { get; }
         
         private PalmDbHeader _header;
         
-        public DlpDatabase(DlpConnection connection, PalmDbHeader header, byte dbHandle)
+        public DlpDatabase(DlpClient client, PalmDbHeader header, byte dbHandle)
         {
-            Connection = connection;
+            Client = client;
             DbHandle = dbHandle;
             _header = header;
         }
@@ -32,7 +32,7 @@ namespace Backhand.PalmDb.Dlp
         {
             try
             {
-                ReadAppBlockResponse readResponse = await Connection.ReadAppBlockAsync(new()
+                ReadAppBlockResponse readResponse = await Client.ReadAppBlockAsync(new()
                 {
                     DbHandle = DbHandle,
                     Offset = 0,
@@ -49,7 +49,7 @@ namespace Backhand.PalmDb.Dlp
         
         public async Task WriteAppInfoAsync(Memory<byte> data, CancellationToken cancellationToken = default)
         {
-            await Connection.WriteAppBlockAsync(new()
+            await Client.WriteAppBlockAsync(new()
             {
                 DbHandle = DbHandle,
                 Data = data.ToArray()
@@ -60,7 +60,7 @@ namespace Backhand.PalmDb.Dlp
         {
             try
             {
-                ReadSortBlockResponse readResponse = await Connection.ReadSortBlockAsync(new()
+                ReadSortBlockResponse readResponse = await Client.ReadSortBlockAsync(new()
                 {
                     DbHandle = DbHandle,
                     Offset = 0,
@@ -77,7 +77,7 @@ namespace Backhand.PalmDb.Dlp
         
         public async Task WriteSortInfoAsync(Memory<byte> data, CancellationToken cancellationToken = default)
         {
-            await Connection.WriteSortBlockAsync(new()
+            await Client.WriteSortBlockAsync(new()
             {
                 DbHandle = DbHandle,
                 Data = data.ToArray()

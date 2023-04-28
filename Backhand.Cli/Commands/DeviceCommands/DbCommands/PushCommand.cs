@@ -1,5 +1,4 @@
 using Backhand.Cli.Internal.Commands;
-using Backhand.Dlp.Commands.v1_0;
 using Backhand.PalmDb;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -58,12 +57,12 @@ namespace Backhand.Cli.Commands.DeviceCommands.DbCommands
 
             public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                await context.Connection.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
+                await context.Client.OpenConduitAsync(cancellationToken).ConfigureAwait(false);
                 
                 DirectoryInfo currentDirectory = new(Directory.GetCurrentDirectory());
 
                 DirectoryDbRepository directoryDbRepository = new(currentDirectory);
-                DlpDatabaseRepository deviceDbRepository = new(context.Connection);
+                DlpDatabaseRepository deviceDbRepository = new(context.Client);
 
                 foreach (FileInfo path in Paths)
                 {

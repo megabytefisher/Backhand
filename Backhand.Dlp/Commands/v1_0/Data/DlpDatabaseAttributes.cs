@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Backhand.Dlp.Commands
+namespace Backhand.Dlp.Commands.v1_0.Data
 {
     [Flags]
     public enum DlpDatabaseAttributes : ushort

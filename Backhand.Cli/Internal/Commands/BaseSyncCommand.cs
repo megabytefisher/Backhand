@@ -1,5 +1,4 @@
 ﻿using Backhand.Dlp;
-using Backhand.Protocols.Dlp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
@@ -10,6 +9,7 @@ using System.CommandLine.Invocation;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Dlp.Commands.v1_0;
 
 namespace Backhand.Cli.Internal.Commands
 {
@@ -144,7 +144,7 @@ namespace Backhand.Cli.Internal.Commands
 
         protected class CommandSyncContext
         {
-            public required DlpConnection Connection { get; init; }
+            public required DlpClient Client { get; init; }
             public required IAnsiConsole Console { get; init; }
         }
 
@@ -158,18 +158,18 @@ namespace Backhand.Cli.Internal.Commands
             public required IAnsiConsole Console { get; init; }
             public bool PrintDefaultMessages { get; set; } = true;
 
-            protected abstract Task<T> BuildContextInternalAsync(DlpConnection connection, CancellationToken cancellationToken);
+            protected abstract Task<T> BuildContextInternalAsync(DlpClient client, CancellationToken cancellationToken);
 
-            public override Task<T> InitializeAsync(DlpConnection connection, CancellationToken cancellationToken)
+            public override Task<T> InitializeAsync(DlpClient client, CancellationToken cancellationToken)
             {
-                return BuildContextInternalAsync(connection, cancellationToken);
+                return BuildContextInternalAsync(client, cancellationToken);
             }
 
             public override Task OnSyncStartedAsync(T context, CancellationToken cancellationToken)
             {
                 if (PrintDefaultMessages)
                 {
-                    context.Console.MarkupLineInterpolated($"[bold green]Sync started: {context.Connection.ToString()}[/]");
+                    context.Console.MarkupLineInterpolated($"[bold green]Sync started: {context.Client.ToString()}[/]");
                 }
 
                 return Task.CompletedTask;
@@ -181,12 +181,12 @@ namespace Backhand.Cli.Internal.Commands
                 {
                     if (exception != null)
                     {
-                        context.Console.MarkupLineInterpolated($"[bold red]Sync ended with error: {context.Connection.ToString()}[/]");
+                        context.Console.MarkupLineInterpolated($"[bold red]Sync ended with error: {context.Client.ToString()}[/]");
                         context.Console.WriteException(exception);
                     }
                     else
                     {
-                        context.Console.MarkupLineInterpolated($"[bold green]Sync ended: {context.Connection.ToString()}[/]");
+                        context.Console.MarkupLineInterpolated($"[bold green]Sync ended: {context.Client.ToString()}[/]");
                     }
                 }
 
@@ -196,11 +196,11 @@ namespace Backhand.Cli.Internal.Commands
 
         protected abstract class CommandSyncHandler : CommandSyncHandler<CommandSyncContext>
         {
-            protected override Task<CommandSyncContext> BuildContextInternalAsync(DlpConnection connection, CancellationToken cancellationToken)
+            protected override Task<CommandSyncContext> BuildContextInternalAsync(DlpClient client, CancellationToken cancellationToken)
             {
                 return Task.FromResult(new CommandSyncContext
                 {
-                    Connection = connection,
+                    Client = client,
                     Console = Console
                 });
             }
@@ -219,7 +219,7 @@ namespace Backhand.Cli.Internal.Commands
             {
                 foreach (ISyncHandler syncHandler in _syncHandlers)
                 {
-                    await syncHandler.OnSyncAsync(context.Connection, cancellationToken).ConfigureAwait(false);
+                    await syncHandler.OnSyncAsync(context.Client, cancellationToken).ConfigureAwait(false);
                 }
             }
         }

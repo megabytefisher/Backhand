@@ -1,5 +1,4 @@
 using Backhand.Cli.Internal.Commands;
-using Backhand.Dlp.Commands.v1_0;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using System;
@@ -55,7 +54,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.TimeCommands
             {
                 DateTime writeTime = Time ?? DateTime.Now;
                 
-                await context.Connection.WriteSysDateTimeAsync(new()
+                await context.Client.WriteSysDateTimeAsync(new()
                 {
                     DateTime = writeTime
                 }, cancellationToken).ConfigureAwait(false);

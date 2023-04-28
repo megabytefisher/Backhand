@@ -74,11 +74,11 @@ namespace Backhand.Common.BinarySerialization.Generation
             {
                 try
                 {
-                    CompilationUnitSyntax generatedClass = GenerateSerializationPartialClass(
+                    (string name, CompilationUnitSyntax result) = GenerateSerializationPartialClass(
                         compilation.GetSemanticModel(classDeclarationSyntax.SyntaxTree), classDeclarationSyntax);
                     context.AddSource(
-                        $"{classDeclarationSyntax.Identifier}.BinarySerialization.g.cs",
-                        generatedClass.NormalizeWhitespace().ToFullString());
+                        $"{name}.BinarySerialization.g.cs",
+                        result.NormalizeWhitespace().ToFullString());
                 }
                 catch (Exception ex)
                 {
@@ -87,7 +87,7 @@ namespace Backhand.Common.BinarySerialization.Generation
             }
         }
 
-        static CompilationUnitSyntax GenerateSerializationPartialClass(
+        static (string FullClassName, CompilationUnitSyntax Result) GenerateSerializationPartialClass(
             SemanticModel semanticModel,
             ClassDeclarationSyntax sourceClassDeclaration)
         {
@@ -139,7 +139,8 @@ namespace Backhand.Common.BinarySerialization.Generation
 
             compilationUnit = compilationUnit.AddMembers(namespaceDeclaration);
 
-            return compilationUnit;
+            string fullName = $"{sourceNamespace.Name}.{sourceClassDeclaration.Identifier}";
+            return (fullName, compilationUnit);
         }
 
         static MethodDeclarationSyntax GenerateGetSizeMethod(

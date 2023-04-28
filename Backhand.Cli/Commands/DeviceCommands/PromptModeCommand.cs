@@ -66,7 +66,7 @@ namespace Backhand.Cli.Commands.DeviceCommands
                 
                 using DisposableCallback semaphoreLock = new(() => _syncSemaphore.Release());
 
-                context.Console.MarkupLineInterpolated($"[green]Connected to {context.Connection.ToString()} in prompt mode. Enter device commands to execute or 'end' to end the session.[/]");
+                context.Console.MarkupLineInterpolated($"[green]Connected to {context.Client.ToString()} in prompt mode. Enter device commands to execute or 'end' to end the session.[/]");
 
                 while (true)
                 {
@@ -109,7 +109,7 @@ namespace Backhand.Cli.Commands.DeviceCommands
 
                     try
                     {
-                        await syncHandler.OnSyncAsync(context.Connection, cancellationToken).ConfigureAwait(false);
+                        await syncHandler.OnSyncAsync(context.Client, cancellationToken).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {

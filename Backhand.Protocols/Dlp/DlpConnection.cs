@@ -151,7 +151,7 @@ namespace Backhand.Protocols.Dlp
                 throw new DlpCommandErrorException(errorCode);
             }
 
-            for (int i = 0; i < argumentCount; i++)
+            for (int i = 0; i < Math.Min(argumentCount, commandDefinition.ResponseArguments.Length); i++)
             {
                 byte argumentIdAndType = bufferReader.Read();
                 DlpArgType argumentType = (DlpArgType)(argumentIdAndType & (int)DlpArgType.Mask);

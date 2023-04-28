@@ -1,5 +1,4 @@
 using Backhand.Cli.Internal.Commands;
-using Backhand.Dlp.Commands.v1_0;
 using Backhand.Protocols.Dlp;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -8,6 +7,7 @@ using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 
 namespace Backhand.Cli.Commands.DeviceCommands.UserInfoCommands
@@ -73,7 +73,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.UserInfoCommands
 
             public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                var userInfo = await context.Connection.ReadUserInfoAsync(cancellationToken).ConfigureAwait(false);
+                var userInfo = await context.Client.ReadUserInfoAsync(cancellationToken).ConfigureAwait(false);
 
                 WriteUserInfoRequest request = new()
                 {
@@ -84,17 +84,17 @@ namespace Backhand.Cli.Commands.DeviceCommands.UserInfoCommands
                     Username = Username ?? userInfo.Username
                 };
                 
-                PrintRequest(context.Console, context.Connection, request);
-                await context.Connection.WriteUserInfoAsync(request, cancellationToken).ConfigureAwait(false);
+                PrintRequest(context.Console, context.Client, request);
+                await context.Client.WriteUserInfoAsync(request, cancellationToken).ConfigureAwait(false);
                 
                 context.Console.MarkupLineInterpolated($"[green]Successfully wrote user info to device[/]");
             }
         }
 
-        private static void PrintRequest(IAnsiConsole console, DlpConnection connection, WriteUserInfoRequest userInfo)
+        private static void PrintRequest(IAnsiConsole console, DlpClient client, WriteUserInfoRequest userInfo)
         {
             Table table = new Table()
-                .Title(new TableTitle(Markup.Escape($"{connection} New User Information")))
+                .Title(new TableTitle(Markup.Escape($"{client} New User Information")))
                 .Expand()
                 .AddColumn("Name")
                 .AddColumn("Value")

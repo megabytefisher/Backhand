@@ -1,5 +1,4 @@
 using Backhand.Cli.Internal.Commands;
-using Backhand.Dlp.Commands.v1_0;
 using Backhand.Protocols.Dlp;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -9,6 +8,7 @@ using System.CommandLine.Invocation;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Data;
 
 namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
@@ -48,7 +48,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
             {
                 List<StorageInfo> infos = new();
 
-                await context.Connection.OpenConduitAsync().ConfigureAwait(false);
+                await context.Client.OpenConduitAsync().ConfigureAwait(false);
 
                 byte cardNo = 0;
                 byte lastCard = 0;
@@ -56,7 +56,7 @@ namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
                 {
                     try
                     {
-                        (var mainInfo, _) = await context.Connection.ReadStorageInfoAsync(new()
+                        (var mainInfo, _) = await context.Client.ReadStorageInfoAsync(new()
                         {
                             CardNo = cardNo
                         }, cancellationToken).ConfigureAwait(false);
@@ -72,14 +72,14 @@ namespace Backhand.Cli.Commands.DeviceCommands.StorageInfoCommands
                     cardNo++;
                 } while (cardNo < lastCard);
 
-                PrintResults(context.Console, context.Connection, infos.ToList());
+                PrintResults(context.Console, context.Client, infos.ToList());
             }
         }
 
-        private static void PrintResults(IAnsiConsole console, DlpConnection connection, IEnumerable<StorageInfo> infos)
+        private static void PrintResults(IAnsiConsole console, DlpClient client, IEnumerable<StorageInfo> infos)
         {
             Table table = new Table()
-                .Title(Markup.Escape($"{connection} Storage Info"))
+                .Title(Markup.Escape($"{client} Storage Info"))
                 .Expand()
                 .AddColumn("CardNo")
                 .AddColumn("CardVersion")

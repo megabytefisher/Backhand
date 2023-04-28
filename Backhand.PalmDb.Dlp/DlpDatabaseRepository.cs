@@ -1,4 +1,3 @@
-using Backhand.Dlp.Commands;
 using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Dlp.Commands.v1_0.Data;
@@ -8,23 +7,23 @@ namespace Backhand.PalmDb.Dlp
 {
     public class DlpDatabaseRepository : IPalmDbRepository
     {
-        public DlpConnection Connection { get; }
+        public DlpClient Client { get; }
         
-        public DlpDatabaseRepository(DlpConnection connection)
+        public DlpDatabaseRepository(DlpClient client)
         {
-            Connection = connection;
+            Client = client;
         }
         
         public async Task<ICollection<PalmDbHeader>> GetHeadersAsync(CancellationToken cancellationToken = default)
         {
             List<DatabaseMetadata> dbMetadata = new();
-            for (ushort index = 0;; index = Convert.ToUInt16(dbMetadata.Count + 1))
+            for (ushort index = 0;; index = Convert.ToUInt16(dbMetadata.Max(md => md.Index) + 1))
             {
                 try
                 {
-                    ReadDbListResponse response = await Connection.ReadDbListAsync(new()
+                    ReadDbListResponse response = await Client.ReadDbListAsync(new()
                     {
-                        Mode = ReadDbListRequest.ReadDbListMode.ListRam | ReadDbListRequest.ReadDbListMode.ListMultiple,
+                        Mode = ReadDbListRequest.ReadDbListMode.ListRam,
                         StartIndex = index
                     }, cancellationToken).ConfigureAwait(false);
                     
@@ -53,7 +52,7 @@ namespace Backhand.PalmDb.Dlp
 
         public async Task<IPalmDb> OpenDatabaseAsync(PalmDbHeader header, CancellationToken cancellationToken = default)
         {
-            OpenDbResponse openResponse = await Connection.OpenDbAsync(new()
+            OpenDbResponse openResponse = await Client.OpenDbAsync(new()
             {
                 Name = header.Name,
                 Mode = OpenDbRequest.OpenDbMode.Read
@@ -61,17 +60,17 @@ namespace Backhand.PalmDb.Dlp
             
             if (header.Attributes.HasFlag(DatabaseAttributes.ResourceDb))
             {
-                return new DlpResourceDatabase(Connection, header, openResponse.DbHandle);
+                return new DlpResourceDatabase(Client, header, openResponse.DbHandle);
             }
             else
             {
-                return new DlpRecordDatabase(Connection, header, openResponse.DbHandle);
+                return new DlpRecordDatabase(Client, header, openResponse.DbHandle);
             }
         }
 
         public async Task<IPalmDb> CreateDatabaseAsync(PalmDbHeader header, CancellationToken cancellationToken = default)
         {
-            CreateDbResponse createResponse = await Connection.CreateDbAsync(new()
+            CreateDbResponse createResponse = await Client.CreateDbAsync(new()
             {
                 Name = header.Name,
                 Type = header.Type,
@@ -82,17 +81,17 @@ namespace Backhand.PalmDb.Dlp
 
             if (header.Attributes.HasFlag(DatabaseAttributes.ResourceDb))
             {
-                return new DlpResourceDatabase(Connection, header, createResponse.DbHandle);
+                return new DlpResourceDatabase(Client, header, createResponse.DbHandle);
             }
             else
             {
-                return new DlpRecordDatabase(Connection, header, createResponse.DbHandle);
+                return new DlpRecordDatabase(Client, header, createResponse.DbHandle);
             }
         }
 
         public async Task DeleteDatabaseAsync(PalmDbHeader header, CancellationToken cancellationToken = default)
         {
-            await Connection.DeleteDbAsync(new()
+            await Client.DeleteDbAsync(new()
             {
                 Name = header.Name
             }, cancellationToken).ConfigureAwait(false);
@@ -106,7 +105,7 @@ namespace Backhand.PalmDb.Dlp
                 throw new InvalidOperationException("Database is not a DLP database");
             }
 
-            await Connection.CloseDbAsync(new()
+            await Client.CloseDbAsync(new()
             {
                 DbHandle = dlpDatabase.DbHandle
             }, cancellationToken).ConfigureAwait(false);

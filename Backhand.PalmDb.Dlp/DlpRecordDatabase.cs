@@ -1,5 +1,5 @@
-using Backhand.Dlp.Commands;
 using Backhand.Dlp.Commands.v1_0;
+using Backhand.Dlp.Commands.v1_0.Data;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
 
@@ -7,7 +7,7 @@ namespace Backhand.PalmDb.Dlp
 {
     public class DlpRecordDatabase : DlpDatabase, IPalmRecordDb
     {
-        public DlpRecordDatabase(DlpConnection connection, PalmDbHeader header, byte dbHandle) : base(connection, header, dbHandle)
+        public DlpRecordDatabase(DlpClient client, PalmDbHeader header, byte dbHandle) : base(client, header, dbHandle)
         {
         }
 
@@ -20,7 +20,7 @@ namespace Backhand.PalmDb.Dlp
             {
                 try
                 {
-                    ReadRecordIdListResponse listResponse = await Connection.ReadRecordIdListAsync(new()
+                    ReadRecordIdListResponse listResponse = await Client.ReadRecordIdListAsync(new()
                     {
                         DbHandle = DbHandle,
                         Flags = 0,
@@ -44,7 +44,7 @@ namespace Backhand.PalmDb.Dlp
             ReadRecordResponse response;
             try
             {
-                response = await Connection.ReadRecordByIndexAsync(new()
+                response = await Client.ReadRecordByIndexAsync(new()
                 {
                     DbHandle = DbHandle,
                     RecordIndex = index,
@@ -72,7 +72,7 @@ namespace Backhand.PalmDb.Dlp
         
         public async Task<PalmDbRecordHeader> ReadRecordByIdAsync(uint id, Stream? dataStream, CancellationToken cancellationToken = default)
         {
-            ReadRecordResponse response = await Connection.ReadRecordByIdAsync(new()
+            ReadRecordResponse response = await Client.ReadRecordByIdAsync(new()
             {
                 DbHandle = DbHandle,
                 RecordId = id,
@@ -95,7 +95,7 @@ namespace Backhand.PalmDb.Dlp
 
         public async Task WriteRecordAsync(PalmDbRecordHeader header, Memory<byte> data, CancellationToken cancellationToken = default)
         {
-            await Connection.WriteRecordAsync(new()
+            await Client.WriteRecordAsync(new()
             {
                 DbHandle = DbHandle,
                 Attributes = (DlpRecordAttributes)header.Attributes,

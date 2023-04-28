@@ -8,8 +8,7 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
     [GenerateBinarySerialization]
     public partial class ReadSysDateTimeResponse : IBinarySerializable
     {
-        [BinarySerialize]
-        private DlpDateTime DlpDateTime { get; set; } = new();
+        [BinarySerialize] private DlpDateTime DlpDateTime { get; set; } = new();
 
         public DateTime DateTime
         {

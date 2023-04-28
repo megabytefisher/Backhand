@@ -16,14 +16,9 @@ namespace Backhand.Dlp.Commands.v1_0.Arguments
             Secret          = 0b00010000,
         }
 
-        [BinarySerialize]
-        public byte CardId { get; set; }
-
-        [BinarySerialize]
-        public OpenDbMode Mode { get; set; }
-
-        [BinarySerialize]
-        private NullTerminatedBinaryString NameString { get; } = new NullTerminatedBinaryString();
+        [BinarySerialize] public byte CardId { get; set; }
+        [BinarySerialize] public OpenDbMode Mode { get; set; }
+        [BinarySerialize] private NullTerminatedBinaryString NameString { get; } = new NullTerminatedBinaryString();
 
         public string Name
         {

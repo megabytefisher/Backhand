@@ -1,4 +1,3 @@
-using System.IO;
 using Backhand.PalmDb;
 
 namespace Backhand.Cli.Internal.DatabaseDisassembly

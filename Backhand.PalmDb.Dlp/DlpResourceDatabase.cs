@@ -6,7 +6,7 @@ namespace Backhand.PalmDb.Dlp
 {
     public class DlpResourceDatabase : DlpDatabase, IPalmResourceDb
     {
-        public DlpResourceDatabase(DlpConnection connection, PalmDbHeader header, byte dbHandle) : base(connection, header, dbHandle)
+        public DlpResourceDatabase(DlpClient client, PalmDbHeader header, byte dbHandle) : base(client, header, dbHandle)
         {
         }
 
@@ -15,7 +15,7 @@ namespace Backhand.PalmDb.Dlp
             ReadResourceResponse response;
             try
             {
-                response = await Connection.ReadResourceByIndexAsync(new()
+                response = await Client.ReadResourceByIndexAsync(new()
                 {
                     DbHandle = DbHandle,
                     ResourceIndex = index,
@@ -41,7 +41,7 @@ namespace Backhand.PalmDb.Dlp
 
         public async Task WriteResourceAsync(PalmDbResourceHeader header, Memory<byte> data, CancellationToken cancellationToken)
         {
-            await Connection.WriteResourceAsync(new()
+            await Client.WriteResourceAsync(new()
             {
                 DbHandle = DbHandle,
                 Type = header.Type,

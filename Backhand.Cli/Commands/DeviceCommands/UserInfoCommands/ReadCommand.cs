@@ -1,5 +1,4 @@
 using Backhand.Cli.Internal.Commands;
-using Backhand.Dlp.Commands.v1_0;
 using Backhand.Dlp.Commands.v1_0.Arguments;
 using Backhand.Protocols.Dlp;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +8,7 @@ using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Threading;
 using System.Threading.Tasks;
+using Backhand.Dlp.Commands.v1_0;
 
 namespace Backhand.Cli.Commands.DeviceCommands.UserInfoCommands
 {
@@ -43,15 +43,15 @@ namespace Backhand.Cli.Commands.DeviceCommands.UserInfoCommands
         {
             public override async Task OnSyncAsync(CommandSyncContext context, CancellationToken cancellationToken)
             {
-                ReadUserInfoResponse userInfo = await context.Connection.ReadUserInfoAsync(cancellationToken).ConfigureAwait(false);
-                PrintResult(context.Console, context.Connection, userInfo);
+                ReadUserInfoResponse userInfo = await context.Client.ReadUserInfoAsync(cancellationToken).ConfigureAwait(false);
+                PrintResult(context.Console, context.Client, userInfo);
             }
         }
 
-        private static void PrintResult(IAnsiConsole console, DlpConnection connection, ReadUserInfoResponse userInfo)
+        private static void PrintResult(IAnsiConsole console, DlpClient client, ReadUserInfoResponse userInfo)
         {
             Table table = new Table()
-                .Title(Markup.Escape($"{connection} User Information"))
+                .Title(Markup.Escape($"{client} User Information"))
                 .Expand()
                 .AddColumn("Name")
                 .AddColumn("Value")

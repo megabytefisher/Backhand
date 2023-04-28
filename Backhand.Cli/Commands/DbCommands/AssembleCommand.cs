@@ -1,3 +1,15 @@
+using System;
+using System.CommandLine;
+using System.IO;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Backhand.Common.Buffers;
+using Backhand.PalmDb;
+using Backhand.PalmDb.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console;
+
 namespace Backhand.Cli.Commands.DbCommands
 {
     /*public class AssembleCommand : Command
@@ -5,28 +17,24 @@ namespace Backhand.Cli.Commands.DbCommands
         public readonly Argument<DirectoryInfo> InputArgument =
             new("input", "The input directory to assemble");
 
-        public readonly Option<FileInfo?> OutputOption =
-            new(new[] { "--output", "-o" }, "The output file to assemble to");
-
         public AssembleCommand()
             : base("assemble", "Assembles a Palm database file from its constituent parts")
         {
             AddArgument(InputArgument);
-            AddOption(OutputOption);
 
             this.SetHandler(async (context) =>
             {
-                DirectoryInfo input = context.ParseResult.GetValueForArgument(InputArgument);
-                FileInfo? output = context.ParseResult.GetValueForOption(OutputOption);
+                IAnsiConsole console = context.BindingContext.GetRequiredService<IAnsiConsole>();
 
-                IConsole console = context.Console;
+                DirectoryInfo input = context.ParseResult.GetValueForArgument(InputArgument);
+
                 CancellationToken cancellationToken = context.GetCancellationToken();
 
-                await AssembleFileAsync(input, output, console, cancellationToken);
+                await AssembleFileAsync(input, console, cancellationToken);
             });
         }
 
-        private static async Task AssembleFileAsync(DirectoryInfo inputDirectory, FileInfo? outputFile, IConsole console, CancellationToken cancellationToken)
+        private static async Task AssembleFileAsync(DirectoryInfo inputDirectory, IAnsiConsole console, CancellationToken cancellationToken)
         {
             FileInfo headerFile = new(Path.Combine(inputDirectory.FullName, "header.json"));
             if (!headerFile.Exists)

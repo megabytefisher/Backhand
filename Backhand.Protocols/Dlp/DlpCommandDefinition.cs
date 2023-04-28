@@ -1,16 +1,12 @@
-﻿namespace Backhand.Protocols.Dlp
+﻿using System;
+using System.Collections.Generic;
+
+namespace Backhand.Protocols.Dlp
 {
     public class DlpCommandDefinition
     {
-        public byte Opcode { get; }
-        public DlpArgumentDefinition[] RequestArguments { get; }
-        public DlpArgumentDefinition[] ResponseArguments { get; }
-
-        public DlpCommandDefinition(byte opcode, DlpArgumentDefinition[] requestArguments, DlpArgumentDefinition[] responseArguments)
-        {
-            Opcode = opcode;
-            RequestArguments = requestArguments;
-            ResponseArguments = responseArguments;
-        }
+        public required byte Opcode { get; init; }
+        public DlpArgumentDefinition[] RequestArguments { get; init; } = Array.Empty<DlpArgumentDefinition>();
+        public DlpArgumentDefinition[] ResponseArguments { get; init; } = Array.Empty<DlpArgumentDefinition>();
     }
 }
