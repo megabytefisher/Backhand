@@ -122,8 +122,18 @@ namespace Backhand.PalmDb.FileIO.FileSerialization
 
         public PalmDbFileHeader ToPalmDbFileHeader(FileInfo file)
         {
-            return (PalmDbFileHeader)ToPalmDbHeader() with
+            return new PalmDbFileHeader()
             {
+                Name = Name,
+                Attributes = Attributes,
+                Version = Version,
+                CreationDate = CreationDate,
+                ModificationDate = ModificationDate,
+                LastBackupDate = LastBackupDate,
+                ModificationNumber = ModificationNumber,
+                Type = Type,
+                Creator = Creator,
+                UniqueIdSeed = UniqueIdSeed,
                 File = file
             };
         }

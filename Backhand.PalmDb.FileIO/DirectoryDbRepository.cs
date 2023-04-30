@@ -11,12 +11,14 @@ namespace Backhand.PalmDb.FileIO
     public class DirectoryDbRepository : IPalmDbRepository
     {
         public DirectoryInfo Directory { get; }
-        
+
+        private readonly bool _writeChanges;
         private readonly Dictionary<Database, FileInfo> _openDatabaseFiles = new();
         
-        public DirectoryDbRepository(DirectoryInfo directory)
+        public DirectoryDbRepository(DirectoryInfo directory, bool writeChanges = true)
         {
             Directory = directory;
+            _writeChanges = writeChanges;
         }
 
         public async Task<ICollection<PalmDbFileHeader>> GetHeadersAsync(CancellationToken cancellationToken = default)
@@ -48,7 +50,9 @@ namespace Backhand.PalmDb.FileIO
             }
 
             await using FileStream stream = fileHeader.File.OpenRead();
-            return await PalmDbFile.ReadAsync(stream, cancellationToken);
+            Database db = await PalmDbFile.ReadAsync(stream, cancellationToken);
+            _openDatabaseFiles.Add(db, fileHeader.File);
+            return db;
         }
 
         public Task<IPalmDb> CreateDatabaseAsync(string path, PalmDbHeader header, CancellationToken cancellationToken = default)
@@ -88,6 +92,8 @@ namespace Backhand.PalmDb.FileIO
                 throw new System.ArgumentException("The header must be a FileDatabaseHeader.", nameof(header));
             }
             
+            if (!_writeChanges) return Task.CompletedTask;
+
             fileHeader.File.Delete();
 
             return Task.CompletedTask;
@@ -95,6 +101,7 @@ namespace Backhand.PalmDb.FileIO
 
         public async Task CloseDatabaseAsync(IPalmDb database, CancellationToken cancellationToken = default)
         {
+
             if (database is not Database memoryDatabase)
             {
                 return;
@@ -105,8 +112,10 @@ namespace Backhand.PalmDb.FileIO
                 throw new System.ArgumentException("The database is not open.", nameof(database));
             }
 
-            await PalmDbFile.WriteAsync(file, database, cancellationToken).ConfigureAwait(false);
             _openDatabaseFiles.Remove(memoryDatabase);
+            if (!_writeChanges) return;
+
+            await PalmDbFile.WriteAsync(file, database, cancellationToken).ConfigureAwait(false);
         }
     }
 }

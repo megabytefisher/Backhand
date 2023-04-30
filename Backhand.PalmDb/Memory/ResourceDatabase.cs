@@ -17,6 +17,9 @@ namespace Backhand.PalmDb.Memory
 
         public async Task<PalmDbResourceHeader?> ReadResourceByIndexAsync(ushort index, Stream? dataStream, CancellationToken cancellationToken)
         {
+            if (index >= _resources.Count)
+                return null;
+
             MemoryDatabaseResource resource = _resources[index];
             if (dataStream != null) await dataStream.WriteAsync(resource.Data, cancellationToken);
             return resource.Header;

@@ -39,7 +39,7 @@ namespace Backhand.PalmDb.FileIO
             await WriteAsync(stream, database, cancellationToken).ConfigureAwait(false);
         }
         
-        public static async Task<IPalmDb> ReadAsync(Stream stream, CancellationToken cancellationToken = default)
+        public static async Task<Database> ReadAsync(Stream stream, CancellationToken cancellationToken = default)
         {
             PdbHeader header = await ReadPdbHeaderAsync(stream, cancellationToken);
             stream.Seek(0, SeekOrigin.Begin);
